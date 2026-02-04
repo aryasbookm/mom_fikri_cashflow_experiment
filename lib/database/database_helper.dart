@@ -1,0 +1,172 @@
+import 'package:path/path.dart';
+import 'package:sqflite/sqflite.dart';
+
+class DatabaseHelper {
+  DatabaseHelper._internal();
+
+  static final DatabaseHelper instance = DatabaseHelper._internal();
+
+  static Database? _database;
+
+  Future<Database> get database async {
+    if (_database != null) {
+      return _database!;
+    }
+    _database = await _initDatabase();
+    return _database!;
+  }
+
+  static const int _dbVersion = 2;
+
+  Future<Database> _initDatabase() async {
+    final databasesPath = await getDatabasesPath();
+    final path = join(databasesPath, 'mom_fikri_cashflow_v2.db');
+
+    return openDatabase(
+      path,
+      version: _dbVersion,
+      onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
+    );
+  }
+
+  Future<void> _onCreate(Database db, int version) async {
+    await db.execute('''
+      CREATE TABLE users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        pin TEXT NOT NULL,
+        role TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE categories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE transactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type TEXT NOT NULL,
+        amount INTEGER NOT NULL,
+        category_id INTEGER NOT NULL,
+        description TEXT,
+        date TEXT NOT NULL,
+        user_id INTEGER NOT NULL,
+        product_id INTEGER,
+        quantity INTEGER,
+        FOREIGN KEY(category_id) REFERENCES categories(id),
+        FOREIGN KEY(user_id) REFERENCES users(id),
+        FOREIGN KEY(product_id) REFERENCES products(id)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE production (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        product_name TEXT NOT NULL,
+        quantity INTEGER NOT NULL,
+        date TEXT NOT NULL,
+        user_id INTEGER NOT NULL,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE products (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        price INTEGER NOT NULL,
+        stock INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+
+    await _seedInitialData(db);
+  }
+
+  Future<void> _seedInitialData(Database db) async {
+    await db.insert('users', {
+      'username': 'admin',
+      'pin': '1234',
+      'role': 'owner',
+    });
+
+    await db.insert('users', {
+      'username': 'karyawan',
+      'pin': '0000',
+      'role': 'staff',
+    });
+
+    await db.insert('categories', {
+      'name': 'Penjualan Kue',
+      'type': 'IN',
+    });
+
+    await db.insert('categories', {
+      'name': 'Bahan Baku',
+      'type': 'OUT',
+    });
+
+    await db.insert('categories', {
+      'name': 'Operasional',
+      'type': 'OUT',
+    });
+
+    await db.insert('categories', {
+      'name': 'Gaji',
+      'type': 'OUT',
+    });
+
+    final products = [
+      {'name': 'Roti Sosis', 'price': 5000},
+      {'name': 'Roti Pizza Mini', 'price': 5000},
+      {'name': 'Roti Abon', 'price': 5000},
+      {'name': 'Roti Pisang Coklat', 'price': 5000},
+      {'name': 'Roti Keju', 'price': 5000},
+      {'name': 'Roti Vanila', 'price': 5000},
+      {'name': 'Roti Coklat', 'price': 5000},
+      {'name': 'Roti Boy', 'price': 5000},
+      {'name': 'Roti Sobek 3 Rasa', 'price': 25000},
+      {'name': 'Roti Sobek Coklat', 'price': 25000},
+      {'name': 'Roti Maros', 'price': 20000},
+      {'name': 'Donat Coklat', 'price': 4000},
+      {'name': 'Donat Mini', 'price': 25000},
+      {'name': 'Donat Glaze isi 12', 'price': 50000},
+      {'name': 'Donat Coklat isi 12', 'price': 40000},
+      {'name': 'Bolu 3 Rasa', 'price': 30000},
+      {'name': 'Bolu Mabel', 'price': 45000},
+      {'name': 'Brownies Panggang', 'price': 40000},
+      {'name': 'Brownies Kukus Keju Kecil', 'price': 45000},
+      {'name': 'Brownies Kukus Keju Sedang', 'price': 55000},
+      {'name': 'Brownies Kukus Keju Besar', 'price': 100000},
+      {'name': 'Brownies Toping Kecil', 'price': 50000},
+      {'name': 'Brownies Toping Sedang', 'price': 60000},
+      {'name': 'Bento Cake', 'price': 50000},
+      {'name': 'Tart', 'price': 110000},
+      {'name': 'Tart Besar', 'price': 130000},
+      {'name': 'Aneka Snack', 'price': 10000},
+      {'name': 'Dempo Kacang', 'price': 19000},
+      {'name': 'Dempo Gula Pasir', 'price': 15000},
+      {'name': 'Kacang Telur', 'price': 35000},
+      {'name': 'Kacang Sembunyi', 'price': 10000},
+      {'name': 'Snack Besar', 'price': 50000},
+    ];
+
+    for (final product in products) {
+      await db.insert('products', product);
+    }
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    await db.execute('DROP TABLE IF EXISTS transactions');
+    await db.execute('DROP TABLE IF EXISTS production');
+    await db.execute('DROP TABLE IF EXISTS categories');
+    await db.execute('DROP TABLE IF EXISTS products');
+    await db.execute('DROP TABLE IF EXISTS users');
+    await _onCreate(db, newVersion);
+  }
+}
