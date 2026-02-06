@@ -283,10 +283,20 @@ class _ProductionScreenState extends State<ProductionScreen> {
             _selectedProductName = products.first.name;
             _selectedProductId = products.first.id;
           }
+          final sortedByStock = [...products]
+            ..sort((a, b) {
+              if (a.stock != b.stock) {
+                return b.stock.compareTo(a.stock);
+              }
+              return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+            });
           final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
           final wasteToday = transactionProvider.transactions.where((tx) {
             return tx.type == 'WASTE' && tx.date == today;
           }).toList();
+
+          final totalStock =
+              products.fold<int>(0, (sum, product) => sum + product.stock);
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -346,7 +356,7 @@ class _ProductionScreenState extends State<ProductionScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Total Produksi Keseluruhan',
+                        'Total Stok Tersedia',
                         style: TextStyle(
                           color: Colors.white70,
                           fontWeight: FontWeight.w600,
@@ -354,7 +364,7 @@ class _ProductionScreenState extends State<ProductionScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '${productionProvider.totalQuantityAll} Pcs',
+                        '$totalStock Pcs',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 22,
@@ -443,7 +453,7 @@ class _ProductionScreenState extends State<ProductionScreen> {
                 ),
                 const SizedBox(height: 16),
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
@@ -455,87 +465,94 @@ class _ProductionScreenState extends State<ProductionScreen> {
                       ),
                     ],
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                  child: ExpansionTile(
+                    title: const Text(
+                      'Stok Produk',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    initiallyExpanded: false,
                     children: [
-                      const Text(
-                        'Stok Produk',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      ...products.map((product) {
-                        return ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(product.name),
-                          subtitle: Text('Stok: ${product.stock}'),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.delete_outline, color: Colors.red),
-                            onPressed: () {
-                              if (product.id != null) {
-                                _wasteStock(product.id!, product.name);
-                              }
-                            },
+                      const SizedBox(height: 4),
+                      if (sortedByStock.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            'Belum ada produk',
+                            style: TextStyle(color: Colors.grey),
                           ),
-                        );
-                      }).toList(),
+                        )
+                      else
+                        ...sortedByStock.map((product) {
+                          return ListTile(
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 8),
+                            title: Text(product.name),
+                            subtitle: Text('Stok: ${product.stock}'),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete_outline,
+                                  color: Colors.red),
+                              onPressed: () {
+                                if (product.id != null) {
+                                  _wasteStock(product.id!, product.name);
+                                }
+                              },
+                            ),
+                          );
+                        }).toList(),
                     ],
                   ),
                 ),
                 const SizedBox(height: 16),
-                if (productionProvider.todayItems.isEmpty)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Text(
-                        'Belum ada produksi hari ini',
-                        style: TextStyle(color: Colors.grey),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.06),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
                       ),
+                    ],
+                  ),
+                  child: ExpansionTile(
+                    title: const Text(
+                      'Daftar Produksi Hari Ini',
+                      style: TextStyle(fontWeight: FontWeight.w600),
                     ),
-                  )
-                else
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.06),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const Text(
-                          'Daftar Produksi Hari Ini',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
+                    initiallyExpanded: true,
+                    children: [
+                      const SizedBox(height: 4),
+                      if (productionProvider.todayItems.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            'Belum ada produksi hari ini',
+                            style: TextStyle(color: Colors.grey),
                           ),
-                        ),
-                        const SizedBox(height: 8),
+                        )
+                      else
                         ...productionProvider.todayItems.map((item) {
                           final product = products
                               .where((p) => p.name == item.productName)
                               .toList();
-                          final stock = product.isNotEmpty ? product.first.stock : 0;
+                          final stock =
+                              product.isNotEmpty ? product.first.stock : 0;
                           return ListTile(
-                            contentPadding: EdgeInsets.zero,
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 8),
                             title: Text(item.productName),
                             subtitle: Text('Stok saat ini: $stock'),
                             trailing: Text('${item.quantity} pcs'),
                           );
                         }).toList(),
-                      ],
-                    ),
+                    ],
                   ),
+                ),
                 const SizedBox(height: 16),
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
@@ -547,25 +564,27 @@ class _ProductionScreenState extends State<ProductionScreen> {
                       ),
                     ],
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                  child: ExpansionTile(
+                    title: const Text(
+                      'Barang Rusak/Basi Hari Ini',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    initiallyExpanded: false,
                     children: [
-                      const Text(
-                        'Barang Rusak/Basi Hari Ini',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 4),
                       if (wasteToday.isEmpty)
-                        const Text(
-                          'Belum ada barang rusak hari ini',
-                          style: TextStyle(color: Colors.grey),
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            'Belum ada barang rusak hari ini',
+                            style: TextStyle(color: Colors.grey),
+                          ),
                         )
                       else
                         ...wasteToday.map((item) {
                           return ListTile(
-                            contentPadding: EdgeInsets.zero,
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 8),
                             title: Text(item.description ?? 'Barang rusak'),
                             trailing: Text('${item.quantity ?? 0} pcs'),
                           );

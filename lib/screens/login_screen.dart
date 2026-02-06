@@ -99,7 +99,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Toko Kue Mom Fiqry Poleang',
+                      'Toko Kue Mom Fiqry',
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w700,

@@ -7,7 +7,6 @@ import '../models/production_model.dart';
 
 class ProductionProvider extends ChangeNotifier {
   final List<ProductionModel> _todayItems = [];
-  int _totalQuantityAll = 0;
 
   List<ProductionModel> get todayItems => List.unmodifiable(_todayItems);
 
@@ -15,7 +14,6 @@ class ProductionProvider extends ChangeNotifier {
     return _todayItems.fold(0, (sum, item) => sum + item.quantity);
   }
 
-  int get totalQuantityAll => _totalQuantityAll;
 
   Future<void> addProduction(ProductionModel item) async {
     final Database db = await DatabaseHelper.instance.database;
@@ -36,11 +34,6 @@ class ProductionProvider extends ChangeNotifier {
     _todayItems
       ..clear()
       ..addAll(result.map(ProductionModel.fromMap));
-
-    final totalResult =
-        await db.rawQuery('SELECT SUM(quantity) as total FROM production');
-    final total = totalResult.first['total'] as int?;
-    _totalQuantityAll = total ?? 0;
 
     notifyListeners();
   }

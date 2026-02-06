@@ -25,7 +25,7 @@ class _MainScreenState extends State<MainScreen> {
   String _titleForIndex(int index) {
     switch (index) {
       case 0:
-        return 'Toko Kue Mom Fiqry Poleang';
+        return 'Toko Kue Mom Fiqry';
       case 1:
         return 'Laporan';
       case 2:
@@ -33,7 +33,7 @@ class _MainScreenState extends State<MainScreen> {
       case 3:
         return 'Akun';
       default:
-        return 'Toko Kue Mom Fiqry Poleang';
+        return 'Toko Kue Mom Fiqry';
     }
   }
 
