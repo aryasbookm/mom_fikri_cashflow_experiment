@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
+import '../providers/transaction_provider.dart';
+import '../providers/user_provider.dart';
+import '../widgets/account_panel.dart';
 import 'login_screen.dart';
+import 'manage_users_screen.dart';
 
 class AccountScreen extends StatelessWidget {
   const AccountScreen({super.key});
@@ -11,65 +15,55 @@ class AccountScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
     final user = authProvider.currentUser;
+    final isOwner = user?.role == 'owner';
 
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.account_circle, size: 100, color: Colors.grey),
-          const SizedBox(height: 12),
-          Text(
-            user?.username ?? 'Pengguna',
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            user?.role ?? '- ',
-            style: const TextStyle(color: Colors.grey),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-            ),
-            onPressed: () async {
-              final confirmed = await showDialog<bool>(
-                context: context,
-                builder: (context) {
-                  return AlertDialog(
-                    title: const Text('Konfirmasi Keluar'),
-                    content: const Text('Apakah Anda yakin ingin keluar?'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(false),
-                        child: const Text('Batal'),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(true),
-                        child: const Text('Ya, Keluar'),
-                      ),
-                    ],
-                  );
-                },
-              );
+    return AccountPanel(
+      onLogout: () async {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: const Text('Konfirmasi Keluar'),
+              content: const Text('Apakah Anda yakin ingin keluar?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Batal'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('Ya, Keluar'),
+                ),
+              ],
+            );
+          },
+        );
 
-              if (confirmed != true) {
+        if (confirmed != true) {
+          return;
+        }
+
+        context.read<TransactionProvider>().clearTransactions();
+        authProvider.logout();
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => const LoginScreen(),
+          ),
+        );
+      },
+      onManageUsers: isOwner
+          ? () async {
+              await context.read<UserProvider>().loadUsers();
+              if (!context.mounted) {
                 return;
               }
-
-              authProvider.logout();
-              Navigator.of(context).pushReplacement(
+              await Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => const LoginScreen(),
+                  builder: (_) => const ManageUsersScreen(),
                 ),
               );
-            },
-            child: const Text('Logout'),
-          ),
-        ],
-      ),
+            }
+          : null,
     );
   }
 }

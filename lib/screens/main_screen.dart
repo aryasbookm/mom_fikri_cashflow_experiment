@@ -15,17 +15,17 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _pages = const [
-    OwnerDashboard(),
-    ReportScreen(),
-    ProductionScreen(showAppBar: false),
-    AccountScreen(),
+  late final List<Widget> _pages = [
+    const OwnerDashboard(),
+    const ReportScreen(),
+    const ProductionScreen(showAppBar: false),
+    const AccountScreen(),
   ];
 
   String _titleForIndex(int index) {
     switch (index) {
       case 0:
-        return 'Toko Kue Mom Fiqry';
+        return 'Toko Kue Mom Fiqry (Eksperimen)';
       case 1:
         return 'Laporan';
       case 2:
@@ -33,7 +33,7 @@ class _MainScreenState extends State<MainScreen> {
       case 3:
         return 'Akun';
       default:
-        return 'Toko Kue Mom Fiqry';
+        return 'Toko Kue Mom Fiqry (Eksperimen)';
     }
   }
 

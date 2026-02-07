@@ -4,17 +4,23 @@ import 'package:intl/intl.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../database/database_helper.dart';
+import '../models/deleted_transaction_model.dart';
 import '../models/transaction_model.dart';
 import 'product_provider.dart';
 
 class TransactionProvider extends ChangeNotifier {
-  TransactionProvider() {
-    loadTransactions();
-  }
 
   final List<TransactionModel> _transactions = [];
+  final List<DeletedTransaction> _deletedTransactions = [];
 
   List<TransactionModel> get transactions => List.unmodifiable(_transactions);
+  List<DeletedTransaction> get deletedTransactions =>
+      List.unmodifiable(_deletedTransactions);
+
+  void clearTransactions() {
+    _transactions.clear();
+    notifyListeners();
+  }
 
   Future<void> loadTransactions() async {
     final Database db = await DatabaseHelper.instance.database;
@@ -106,6 +112,106 @@ class TransactionProvider extends ChangeNotifier {
     }
     await db.delete('transactions', where: 'id = ?', whereArgs: [id]);
     await loadTransactions();
+  }
+
+  Future<void> deleteTransactionWithAudit({
+    required TransactionModel transaction,
+    required String reason,
+    required String deletedBy,
+    ProductProvider? productProvider,
+  }) async {
+    final Database db = await DatabaseHelper.instance.database;
+    await DatabaseHelper.instance.insertDeletedTransaction({
+      'original_id': transaction.id,
+      'type': transaction.type,
+      'amount': transaction.amount,
+      'category_id': transaction.categoryId,
+      'category': transaction.categoryName,
+      'description': transaction.description,
+      'date': transaction.date,
+      'user_id': transaction.userId,
+      'product_id': transaction.productId,
+      'quantity': transaction.quantity,
+      'deleted_at': DateTime.now().toIso8601String(),
+      'deleted_by': deletedBy,
+      'reason': reason,
+    });
+
+    if (transaction.id != null) {
+      await deleteTransaction(
+        transaction.id!,
+        productProvider: productProvider,
+      );
+    } else {
+      await loadTransactions();
+    }
+  }
+
+  Future<void> loadDeletedTransactions() async {
+    final rows = await DatabaseHelper.instance.getDeletedTransactions();
+    _deletedTransactions
+      ..clear()
+      ..addAll(rows.map(DeletedTransaction.fromMap));
+    notifyListeners();
+  }
+
+  Future<void> deleteAuditLog(int id) async {
+    await DatabaseHelper.instance.deleteDeletedTransaction(id);
+    await loadDeletedTransactions();
+  }
+
+  Future<void> clearAllAuditLogs() async {
+    await DatabaseHelper.instance.clearDeletedTransactions();
+    await loadDeletedTransactions();
+  }
+
+  Future<bool> restoreDeletedTransaction(
+    DeletedTransaction deleted, {
+    ProductProvider? productProvider,
+  }) async {
+    final Database db = await DatabaseHelper.instance.database;
+    int? categoryId = deleted.categoryId;
+    if (categoryId == null && deleted.category != null) {
+      final rows = await db.query(
+        'categories',
+        columns: ['id'],
+        where: 'name = ?',
+        whereArgs: [deleted.category],
+        limit: 1,
+      );
+      if (rows.isNotEmpty) {
+        categoryId = rows.first['id'] as int?;
+      }
+    }
+
+    if (categoryId == null) {
+      return false;
+    }
+
+    await db.insert('transactions', {
+      'type': deleted.type,
+      'amount': deleted.amount,
+      'category_id': categoryId,
+      'description': deleted.description,
+      'date': deleted.date,
+      'user_id': deleted.userId,
+      'product_id': deleted.productId,
+      'quantity': deleted.quantity,
+    });
+
+    if ((deleted.type == 'IN' || deleted.type == 'WASTE') &&
+        deleted.productId != null &&
+        deleted.quantity != null) {
+      await productProvider?.updateStock(deleted.productId!, -deleted.quantity!);
+    }
+
+    if (deleted.id != null) {
+      await DatabaseHelper.instance.deleteDeletedTransaction(deleted.id!);
+    }
+
+    await loadTransactions();
+    await loadDeletedTransactions();
+    return true;
   }
 
   Future<void> loadTodayTransactionsForUser(int userId) async {

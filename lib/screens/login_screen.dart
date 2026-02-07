@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
+import '../providers/transaction_provider.dart';
 import 'main_screen.dart';
 import 'staff_dashboard.dart';
 
@@ -41,6 +42,7 @@ class _LoginScreenState extends State<LoginScreen> {
           MaterialPageRoute(builder: (_) => const MainScreen()),
         );
       } else if (role == 'staff') {
+        context.read<TransactionProvider>().clearTransactions();
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const StaffDashboard()),
         );
@@ -99,7 +101,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Toko Kue Mom Fiqry',
+                      'Toko Kue Mom Fiqry (Eksperimen)',
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w700,

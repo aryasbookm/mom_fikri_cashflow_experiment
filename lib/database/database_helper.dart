@@ -1,6 +1,8 @@
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../utils/password_hasher.dart';
+
 class DatabaseHelper {
   DatabaseHelper._internal();
 
@@ -16,7 +18,7 @@ class DatabaseHelper {
     return _database!;
   }
 
-  static const int _dbVersion = 2;
+  static const int _dbVersion = 5;
 
   Future<Database> _initDatabase() async {
     final databasesPath = await getDatabasesPath();
@@ -36,7 +38,8 @@ class DatabaseHelper {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT NOT NULL UNIQUE,
         pin TEXT NOT NULL,
-        role TEXT NOT NULL
+        role TEXT NOT NULL,
+        profile_image_path TEXT
       )
     ''');
 
@@ -85,20 +88,41 @@ class DatabaseHelper {
       )
     ''');
 
+    await db.execute('''
+      CREATE TABLE deleted_transactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        original_id INTEGER,
+        type TEXT NOT NULL,
+        amount INTEGER NOT NULL,
+        category_id INTEGER,
+        category TEXT,
+        description TEXT,
+        date TEXT NOT NULL,
+        user_id INTEGER,
+        product_id INTEGER,
+        quantity INTEGER,
+        deleted_at TEXT NOT NULL,
+        deleted_by TEXT NOT NULL,
+        reason TEXT NOT NULL
+      )
+    ''');
+
     await _seedInitialData(db);
   }
 
   Future<void> _seedInitialData(Database db) async {
     await db.insert('users', {
       'username': 'admin',
-      'pin': '1234',
+      'pin': PasswordHasher.hash('1234'),
       'role': 'owner',
+      'profile_image_path': null,
     });
 
     await db.insert('users', {
       'username': 'karyawan',
-      'pin': '0000',
+      'pin': PasswordHasher.hash('0000'),
       'role': 'staff',
+      'profile_image_path': null,
     });
 
     await db.insert('categories', {
@@ -162,11 +186,70 @@ class DatabaseHelper {
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    await db.execute('DROP TABLE IF EXISTS transactions');
-    await db.execute('DROP TABLE IF EXISTS production');
-    await db.execute('DROP TABLE IF EXISTS categories');
-    await db.execute('DROP TABLE IF EXISTS products');
-    await db.execute('DROP TABLE IF EXISTS users');
-    await _onCreate(db, newVersion);
+    if (oldVersion < 3) {
+      await db.execute(
+        'ALTER TABLE users ADD COLUMN profile_image_path TEXT',
+      );
+    }
+    if (oldVersion < 4) {
+      await db.execute('''
+        CREATE TABLE deleted_transactions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          original_id INTEGER,
+          type TEXT NOT NULL,
+          amount INTEGER NOT NULL,
+          category_id INTEGER,
+          category TEXT,
+          description TEXT,
+          date TEXT NOT NULL,
+          user_id INTEGER,
+          product_id INTEGER,
+          quantity INTEGER,
+          deleted_at TEXT NOT NULL,
+          deleted_by TEXT NOT NULL,
+          reason TEXT NOT NULL
+        )
+      ''');
+    } else if (oldVersion < 5) {
+      await db.execute(
+        'ALTER TABLE deleted_transactions ADD COLUMN category_id INTEGER',
+      );
+      await db.execute(
+        'ALTER TABLE deleted_transactions ADD COLUMN user_id INTEGER',
+      );
+      await db.execute(
+        'ALTER TABLE deleted_transactions ADD COLUMN product_id INTEGER',
+      );
+      await db.execute(
+        'ALTER TABLE deleted_transactions ADD COLUMN quantity INTEGER',
+      );
+    }
+  }
+
+  Future<void> insertDeletedTransaction(Map<String, dynamic> row) async {
+    final db = await database;
+    await db.insert('deleted_transactions', row);
+  }
+
+  Future<List<Map<String, dynamic>>> getDeletedTransactions() async {
+    final db = await database;
+    return db.query(
+      'deleted_transactions',
+      orderBy: 'deleted_at DESC',
+    );
+  }
+
+  Future<void> deleteDeletedTransaction(int id) async {
+    final db = await database;
+    await db.delete(
+      'deleted_transactions',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> clearDeletedTransactions() async {
+    final db = await database;
+    await db.delete('deleted_transactions');
   }
 }

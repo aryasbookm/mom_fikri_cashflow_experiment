@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../models/deleted_transaction_model.dart';
+import '../models/transaction_model.dart';
+import '../providers/auth_provider.dart';
 import '../providers/product_provider.dart';
 import '../providers/transaction_provider.dart';
+import '../services/export_service.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -14,6 +18,7 @@ class HistoryScreen extends StatefulWidget {
 
 class _HistoryScreenState extends State<HistoryScreen> {
   String _filter = 'Semua';
+  bool _isExporting = false;
 
   final List<String> _filters = [
     'Hari Ini',
@@ -58,37 +63,71 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Widget build(BuildContext context) {
     final currency = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ');
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Riwayat'),
-      ),
-      body: Consumer<TransactionProvider>(
-        builder: (context, provider, _) {
-          final filtered = provider.transactions.where((tx) {
-            if (tx.type == 'WASTE') {
-              return false;
-            }
-            final date = DateTime.tryParse(tx.date);
-            if (date == null) {
-              return false;
-            }
-            return _matchesFilter(date);
-          }).toList();
+    return Consumer<TransactionProvider>(
+      builder: (context, provider, _) {
+        final filtered = provider.transactions.where((tx) {
+          if (tx.type == 'WASTE') {
+            return false;
+          }
+          final date = DateTime.tryParse(tx.date);
+          if (date == null) {
+            return false;
+          }
+          return _matchesFilter(date);
+        }).toList();
 
-          final totalIncome = filtered
-              .where((tx) => tx.type == 'IN')
-              .fold<int>(0, (sum, tx) => sum + tx.amount);
-          final totalExpense = filtered
-              .where((tx) => tx.type == 'OUT')
-              .fold<int>(0, (sum, tx) => sum + tx.amount);
-          final balance = totalIncome - totalExpense;
+        final totalIncome = filtered
+            .where((tx) => tx.type == 'IN')
+            .fold<int>(0, (sum, tx) => sum + tx.amount);
+        final totalExpense = filtered
+            .where((tx) => tx.type == 'OUT')
+            .fold<int>(0, (sum, tx) => sum + tx.amount);
+        final balance = totalIncome - totalExpense;
 
-          return Column(
+        final auth = context.watch<AuthProvider>();
+        final isOwner = auth.currentUser?.role == 'owner';
+
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Riwayat'),
+            actions: [
+              if (isOwner)
+                IconButton(
+                  icon: const Icon(Icons.restore_from_trash),
+                  tooltip: 'Audit Log',
+                  onPressed: () async {
+                    await provider.loadDeletedTransactions();
+                    if (!context.mounted) {
+                      return;
+                    }
+                    _showAuditLog(context, provider);
+                  },
+                ),
+              IconButton(
+                icon: _isExporting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.file_download),
+                onPressed: _isExporting
+                    ? null
+                    : () => _exportFiltered(context, provider),
+                tooltip: 'Export Excel',
+              ),
+            ],
+          ),
+          body: Column(
             children: [
               SizedBox(
                 height: 52,
                 child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   scrollDirection: Axis.horizontal,
                   itemBuilder: (context, index) {
                     final label = _filters[index];
@@ -108,7 +147,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -172,8 +212,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           final tx = filtered[index];
                           final isIncome = tx.type == 'IN';
                           final color = isIncome ? Colors.green : Colors.red;
-                          final icon =
-                              isIncome ? Icons.arrow_downward : Icons.arrow_upward;
+                          final icon = isIncome
+                              ? Icons.arrow_downward
+                              : Icons.arrow_upward;
                           final description = tx.description?.isNotEmpty == true
                               ? tx.description!
                               : null;
@@ -198,7 +239,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   ),
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.red),
+                                  icon:
+                                      const Icon(Icons.delete, color: Colors.red),
                                   onPressed: () async {
                                     final confirmed = await showDialog<bool>(
                                       context: context,
@@ -209,13 +251,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                         ),
                                         actions: [
                                           TextButton(
-                                            onPressed: () =>
-                                                Navigator.of(context).pop(false),
+                                            onPressed: () => Navigator.of(context)
+                                                .pop(false),
                                             child: const Text('Batal'),
                                           ),
                                           TextButton(
-                                            onPressed: () =>
-                                                Navigator.of(context).pop(true),
+                                            onPressed: () => Navigator.of(context)
+                                                .pop(true),
                                             child: const Text('Hapus'),
                                           ),
                                         ],
@@ -228,7 +270,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                         listen: false,
                                       ).deleteTransaction(
                                         tx.id!,
-                                        productProvider: Provider.of<ProductProvider>(
+                                        productProvider:
+                                            Provider.of<ProductProvider>(
                                           context,
                                           listen: false,
                                         ),
@@ -243,9 +286,301 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       ),
               ),
             ],
-          );
-        },
-      ),
+          ),
+        );
+      },
+    );
+  }
+
+  List<TransactionModel> _filteredForExport(TransactionProvider provider) {
+    return provider.transactions.where((tx) {
+      if (tx.type == 'WASTE') {
+        return false;
+      }
+      final date = DateTime.tryParse(tx.date);
+      if (date == null) {
+        return false;
+      }
+      return _matchesFilter(date);
+    }).toList();
+  }
+
+  Future<void> _exportFiltered(
+    BuildContext context,
+    TransactionProvider provider,
+  ) async {
+    if (_isExporting) {
+      return;
+    }
+    final filtered = _filteredForExport(provider);
+    if (filtered.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tidak ada transaksi untuk diekspor')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isExporting = true;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Mengekspor data...')),
+    );
+
+    try {
+      await ExportService.exportTransactionsToExcel(
+        filtered,
+        filterLabel: _filterLabelForExport(),
+      );
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Laporan berhasil dibuat')),
+      );
+    } catch (_) {
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Gagal mengekspor laporan')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isExporting = false;
+        });
+      }
+    }
+  }
+
+  String _filterLabelForExport() {
+    final now = DateTime.now();
+    switch (_filter) {
+      case 'Hari Ini':
+        return DateFormat('d MMMM y', 'id_ID').format(now);
+      case 'Kemarin':
+        final yesterday = now.subtract(const Duration(days: 1));
+        return DateFormat('d MMMM y', 'id_ID').format(yesterday);
+      case '7 Hari':
+        final start = now.subtract(const Duration(days: 6));
+        final startLabel = DateFormat('d MMM', 'id_ID').format(start);
+        final endLabel = DateFormat('d MMM y', 'id_ID').format(now);
+        return '$startLabel - $endLabel';
+      case 'Bulan Ini':
+        return DateFormat('MMMM y', 'id_ID').format(now);
+      case 'Semua':
+      default:
+        return 'Semua Data';
+    }
+  }
+
+  void _showAuditLog(
+    BuildContext context,
+    TransactionProvider provider,
+  ) {
+    final messenger = ScaffoldMessenger.of(context);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Consumer<TransactionProvider>(
+              builder: (context, provider, _) {
+                final deleted = provider.deletedTransactions;
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Audit Log Penghapusan',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Kosongkan Audit Log',
+                          icon:
+                              const Icon(Icons.delete_sweep, color: Colors.red),
+                          onPressed: deleted.isEmpty
+                              ? null
+                              : () async {
+                                  final confirm = await _confirmAction(
+                                    context,
+                                    title: 'Kosongkan Audit Log?',
+                                    message:
+                                        'Semua data audit akan dihapus permanen.',
+                                    confirmLabel: 'Hapus Semua',
+                                  );
+                                  if (confirm != true) {
+                                    return;
+                                  }
+                                  await provider.clearAllAuditLogs();
+                                  if (!context.mounted) {
+                                    return;
+                                  }
+                                  messenger.showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Audit log dikosongkan'),
+                                    ),
+                                  );
+                                },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (deleted.isEmpty)
+                      const Text(
+                        'Belum ada transaksi yang dihapus.',
+                        style: TextStyle(color: Colors.grey),
+                      )
+                    else
+                      SizedBox(
+                        height: 400,
+                        child: ListView.separated(
+                          itemCount: deleted.length,
+                          separatorBuilder: (_, __) => const Divider(height: 24),
+                          itemBuilder: (context, index) {
+                            final item = deleted[index];
+                            final dateLabel = DateFormat(
+                              'd MMMM y, HH:mm',
+                              'id_ID',
+                            ).format(DateTime.parse(item.deletedAt));
+                            final nominal = NumberFormat.currency(
+                              locale: 'id_ID',
+                              symbol: 'Rp ',
+                            ).format(item.amount);
+                            return ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(
+                                '${item.type} • $nominal',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              subtitle: Text(
+                                '${item.category ?? 'Tanpa kategori'}\n'
+                                'Dihapus oleh: ${item.deletedBy}\n'
+                                'Waktu: $dateLabel\n'
+                                'Alasan: ${item.reason}',
+                              ),
+                              isThreeLine: true,
+                              trailing: Wrap(
+                                spacing: 8,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.restore),
+                                    tooltip: 'Kembalikan transaksi',
+                                    onPressed: () async {
+                                      final confirm = await _confirmAction(
+                                        context,
+                                        title: 'Kembalikan Transaksi?',
+                                        message:
+                                            'Transaksi akan dimasukkan kembali ke riwayat.',
+                                        confirmLabel: 'Kembalikan',
+                                      );
+                                      if (confirm != true) {
+                                        return;
+                                      }
+                                      final productProvider =
+                                          context.read<ProductProvider>();
+                                      final restored =
+                                          await provider.restoreDeletedTransaction(
+                                        item,
+                                        productProvider: productProvider,
+                                      );
+                                      if (!context.mounted) {
+                                        return;
+                                      }
+                                      messenger.showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            restored
+                                                ? 'Transaksi dikembalikan'
+                                                : 'Gagal mengembalikan transaksi',
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_forever),
+                                    color: Colors.red,
+                                    tooltip: 'Hapus permanen',
+                                    onPressed: () async {
+                                      final confirm = await _confirmAction(
+                                        context,
+                                        title: 'Hapus Permanen?',
+                                        message:
+                                            'Data audit ini akan hilang selamanya.',
+                                        confirmLabel: 'Hapus',
+                                      );
+                                      if (confirm != true) {
+                                        return;
+                                      }
+                                      final id = item.id;
+                                      if (id == null) {
+                                        return;
+                                      }
+                                      await provider.deleteAuditLog(id);
+                                      if (!context.mounted) {
+                                        return;
+                                      }
+                                      messenger.showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Audit log dihapus'),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<bool?> _confirmAction(
+    BuildContext context, {
+    required String title,
+    required String message,
+    required String confirmLabel,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(title),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Batal'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(confirmLabel),
+            ),
+          ],
+        );
+      },
     );
   }
 }

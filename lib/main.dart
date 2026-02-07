@@ -8,6 +8,7 @@ import 'providers/category_provider.dart';
 import 'providers/product_provider.dart';
 import 'providers/production_provider.dart';
 import 'providers/transaction_provider.dart';
+import 'providers/user_provider.dart';
 import 'screens/login_screen.dart';
 
 Future<void> main() async {
@@ -24,6 +25,7 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => UserProvider()),
         ChangeNotifierProvider(create: (_) => CategoryProvider()),
         ChangeNotifierProvider(create: (_) => ProductProvider()),
         ChangeNotifierProvider(create: (_) => ProductionProvider()),
