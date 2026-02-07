@@ -1,11 +1,11 @@
 {
-    "name": "mom_fikri_cashflow",
-    "short_name": "mom_fikri_cashflow",
+    "name": "Toko Kue Mom Fiqry (Eksperimen)",
+    "short_name": "Mom Fiqry Exp",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Cashflow dan stok terintegrasi (eksperimen).",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

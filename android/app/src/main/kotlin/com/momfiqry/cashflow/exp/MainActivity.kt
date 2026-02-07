@@ -1,4 +1,4 @@
-package com.example.mom_fikri_cashflow
+package com.momfiqry.cashflow.exp
 
 import io.flutter.embedding.android.FlutterActivity
 
