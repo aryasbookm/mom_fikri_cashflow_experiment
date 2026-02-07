@@ -18,15 +18,16 @@ This file defines working rules and expectations for AI agents collaborating on 
 - DB schema changes must be discussed and confirmed (risk of data reset).
 - For stock logic: production adds stock, sales reduce stock, waste reduces stock.
 - Deleting income transactions must restore stock.
+- Staff deletes require audit reason; audit log supports restore/delete.
 
 ## Key Files
 - Dashboard: `lib/screens/owner_dashboard.dart`
 - Kasir/Transaksi: `lib/screens/add_transaction_screen.dart`
 - Produksi/Stok: `lib/screens/production_screen.dart`
 - Laporan: `lib/screens/report_screen.dart`
+- Riwayat/Audit: `lib/screens/history_screen.dart`
 - Providers: `lib/providers/*`
 
 ## Build & Icons
 - App icon is `assets/icon_toko.png` with `flutter_launcher_icons`.
 - Do not run `flutter_launcher_icons` or `flutter pub get` unless requested.
-

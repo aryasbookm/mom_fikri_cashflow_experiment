@@ -1,7 +1,7 @@
 # SPESIFIKASI PROYEK: TOKO KUE MOM FIQRY
 
 ## 1. Identitas Aplikasi
-- **Nama:** Toko Kue Mom Fiqry
+- **Nama:** Toko Kue Mom Fiqry (Eksperimen)
 - **Tujuan:** Digitalisasi pencatatan keuangan & stok toko kue (menggantikan buku manual).
 - **Platform:** Android (Mobile) + pengembangan di desktop.
 - **Sifat:** Offline-First (data disimpan lokal di perangkat).
@@ -19,19 +19,22 @@
 - Bisa input produksi & mengelola stok.
 - Bisa melihat laporan (grafik) dan riwayat transaksi.
 - Bisa hapus transaksi.
+- Bisa kelola akun staff (tambah/ubah/hapus, reset password).
+- Bisa melihat Audit Log, restore, dan hapus permanen log.
 
 **Staff (Karyawan):**
 - Bisa login.
 - Bisa input transaksi & produksi untuk operasional.
 - Bisa melihat beranda & stok, **tidak** bisa melihat laporan keuangan.
-- Bisa hapus transaksi yang diinput hari itu.
+- Bisa menghapus transaksi miliknya dengan alasan (Audit Trail).
 
 ## 4. Struktur Database (Tabel)
-1. **users:** id, username, pin, role.
+1. **users:** id, username, pin (hash), role, profile_image_path.
 2. **categories:** id, name, type (IN/OUT). Mendukung tambahan kategori via opsi “Lainnya”.
 3. **products:** id, name, price, stock.
 4. **transactions:** id, type (IN/OUT/WASTE), amount, category_id, description, date, user_id, product_id, quantity.
 5. **production:** id, product_name, quantity, date, user_id.
+6. **deleted_transactions:** audit log penghapusan (original_id, type, amount, category_id, category, description, date, user_id, product_id, quantity, deleted_at, deleted_by, reason).
 
 ## 5. Modul Utama
 - **Kasir (Pemasukan):** grid produk + input jumlah, validasi stok, ringkasan sebelum simpan.
@@ -39,7 +42,8 @@
 - **Produksi & Stok:** produksi menambah stok, penjualan & waste mengurangi stok.
 - **Waste (Barang rusak/basi):** dicatat sebagai transaksi `WASTE` (amount 0).
 - **Laporan:** pie chart pemasukan/pengeluaran, toggle tipe, navigasi bulan.
-- **Riwayat:** filter waktu (hari ini/kemarin/7 hari/bulan ini/semua), summary masuk/keluar/saldo, hapus transaksi.
+- **Riwayat:** filter waktu (hari ini/kemarin/7 hari/bulan ini/semua), summary masuk/keluar/saldo, hapus transaksi, export Excel.
+- **Audit Log:** melihat transaksi yang dihapus, restore, hapus permanen.
 
 ## 6. Alur Utama
 - Buka aplikasi → Login → cek role.

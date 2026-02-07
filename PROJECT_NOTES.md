@@ -1,7 +1,7 @@
-# Project Notes — Toko Kue Mom Fiqry
+# Project Notes — Toko Kue Mom Fiqry (Eksperimen)
 
 ## Ringkasan
-- **Nama aplikasi (label & UI):** Toko Kue Mom Fiqry
+- **Nama aplikasi (label & UI):** Toko Kue Mom Fiqry (Eksperimen)
 - **Tujuan:** Cashflow + stok terintegrasi untuk UMKM toko kue.
 - **Platform:** Flutter (Android + desktop macOS untuk dev)
 - **DB:** SQLite (`sqflite`)
@@ -12,6 +12,7 @@
    - Owner: akses penuh
    - Staff: operasional (Beranda, Stok, Akun)
    - Seed user: admin/1234 (owner), karyawan/0000 (staff)
+   - Password disimpan dalam bentuk hash (SHA-256)
 
 2. **Pemasukan (Kasir)**
    - Grid produk → input jumlah → otomatis isi transaksi
@@ -33,15 +34,24 @@
    - Filter waktu: Hari Ini, Kemarin, 7 Hari, Bulan Ini, Semua
    - Summary (Masuk/Keluar/Saldo) sesuai filter
    - Delete transaksi → pemasukan dikembalikan stok
+   - Export Excel dari Riwayat (sesuai filter aktif)
 
 6. **Laporan**
    - Pie chart pemasukan/pengeluaran (toggle)
    - Navigasi bulan (prev/next)
 
-## Skema Database (v2)
+7. **Manajemen Akun & Audit**
+   - Owner dapat kelola staff (CRUD, reset password)
+   - User dapat ganti foto profil & password
+   - Penghapusan transaksi oleh staff wajib isi alasan (Audit Trail)
+   - Owner dapat melihat, restore, atau hapus permanen audit log
+
+## Skema Database (v5)
 - **products**: id, name (unique), price, stock
 - **transactions**: id, type, amount, category_id, description, date, user_id, product_id, quantity
-- **production**, **categories**, **users**
+- **production**, **categories**, **users** (users memiliki `profile_image_path`)
+- **deleted_transactions**: log penghapusan transaksi (alasan, waktu, pelaku, item terkait)
+  - Kolom tambahan: category_id, user_id, product_id, quantity
 
 `type` transaksi:
 - `IN` pemasukan
@@ -56,12 +66,15 @@
   - `lib/screens/production_screen.dart`
   - `lib/screens/history_screen.dart`
   - `lib/screens/report_screen.dart`
+  - `lib/screens/manage_users_screen.dart`
 - Provider:
   - `lib/providers/transaction_provider.dart`
   - `lib/providers/product_provider.dart`
   - `lib/providers/production_provider.dart`
   - `lib/providers/category_provider.dart`
   - `lib/providers/auth_provider.dart`
+  - `lib/providers/user_provider.dart`
+  - `lib/services/export_service.dart`
 
 ## Catatan UI/UX
 - Login: gradient maroon + card modern
@@ -78,7 +91,7 @@
   ```
 
 ## Reset DB (Hard Reset)
-- DB version: 2
+- DB version: 5
 - File DB: `mom_fikri_cashflow_v2.db`
 - Naikkan versi di `DatabaseHelper` jika perlu reset ulang
 
