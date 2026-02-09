@@ -14,10 +14,12 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
+  final GlobalKey<ReportScreenState> _reportKey =
+      GlobalKey<ReportScreenState>();
 
   late final List<Widget> _pages = [
     const OwnerDashboard(),
-    const ReportScreen(),
+    ReportScreen(key: _reportKey),
     const ProductionScreen(showAppBar: false),
     const AccountScreen(),
   ];
@@ -39,9 +41,26 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final reportState = _reportKey.currentState;
     return Scaffold(
       appBar: AppBar(
         title: Text(_titleForIndex(_currentIndex)),
+        actions: _currentIndex == 1
+            ? [
+                IconButton(
+                  onPressed:
+                      reportState?.isExporting == true ? null : reportState?.exportPdf,
+                  icon: reportState?.isExporting == true
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.picture_as_pdf),
+                  tooltip: 'Export PDF',
+                ),
+              ]
+            : null,
       ),
       body: IndexedStack(
         index: _currentIndex,

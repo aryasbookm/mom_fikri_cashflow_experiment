@@ -3,23 +3,83 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../models/transaction_model.dart';
 import '../providers/transaction_provider.dart';
+import '../services/pdf_service.dart';
 
 class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key});
 
   @override
-  State<ReportScreen> createState() => _ReportScreenState();
+  State<ReportScreen> createState() => ReportScreenState();
 }
 
-class _ReportScreenState extends State<ReportScreen> {
+class ReportScreenState extends State<ReportScreen> {
   bool _showExpense = true;
   DateTime _selectedDate = DateTime.now();
+  bool _isExporting = false;
+
+  bool get isExporting => _isExporting;
 
   @override
   void initState() {
     super.initState();
     Provider.of<TransactionProvider>(context, listen: false).loadTransactions();
+  }
+
+  Future<void> exportPdf() async {
+    if (_isExporting) {
+      return;
+    }
+    setState(() {
+      _isExporting = true;
+    });
+
+    try {
+      final provider = context.read<TransactionProvider>();
+      final monthLabel = DateFormat('MMMM y', 'id_ID').format(_selectedDate);
+      final financial = <TransactionModel>[];
+      final waste = <TransactionModel>[];
+      for (final tx in provider.transactions) {
+        final date = DateTime.tryParse(tx.date);
+        if (date == null ||
+            date.year != _selectedDate.year ||
+            date.month != _selectedDate.month) {
+          continue;
+        }
+        if (tx.type == 'WASTE') {
+          waste.add(tx);
+        } else if (tx.type == 'IN' || tx.type == 'OUT') {
+          financial.add(tx);
+        }
+      }
+      final totalIncome = financial
+          .where((tx) => tx.type == 'IN')
+          .fold<int>(0, (sum, tx) => sum + tx.amount);
+      final totalExpense = financial
+          .where((tx) => tx.type == 'OUT')
+          .fold<int>(0, (sum, tx) => sum + tx.amount);
+
+      await PdfService.generateReport(
+        monthLabel: monthLabel,
+        financialData: financial,
+        wasteData: waste,
+        totalIncome: totalIncome,
+        totalExpense: totalExpense,
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal export PDF: $error')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isExporting = false;
+        });
+      }
+    }
   }
 
   @override
@@ -41,6 +101,17 @@ class _ReportScreenState extends State<ReportScreen> {
           (sum, item) => sum + (item['total'] as double),
         );
         final compact = NumberFormat.compact(locale: 'id_ID');
+        final wasteMonthlyQty = provider.transactions.where((tx) {
+          if (tx.type != 'WASTE') {
+            return false;
+          }
+          final date = DateTime.tryParse(tx.date);
+          if (date == null) {
+            return false;
+          }
+          return date.year == _selectedDate.year &&
+              date.month == _selectedDate.month;
+        }).fold<int>(0, (sum, tx) => sum + (tx.quantity ?? 0));
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -49,7 +120,10 @@ class _ReportScreenState extends State<ReportScreen> {
             children: [
               const Text(
                 'Tren 7 Hari Terakhir',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               const SizedBox(height: 16),
               if (!hasTrendData)
@@ -163,6 +237,8 @@ class _ReportScreenState extends State<ReportScreen> {
                   currency: currency,
                 ),
               ],
+              const SizedBox(height: 16),
+              _WasteSummaryCard(totalQty: wasteMonthlyQty),
             ],
           ),
         );
@@ -564,6 +640,52 @@ class _EmptyState extends StatelessWidget {
           Text(
             label,
             style: const TextStyle(color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WasteSummaryCard extends StatelessWidget {
+  const _WasteSummaryCard({required this.totalQty});
+
+  final int totalQty;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: Colors.red.withOpacity(0.12),
+            child: const Icon(Icons.delete_outline, color: Colors.red),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text(
+              'Total Waste Bulan Ini',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+          Text(
+            '$totalQty item',
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              color: Colors.red,
+            ),
           ),
         ],
       ),

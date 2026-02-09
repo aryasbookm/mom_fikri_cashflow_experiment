@@ -46,6 +46,8 @@ dependencies:
   excel: ^4.0.3
   path_provider: ^2.1.4
   share_plus: ^10.0.2
+  pdf: ^3.11.3
+  printing: ^5.14.2
 
 dev_dependencies:
   flutter_test:
