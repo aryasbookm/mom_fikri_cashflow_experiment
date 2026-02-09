@@ -93,6 +93,7 @@
 - Produk grid diurutkan: stok > 0 di atas, lalu alfabetis
 - Owner dashboard: combo card saldo + mini pemasukan/pengeluaran
 - Target harian opsional (progress + confetti) di header dashboard
+- Transaksi sekarang menyimpan timestamp lengkap (tanggal + jam)
 
 ## Build & Icon
 - Icon: `assets/icon_toko.png`

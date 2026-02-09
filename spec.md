@@ -49,6 +49,7 @@
 - **Laporan:** grafik tren 7 hari, pie chart pemasukan/pengeluaran, toggle tipe, navigasi bulan, export PDF (keuangan + waste).
 - **Struk Digital:** detail transaksi + bagikan struk (gambar) dari transaksi pemasukan.
 - **Target Harian (Owner):** opsional, progress bar omzet harian + confetti saat tercapai.
+- **Timestamp Transaksi:** simpan tanggal + jam untuk analisa jam sibuk.
 - **Riwayat:** filter waktu (hari ini/kemarin/7 hari/bulan ini/semua), summary masuk/keluar/saldo, hapus transaksi, export Excel.
 - **Audit Log:** melihat transaksi yang dihapus, restore, hapus permanen.
 

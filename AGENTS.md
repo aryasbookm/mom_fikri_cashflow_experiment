@@ -8,7 +8,8 @@ This file defines working rules and expectations for AI agents collaborating on 
 - Ask before running destructive commands or changing DB schema/versions.
 - Keep UI changes consistent with existing design (maroon/cream theme).
 - Use Provider-based state management (no new state libs unless asked).
- - Export PDF uses `printing`; keep macOS entitlements in sync if touched.
+- Export PDF uses `printing`; keep macOS entitlements in sync if touched.
+ - When changing transaction timestamps, update filters and exports consistently.
 
 ## Code Guidelines
 - Keep files in ASCII unless necessary.
