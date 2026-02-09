@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:confetti/confetti.dart';
 import 'package:intl/intl.dart';
+import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../providers/product_provider.dart';
 import '../providers/production_provider.dart';
@@ -16,12 +19,114 @@ class OwnerDashboard extends StatefulWidget {
 }
 
 class _OwnerDashboardState extends State<OwnerDashboard> {
+  static const String _targetKey = 'daily_target_amount';
+  static const String _celebratedDateKey = 'daily_target_celebrated_date';
+  int _dailyTarget = 0;
+  bool _isLoadingTarget = true;
+  late final ConfettiController _confettiController;
+
   @override
   void initState() {
     super.initState();
     Provider.of<TransactionProvider>(context, listen: false).loadTransactions();
     Provider.of<ProductProvider>(context, listen: false).loadProducts();
     Provider.of<ProductionProvider>(context, listen: false).loadTodayProduction();
+    _confettiController =
+        ConfettiController(duration: const Duration(seconds: 2));
+    _loadDailyTarget();
+  }
+
+  @override
+  void dispose() {
+    _confettiController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadDailyTarget() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _dailyTarget = prefs.getInt(_targetKey) ?? 0;
+      _isLoadingTarget = false;
+    });
+  }
+
+  Future<void> _setDailyTarget(int target) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_targetKey, target);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _dailyTarget = target;
+    });
+  }
+
+  Future<void> _clearDailyTarget() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_targetKey, 0);
+    await prefs.remove(_celebratedDateKey);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _dailyTarget = 0;
+    });
+  }
+
+  Future<int?> _showTargetDialog({required int initialValue}) async {
+    final controller =
+        TextEditingController(text: initialValue > 0 ? '$initialValue' : '');
+    final result = await showDialog<int>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Pasang Target Hari Ini'),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Target Omzet (Rp)',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Batal'),
+            ),
+            TextButton(
+              onPressed: () {
+                final value = int.tryParse(controller.text.trim());
+                Navigator.of(context).pop(value);
+              },
+              child: const Text('Simpan'),
+            ),
+          ],
+        );
+      },
+    );
+    return result;
+  }
+
+  Future<void> _maybeCelebrate({
+    required int todayIncome,
+    required String todayKey,
+  }) async {
+    if (_dailyTarget <= 0 || todayIncome < _dailyTarget) {
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final lastCelebrated = prefs.getString(_celebratedDateKey);
+    if (lastCelebrated == todayKey) {
+      return;
+    }
+    await prefs.setString(_celebratedDateKey, todayKey);
+    if (!mounted) {
+      return;
+    }
+    _confettiController.play();
   }
 
   @override
@@ -43,131 +148,295 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
         final totalStock = productProvider.products
             .fold<int>(0, (sum, product) => sum + product.stock);
 
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Laporan Keuangan Anda',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 16),
-              _FinanceCard(
-                balance: currency.format(provider.balance),
-                income: currency.format(provider.totalIncome),
-                expense: currency.format(provider.totalExpense),
-              ),
-              const SizedBox(height: 16),
-              _StatCard(
-                backgroundColor: const Color(0xFF8D1B3D),
-                title: 'Total Stok Tersedia',
-                value: '$totalStock Pcs',
-              ),
-              const SizedBox(height: 16),
-              Row(
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _maybeCelebrate(todayIncome: todayIncome, todayKey: today);
+        });
+
+        return Stack(
+          alignment: Alignment.topCenter,
+          children: [
+            SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    child: _ActionCard(
-                      icon: Icons.attach_money,
-                      title: 'Catat Pemasukan',
-                      color: Colors.green,
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const AddTransactionScreen(initialType: 'IN'),
-                          ),
-                        );
+                  if (_isLoadingTarget)
+                    const SizedBox(height: 12)
+                  else if (_dailyTarget <= 0)
+                    _TargetPrompt(
+                      onTap: () async {
+                        final value = await _showTargetDialog(initialValue: 0);
+                        if (value != null && value > 0) {
+                          await _setDailyTarget(value);
+                        }
                       },
+                    )
+                  else
+                    _TargetProgressCard(
+                      target: _dailyTarget,
+                      achieved: todayIncome,
+                      currency: currency,
+                      onEdit: () async {
+                        final value = await _showTargetDialog(
+                          initialValue: _dailyTarget,
+                        );
+                        if (value != null && value > 0) {
+                          await _setDailyTarget(value);
+                        }
+                      },
+                      onClear: _clearDailyTarget,
+                    ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Laporan Keuangan Anda',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _ActionCard(
-                      icon: Icons.shopping_basket,
-                      title: 'Catat Pengeluaran',
-                      color: Colors.orange,
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                const AddTransactionScreen(initialType: 'OUT'),
+                  const SizedBox(height: 16),
+                  _FinanceCard(
+                    balance: currency.format(provider.balance),
+                    income: currency.format(provider.totalIncome),
+                    expense: currency.format(provider.totalExpense),
+                  ),
+                  const SizedBox(height: 16),
+                  _StatCard(
+                    backgroundColor: const Color(0xFF8D1B3D),
+                    title: 'Total Stok Tersedia',
+                    value: '$totalStock Pcs',
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _ActionCard(
+                          icon: Icons.attach_money,
+                          title: 'Catat Pemasukan',
+                          color: Colors.green,
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const AddTransactionScreen(
+                                    initialType: 'IN'),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _ActionCard(
+                          icon: Icons.shopping_basket,
+                          title: 'Catat Pengeluaran',
+                          color: Colors.orange,
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const AddTransactionScreen(
+                                    initialType: 'OUT'),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _ActionCard(
+                    icon: Icons.history,
+                    title: 'Riwayat Transaksi',
+                    color: const Color(0xFF1565C0),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const HistoryScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.06),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Ringkasan Hari Ini',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
                           ),
-                        );
-                      },
+                        ),
+                        const SizedBox(height: 12),
+                        _SummaryRow(
+                          icon: Icons.savings,
+                          label: 'Pemasukan',
+                          value: currency.format(todayIncome),
+                          color: Colors.green,
+                        ),
+                        const SizedBox(height: 8),
+                        _SummaryRow(
+                          icon: Icons.payments_outlined,
+                          label: 'Pengeluaran',
+                          value: currency.format(todayExpense),
+                          color: Colors.red,
+                        ),
+                        const SizedBox(height: 8),
+                        _SummaryRow(
+                          icon: Icons.cake_outlined,
+                          label: 'Kue Diproduksi',
+                          value: '${productionProvider.totalQuantityToday} Pcs',
+                          color: const Color(0xFF8D1B3D),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              _ActionCard(
-                icon: Icons.history,
-                title: 'Riwayat Transaksi',
-                color: const Color(0xFF1565C0),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const HistoryScreen(),
-                    ),
-                  );
-                },
+            ),
+            ConfettiWidget(
+              confettiController: _confettiController,
+              blastDirectionality: BlastDirectionality.explosive,
+              shouldLoop: false,
+              numberOfParticles: 20,
+              gravity: 0.2,
+              emissionFrequency: 0.04,
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _TargetPrompt extends StatelessWidget {
+  const _TargetPrompt({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Ink(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF8D1B3D)),
+        ),
+        child: Row(
+          children: const [
+            Icon(Icons.flag, color: Color(0xFF8D1B3D)),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Pasang Target Hari Ini',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF8D1B3D),
+                ),
               ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.06),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+            ),
+            Icon(Icons.chevron_right, color: Color(0xFF8D1B3D)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TargetProgressCard extends StatelessWidget {
+  const _TargetProgressCard({
+    required this.target,
+    required this.achieved,
+    required this.currency,
+    required this.onEdit,
+    required this.onClear,
+  });
+
+  final int target;
+  final int achieved;
+  final NumberFormat currency;
+  final VoidCallback onEdit;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    final percent = target <= 0
+        ? 0.0
+        : (achieved / target).clamp(0.0, 1.0);
+    final progressColor = percent >= 1
+        ? Colors.green
+        : percent >= 0.7
+            ? Colors.orange
+            : Colors.red;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Target Hari Ini',
+                  style: TextStyle(fontWeight: FontWeight.w600),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Ringkasan Hari Ini',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _SummaryRow(
-                      icon: Icons.savings,
-                      label: 'Pemasukan',
-                      value: currency.format(todayIncome),
-                      color: Colors.green,
-                    ),
-                    const SizedBox(height: 8),
-                    _SummaryRow(
-                      icon: Icons.payments_outlined,
-                      label: 'Pengeluaran',
-                      value: currency.format(todayExpense),
-                      color: Colors.red,
-                    ),
-                    const SizedBox(height: 8),
-                    _SummaryRow(
-                      icon: Icons.cake_outlined,
-                      label: 'Kue Diproduksi',
-                      value: '${productionProvider.totalQuantityToday} Pcs',
-                      color: const Color(0xFF8D1B3D),
-                    ),
-                  ],
-                ),
+              ),
+              IconButton(
+                onPressed: onEdit,
+                icon: const Icon(Icons.edit, size: 20),
+                tooltip: 'Edit Target',
+              ),
+              IconButton(
+                onPressed: onClear,
+                icon: const Icon(Icons.close, size: 20),
+                tooltip: 'Nonaktifkan',
               ),
             ],
           ),
-        );
-      },
+          const SizedBox(height: 4),
+          Text(
+            '${currency.format(achieved)} dari ${currency.format(target)}',
+            style: const TextStyle(color: Colors.grey),
+          ),
+          const SizedBox(height: 12),
+          LinearPercentIndicator(
+            lineHeight: 10,
+            percent: percent,
+            backgroundColor: Colors.grey.shade200,
+            progressColor: progressColor,
+            barRadius: const Radius.circular(8),
+            padding: EdgeInsets.zero,
+          ),
+        ],
+      ),
     );
   }
 }
