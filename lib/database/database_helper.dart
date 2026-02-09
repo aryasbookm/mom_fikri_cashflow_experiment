@@ -19,10 +19,11 @@ class DatabaseHelper {
   }
 
   static const int _dbVersion = 8;
+  static const String _dbName = 'mom_fikri_cashflow_v2.db';
 
   Future<Database> _initDatabase() async {
     final databasesPath = await getDatabasesPath();
-    final path = join(databasesPath, 'mom_fikri_cashflow_v2.db');
+    final path = join(databasesPath, _dbName);
 
     return openDatabase(
       path,
@@ -31,6 +32,20 @@ class DatabaseHelper {
       onUpgrade: _onUpgrade,
     );
   }
+
+  Future<String> getDatabasePath() async {
+    final databasesPath = await getDatabasesPath();
+    return join(databasesPath, _dbName);
+  }
+
+  Future<void> closeDatabase() async {
+    if (_database != null) {
+      await _database!.close();
+      _database = null;
+    }
+  }
+
+  int getDatabaseVersion() => _dbVersion;
 
   Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
