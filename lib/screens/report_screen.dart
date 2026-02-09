@@ -18,6 +18,7 @@ class ReportScreenState extends State<ReportScreen> {
   bool _showExpense = true;
   DateTime _selectedDate = DateTime.now();
   bool _isExporting = false;
+  int _lastSeenEpoch = 0;
 
   bool get isExporting => _isExporting;
 
@@ -94,6 +95,18 @@ class ReportScreenState extends State<ReportScreen> {
 
     return Consumer<TransactionProvider>(
       builder: (context, provider, _) {
+        if (provider.restoreEpoch > _lastSeenEpoch) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) {
+              return;
+            }
+            setState(() {
+              _showExpense = true;
+              _selectedDate = DateTime.now();
+              _lastSeenEpoch = provider.restoreEpoch;
+            });
+          });
+        }
         final last7Days = provider.getLast7DaysCashflow();
         final hasTrendData = last7Days.any(
           (entry) => entry.income > 0 || entry.expense > 0,

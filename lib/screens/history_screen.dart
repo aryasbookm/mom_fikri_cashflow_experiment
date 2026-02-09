@@ -20,6 +20,7 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen> {
   String _filter = 'Semua';
   bool _isExporting = false;
+  int _lastSeenEpoch = 0;
 
   final List<String> _filters = [
     'Hari Ini',
@@ -66,6 +67,17 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
     return Consumer<TransactionProvider>(
       builder: (context, provider, _) {
+        if (provider.restoreEpoch > _lastSeenEpoch) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) {
+              return;
+            }
+            setState(() {
+              _filter = 'Semua';
+              _lastSeenEpoch = provider.restoreEpoch;
+            });
+          });
+        }
         final filtered = provider.transactions.where((tx) {
           if (tx.type == 'WASTE') {
             return false;

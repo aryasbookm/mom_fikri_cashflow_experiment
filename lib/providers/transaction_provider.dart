@@ -10,6 +10,7 @@ import '../models/transaction_model.dart';
 import 'product_provider.dart';
 
 class TransactionProvider extends ChangeNotifier {
+  int _restoreEpoch = 0;
 
   final List<TransactionModel> _transactions = [];
   final List<DeletedTransaction> _deletedTransactions = [];
@@ -17,9 +18,15 @@ class TransactionProvider extends ChangeNotifier {
   List<TransactionModel> get transactions => List.unmodifiable(_transactions);
   List<DeletedTransaction> get deletedTransactions =>
       List.unmodifiable(_deletedTransactions);
+  int get restoreEpoch => _restoreEpoch;
 
   void clearTransactions() {
     _transactions.clear();
+    notifyListeners();
+  }
+
+  void markRestored() {
+    _restoreEpoch += 1;
     notifyListeners();
   }
 
