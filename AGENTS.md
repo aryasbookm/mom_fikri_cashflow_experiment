@@ -27,8 +27,10 @@ This file defines working rules and expectations for AI agents collaborating on 
 - Produksi/Stok: `lib/screens/production_screen.dart`
 - Laporan: `lib/screens/report_screen.dart`
 - Riwayat/Audit: `lib/screens/history_screen.dart`
+- Struk Digital: `lib/screens/transaction_detail_screen.dart`
 - Providers: `lib/providers/*`
 - PDF: `lib/services/pdf_service.dart`
+- Export Excel: `lib/services/export_service.dart`
 
 ## Build & Icons
 - App icon is `assets/icon_toko.png` with `flutter_launcher_icons`.

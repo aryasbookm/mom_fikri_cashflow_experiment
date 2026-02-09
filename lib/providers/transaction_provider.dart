@@ -304,6 +304,27 @@ class TransactionProvider extends ChangeNotifier {
     return rows.map(TransactionItemModel.fromMap).toList();
   }
 
+  Future<Map<int, List<TransactionItemModel>>> getItemsByTransactionIds(
+    List<int> ids,
+  ) async {
+    if (ids.isEmpty) {
+      return {};
+    }
+    final Database db = await DatabaseHelper.instance.database;
+    final placeholders = List.filled(ids.length, '?').join(', ');
+    final rows = await db.query(
+      'transaction_items',
+      where: 'transaction_id IN ($placeholders)',
+      whereArgs: ids,
+    );
+    final Map<int, List<TransactionItemModel>> result = {};
+    for (final row in rows) {
+      final item = TransactionItemModel.fromMap(row);
+      result.putIfAbsent(item.transactionId, () => []).add(item);
+    }
+    return result;
+  }
+
   Future<void> loadTodayTransactionsForUser(int userId) async {
     final Database db = await DatabaseHelper.instance.database;
     final today = DateFormat('yyyy-MM-dd').format(DateTime.now());

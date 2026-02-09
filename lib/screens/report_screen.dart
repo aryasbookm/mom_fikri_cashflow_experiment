@@ -60,12 +60,17 @@ class ReportScreenState extends State<ReportScreen> {
           .where((tx) => tx.type == 'OUT')
           .fold<int>(0, (sum, tx) => sum + tx.amount);
 
+      final txIds =
+          financial.where((tx) => tx.id != null).map((tx) => tx.id!).toList();
+      final itemsByTx =
+          await provider.getItemsByTransactionIds(txIds);
       await PdfService.generateReport(
         monthLabel: monthLabel,
         financialData: financial,
         wasteData: waste,
         totalIncome: totalIncome,
         totalExpense: totalExpense,
+        itemsByTransaction: itemsByTx,
       );
     } catch (error) {
       if (mounted) {

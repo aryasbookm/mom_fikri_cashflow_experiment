@@ -15,10 +15,10 @@
    - Password disimpan dalam bentuk hash (SHA-256)
 
 2. **Pemasukan (Kasir)**
-   - Grid produk → input jumlah → otomatis isi transaksi
-   - Validasi stok: tidak bisa jual jika stok kurang
+   - Grid produk → tambah ke keranjang (multi-item)
+   - Validasi stok per item
    - Manual input tetap ada
-   - Summary card sebelum simpan
+   - Ringkasan total otomatis
 
 3. **Pengeluaran**
    - Input manual
@@ -43,15 +43,20 @@
    - Ringkasan waste bulanan (qty saja)
    - Export PDF laporan bulanan (keuangan + waste)
 
+7. **Struk Digital**
+   - Detail transaksi menampilkan item (dari `transaction_items`)
+   - Bagikan struk sebagai gambar (share)
+
 7. **Manajemen Akun & Audit**
    - Owner dapat kelola staff (CRUD, reset password)
    - User dapat ganti foto profil & password
    - Penghapusan transaksi oleh staff wajib isi alasan (Audit Trail)
    - Owner dapat melihat, restore, atau hapus permanen audit log
 
-## Skema Database (v5)
+## Skema Database (v8)
 - **products**: id, name (unique), price, stock
 - **transactions**: id, type, amount, category_id, description, date, user_id, product_id, quantity
+- **transaction_items**: id, transaction_id, product_id, product_name, unit_price, quantity, total
 - **production**, **categories**, **users** (users memiliki `profile_image_path`)
 - **deleted_transactions**: log penghapusan transaksi (alasan, waktu, pelaku, item terkait)
   - Kolom tambahan: category_id, user_id, product_id, quantity
@@ -69,6 +74,7 @@
   - `lib/screens/production_screen.dart`
   - `lib/screens/history_screen.dart`
   - `lib/screens/report_screen.dart`
+  - `lib/screens/transaction_detail_screen.dart`
   - `lib/screens/manage_users_screen.dart`
 - Provider:
   - `lib/providers/transaction_provider.dart`
@@ -80,6 +86,7 @@
 - Services:
   - `lib/services/export_service.dart` (Excel)
   - `lib/services/pdf_service.dart` (PDF)
+  - Export Excel & PDF sudah itemized (rincian item per transaksi)
 
 ## Catatan UI/UX
 - Login: gradient maroon + card modern

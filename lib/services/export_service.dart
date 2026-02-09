@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../database/database_helper.dart';
+import '../models/transaction_item_model.dart';
 import '../models/transaction_model.dart';
 
 class ExportService {
@@ -86,12 +87,13 @@ class ExportService {
     sheet.setColumnWidth(4, 8.0);
     sheet.setColumnWidth(5, 15.0);
     sheet.setColumnWidth(6, 25.0);
-    sheet.setColumnWidth(7, 12.0);
+    sheet.setColumnWidth(7, 35.0);
+    sheet.setColumnWidth(8, 12.0);
 
     final titleCell = CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0);
     sheet.merge(
       titleCell,
-      CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: 0),
+      CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: 0),
     );
     sheet.cell(titleCell)
       ..value = TextCellValue('LAPORAN KEUANGAN MOM FIQRY')
@@ -110,6 +112,7 @@ class ExportService {
       'Jumlah',
       'Nominal',
       'Keterangan',
+      'Rincian Item',
       'User',
     ];
 
@@ -146,6 +149,24 @@ class ExportService {
     int totalIncome = 0;
     int totalExpense = 0;
 
+    final txIds = transactions
+        .where((tx) => tx.id != null)
+        .map((tx) => tx.id!)
+        .toList();
+    final Map<int, List<TransactionItemModel>> itemsByTx = {};
+    if (txIds.isNotEmpty) {
+      final placeholders = List.filled(txIds.length, '?').join(', ');
+      final itemRows = await db.query(
+        'transaction_items',
+        where: 'transaction_id IN ($placeholders)',
+        whereArgs: txIds,
+      );
+      for (final row in itemRows) {
+        final item = TransactionItemModel.fromMap(row);
+        itemsByTx.putIfAbsent(item.transactionId, () => []).add(item);
+      }
+    }
+
     for (final tx in transactions) {
       final parsedDate = DateTime.tryParse(tx.date);
       final formattedDate = parsedDate == null
@@ -160,6 +181,16 @@ class ExportService {
         totalExpense += tx.amount;
       }
 
+      final items = tx.id == null ? <TransactionItemModel>[] : (itemsByTx[tx.id!] ?? []);
+      final itemSummary = items.isEmpty
+          ? '-'
+          : items
+              .map((item) {
+                final unit = currency.format(item.unitPrice);
+                return '${item.productName} (${item.quantity}) @$unit';
+              })
+              .join(', ');
+
       final values = [
         TextCellValue(formattedDate),
         TextCellValue(tx.type),
@@ -172,6 +203,7 @@ class ExportService {
         TextCellValue(
           tx.description?.isNotEmpty == true ? tx.description! : '-',
         ),
+        TextCellValue(itemSummary),
         TextCellValue(userMap[tx.userId] ?? '-'),
       ];
 

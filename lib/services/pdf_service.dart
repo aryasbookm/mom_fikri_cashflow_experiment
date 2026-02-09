@@ -3,6 +3,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import '../models/transaction_item_model.dart';
 import '../models/transaction_model.dart';
 
 class PdfService {
@@ -12,6 +13,7 @@ class PdfService {
     required List<TransactionModel> wasteData,
     required int totalIncome,
     required int totalExpense,
+    required Map<int, List<TransactionItemModel>> itemsByTransaction,
   }) async {
     final currency = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ');
     final nowLabel = DateFormat('dd MMMM y, HH:mm', 'id_ID')
@@ -85,6 +87,7 @@ class PdfService {
             _financialTable(
               financialData: financialData,
               currency: currency,
+              itemsByTransaction: itemsByTransaction,
             ),
             pw.SizedBox(height: 16),
             pw.Text(
@@ -129,6 +132,7 @@ class PdfService {
   static pw.Widget _financialTable({
     required List<TransactionModel> financialData,
     required NumberFormat currency,
+    required Map<int, List<TransactionItemModel>> itemsByTransaction,
   }) {
     if (financialData.isEmpty) {
       return pw.Text('Belum ada transaksi pada periode ini.');
@@ -150,9 +154,22 @@ class PdfService {
           final dateLabel = _formatDate(tx.date);
           final description =
               tx.description ?? tx.categoryName ?? 'Transaksi';
+          final items = tx.id == null
+              ? <TransactionItemModel>[]
+              : (itemsByTransaction[tx.id!] ?? []);
+          final itemSummary = items.isEmpty
+              ? ''
+              : items
+                  .map((item) {
+                    final unit = currency.format(item.unitPrice);
+                    return '${item.productName} (${item.quantity}) @$unit';
+                  })
+                  .join(', ');
+          final details =
+              itemSummary.isEmpty ? description : '$description\n$itemSummary';
           final income = tx.type == 'IN' ? currency.format(tx.amount) : '-';
           final expense = tx.type == 'OUT' ? currency.format(tx.amount) : '-';
-          return [dateLabel, description, income, expense];
+          return [dateLabel, details, income, expense];
         }),
       ],
     );
