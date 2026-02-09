@@ -15,6 +15,7 @@
 - **Gamifikasi:** `shared_preferences`, `percent_indicator`, `confetti`.
 - **Struk Digital:** `screenshot` + `share_plus` + `path_provider`.
 - **Export Itemized:** Excel/PDF menampilkan rincian item per transaksi.
+- **Backup/Restore:** `file_picker` + `share_plus` + `path_provider`.
 
 ## 3. Aktor & Hak Akses
 **Owner (Pemilik):**
@@ -25,6 +26,7 @@
 - Bisa hapus transaksi.
 - Bisa kelola akun staff (tambah/ubah/hapus, reset password).
 - Bisa melihat Audit Log, restore, dan hapus permanen log.
+- Tab Akun dilindungi PIN owner (session 5 menit, panjang PIN fleksibel).
 
 **Staff (Karyawan):**
 - Bisa login.
@@ -35,7 +37,7 @@
 ## 4. Struktur Database (Tabel)
 1. **users:** id, username, pin (hash), role, profile_image_path.
 2. **categories:** id, name, type (IN/OUT). Mendukung tambahan kategori via opsi “Lainnya”.
-3. **products:** id, name, price, stock.
+3. **products:** id, name, price, stock, min_stock, is_active.
 4. **transactions:** id, type (IN/OUT/WASTE), amount, category_id, description, date, user_id, product_id, quantity.
 5. **transaction_items:** id, transaction_id, product_id, product_name, unit_price, quantity, total.
 6. **production:** id, product_name, quantity, date, user_id.
@@ -52,6 +54,9 @@
 - **Timestamp Transaksi:** simpan tanggal + jam untuk analisa jam sibuk.
 - **Riwayat:** filter waktu (hari ini/kemarin/7 hari/bulan ini/semua), summary masuk/keluar/saldo, hapus transaksi, export Excel.
 - **Audit Log:** melihat transaksi yang dihapus, restore, hapus permanen.
+- **Backup & Restore:** backup DB ke `.db` (share + download), restore dengan rollback + validasi versi/struktur.
+- **PIN Guard:** tab Akun meminta PIN owner, sesi 5 menit.
+  - UI PIN mendukung panjang PIN variabel (submit manual).
 
 ## 6. Alur Utama
 - Buka aplikasi → Login → cek role.

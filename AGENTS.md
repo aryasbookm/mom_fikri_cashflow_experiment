@@ -7,9 +7,11 @@ This file defines working rules and expectations for AI agents collaborating on 
 - Prefer minimal, safe changes; avoid large refactors unless explicitly requested.
 - Ask before running destructive commands or changing DB schema/versions.
 - Keep UI changes consistent with existing design (maroon/cream theme).
+- Account screen uses grouped sections (ListTile-style) instead of flat buttons.
 - Use Provider-based state management (no new state libs unless asked).
 - Export PDF uses `printing`; keep macOS entitlements in sync if touched.
- - When changing transaction timestamps, update filters and exports consistently.
+- When changing transaction timestamps, update filters and exports consistently.
+- Backup/restore changes must be tested against rollback + schema/structure validation.
 
 ## Code Guidelines
 - Keep files in ASCII unless necessary.
@@ -29,6 +31,7 @@ This file defines working rules and expectations for AI agents collaborating on 
 - Laporan: `lib/screens/report_screen.dart`
 - Riwayat/Audit: `lib/screens/history_screen.dart`
 - Struk Digital: `lib/screens/transaction_detail_screen.dart`
+- Backup/Restore: `lib/services/backup_service.dart`
 - Providers: `lib/providers/*`
 - PDF: `lib/services/pdf_service.dart`
 - Export Excel: `lib/services/export_service.dart`

@@ -176,92 +176,246 @@ class AccountPanel extends StatelessWidget {
     }
     final imageProvider = file != null ? FileImage(file) : null;
 
-    return Center(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          CircleAvatar(
-            radius: 48,
-            backgroundColor: const Color(0xFFE0E0E0),
-            backgroundImage: imageProvider,
-            child: imageProvider == null
-                ? const Icon(Icons.person, size: 48, color: Colors.white70)
-                : null,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            user?.username ?? 'Pengguna',
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            user?.role ?? '-',
-            style: const TextStyle(color: Colors.grey),
+          _ProfileCard(
+            imageProvider: imageProvider,
+            username: user?.username ?? 'Pengguna',
+            role: user?.role ?? '-',
           ),
           const SizedBox(height: 20),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF8D1B3D),
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () => _pickProfileImage(context),
-            icon: const Icon(Icons.photo_camera),
-            label: const Text('Ganti Foto'),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: () => _changePassword(context),
-            icon: const Icon(Icons.lock_reset),
-            label: const Text('Ganti Password'),
+          const _SectionTitle(title: 'Pengaturan Akun'),
+          _SectionCard(
+            children: [
+              _SettingsTile(
+                icon: Icons.photo_camera_outlined,
+                label: 'Ganti Foto',
+                onTap: () => _pickProfileImage(context),
+              ),
+              _SettingsTile(
+                icon: Icons.lock_reset,
+                label: 'Ganti Password',
+                onTap: () => _changePassword(context),
+              ),
+            ],
           ),
           if (onManageUsers != null) ...[
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: onManageUsers,
-              icon: const Icon(Icons.manage_accounts),
-              label: const Text('Kelola Pengguna'),
+            const SizedBox(height: 16),
+            const _SectionTitle(title: 'Administrasi'),
+            _SectionCard(
+              children: [
+                _SettingsTile(
+                  icon: Icons.manage_accounts,
+                  label: 'Kelola Pengguna',
+                  onTap: onManageUsers,
+                ),
+              ],
             ),
           ],
-          if (onBackup != null) ...[
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: isBackingUp ? null : onBackup,
-              icon: isBackingUp
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.backup),
-              label: Text(isBackingUp ? 'Membuat Backup...' : 'Backup Data'),
+          if (onBackup != null || onRestore != null) ...[
+            const SizedBox(height: 16),
+            const _SectionTitle(title: 'Data & Keamanan'),
+            _SectionCard(
+              children: [
+                if (onBackup != null)
+                  _SettingsTile(
+                    icon: Icons.cloud_upload_outlined,
+                    label: isBackingUp ? 'Membuat Backup...' : 'Backup Data',
+                    onTap: isBackingUp ? null : onBackup,
+                    trailing: isBackingUp
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : null,
+                  ),
+                if (onRestore != null)
+                  _SettingsTile(
+                    icon: Icons.settings_backup_restore,
+                    label: isRestoring ? 'Memulihkan Data...' : 'Restore Data',
+                    onTap: isRestoring ? null : onRestore,
+                    trailing: isRestoring
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : null,
+                  ),
+              ],
             ),
           ],
-          if (onRestore != null) ...[
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: isRestoring ? null : onRestore,
-              icon: isRestoring
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.restore),
-              label: Text(isRestoring ? 'Memulihkan Data...' : 'Restore Data'),
-            ),
-          ],
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
             ),
             onPressed: onLogout,
             child: const Text('Logout'),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ProfileCard extends StatelessWidget {
+  const _ProfileCard({
+    required this.imageProvider,
+    required this.username,
+    required this.role,
+  });
+
+  final ImageProvider? imageProvider;
+  final String username;
+  final String role;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 34,
+            backgroundColor: const Color(0xFFE0E0E0),
+            backgroundImage: imageProvider,
+            child: imageProvider == null
+                ? const Icon(Icons.person, size: 32, color: Colors.white70)
+                : null,
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  username,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  role,
+                  style: const TextStyle(color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 8),
+      child: Text(
+        title.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.6,
+          color: Color(0xFF8D1B3D),
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final tiles = <Widget>[];
+    for (var i = 0; i < children.length; i++) {
+      if (i > 0) {
+        tiles.add(const Divider(height: 1));
+      }
+      tiles.add(children[i]);
+    }
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(children: tiles),
+    );
+  }
+}
+
+class _SettingsTile extends StatelessWidget {
+  const _SettingsTile({
+    required this.icon,
+    required this.label,
+    this.onTap,
+    this.trailing,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final disabled = onTap == null;
+    return ListTile(
+      leading: Icon(icon, color: const Color(0xFF8D1B3D)),
+      title: Text(
+        label,
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          color: disabled ? Colors.grey : Colors.black87,
+        ),
+      ),
+      trailing: trailing ??
+          const Icon(
+            Icons.chevron_right,
+            color: Colors.black45,
+          ),
+      onTap: onTap,
+      enabled: !disabled,
+      dense: false,
     );
   }
 }

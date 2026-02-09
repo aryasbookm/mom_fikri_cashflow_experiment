@@ -13,6 +13,7 @@
    - Staff: operasional (Beranda, Stok, Akun)
    - Seed user: admin/1234 (owner), karyawan/0000 (staff)
    - Password disimpan dalam bentuk hash (SHA-256)
+   - Tab Akun untuk owner dilindungi PIN (session 5 menit, panjang PIN fleksibel)
 
 2. **Pemasukan (Kasir)**
    - Grid produk → tambah ke keranjang (multi-item)
@@ -53,8 +54,13 @@
    - Penghapusan transaksi oleh staff wajib isi alasan (Audit Trail)
    - Owner dapat melihat, restore, atau hapus permanen audit log
 
+8. **Backup & Restore (Robust)**
+   - Backup DB ke file `.db` (share + simpan ke Download)
+   - Restore via file picker dengan rollback, validasi versi, dan validasi struktur
+   - Restore memicu refresh data + reset filter laporan/riwayat
+
 ## Skema Database (v8)
-- **products**: id, name (unique), price, stock
+- **products**: id, name (unique), price, stock, min_stock, is_active
 - **transactions**: id, type, amount, category_id, description, date, user_id, product_id, quantity
 - **transaction_items**: id, transaction_id, product_id, product_name, unit_price, quantity, total
 - **production**, **categories**, **users** (users memiliki `profile_image_path`)
@@ -94,6 +100,8 @@
 - Owner dashboard: combo card saldo + mini pemasukan/pengeluaran
 - Target harian opsional (progress + confetti) di header dashboard
 - Transaksi sekarang menyimpan timestamp lengkap (tanggal + jam)
+- Akun: tampilan grouped sections (Pengaturan, Administrasi, Data & Keamanan)
+  - Style: ListTile + card sections (lebih rapat & terstruktur)
 
 ## Build & Icon
 - Icon: `assets/icon_toko.png`
@@ -105,7 +113,7 @@
   ```
 
 ## Reset DB (Hard Reset)
-- DB version: 5
+- DB version: 8
 - File DB: `mom_fikri_cashflow_v2.db`
 - Naikkan versi di `DatabaseHelper` jika perlu reset ulang
 

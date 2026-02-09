@@ -13,12 +13,11 @@ class OwnerPinDialog extends StatefulWidget {
 }
 
 class _OwnerPinDialogState extends State<OwnerPinDialog> {
-  static const int _pinLength = 4;
   String _pin = '';
   bool _isSubmitting = false;
 
   Future<void> _submit() async {
-    if (_isSubmitting || _pin.length < _pinLength) {
+    if (_isSubmitting || _pin.isEmpty) {
       return;
     }
     setState(() {
@@ -42,15 +41,19 @@ class _OwnerPinDialogState extends State<OwnerPinDialog> {
   }
 
   void _appendDigit(String digit) {
-    if (_pin.length >= _pinLength || _isSubmitting) {
+    if (_isSubmitting) {
       return;
     }
     setState(() {
       _pin += digit;
     });
-    if (_pin.length >= _pinLength) {
-      _submit();
+  }
+
+  void _submitIfReady() {
+    if (_pin.isEmpty || _isSubmitting) {
+      return;
     }
+    _submit();
   }
 
   void _backspace() {
@@ -89,12 +92,14 @@ class _OwnerPinDialogState extends State<OwnerPinDialog> {
               style: TextStyle(color: Colors.black54),
             ),
             const SizedBox(height: 16),
-            _PinDots(length: _pinLength, filled: _pin.length),
+            _PinDots(length: _pin.length),
             const SizedBox(height: 16),
             _PinPad(
               onDigit: _appendDigit,
               onBackspace: _backspace,
+              onSubmit: _submitIfReady,
               isSubmitting: _isSubmitting,
+              canSubmit: _pin.isNotEmpty,
             ),
             const SizedBox(height: 8),
             TextButton(
@@ -109,25 +114,25 @@ class _OwnerPinDialogState extends State<OwnerPinDialog> {
 }
 
 class _PinDots extends StatelessWidget {
-  const _PinDots({required this.length, required this.filled});
+  const _PinDots({required this.length});
 
   final int length;
-  final int filled;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+    if (length == 0) {
+      return const SizedBox(height: 14);
+    }
+    return Wrap(
+      alignment: WrapAlignment.center,
       children: List.generate(length, (index) {
-        final isFilled = index < filled;
         return AnimatedContainer(
           duration: const Duration(milliseconds: 120),
-          margin: const EdgeInsets.symmetric(horizontal: 6),
+          margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
           width: 14,
           height: 14,
           decoration: BoxDecoration(
-            color: isFilled ? const Color(0xFF8D1B3D) : Colors.transparent,
-            border: Border.all(color: const Color(0xFF8D1B3D), width: 1.5),
+            color: const Color(0xFF8D1B3D),
             shape: BoxShape.circle,
           ),
         );
@@ -140,12 +145,16 @@ class _PinPad extends StatelessWidget {
   const _PinPad({
     required this.onDigit,
     required this.onBackspace,
+    required this.onSubmit,
     required this.isSubmitting,
+    required this.canSubmit,
   });
 
   final ValueChanged<String> onDigit;
   final VoidCallback onBackspace;
+  final VoidCallback onSubmit;
   final bool isSubmitting;
+  final bool canSubmit;
 
   @override
   Widget build(BuildContext context) {
@@ -185,6 +194,11 @@ class _PinPad extends StatelessWidget {
               onTap: isSubmitting ? null : () => onDigit('0'),
             ),
             _PinButton(
+              icon: Icons.check_circle,
+              color: canSubmit ? const Color(0xFF8D1B3D) : Colors.grey,
+              onTap: isSubmitting || !canSubmit ? null : onSubmit,
+            ),
+            _PinButton(
               icon: Icons.backspace_outlined,
               onTap: isSubmitting ? null : onBackspace,
             ),
@@ -196,10 +210,16 @@ class _PinPad extends StatelessWidget {
 }
 
 class _PinButton extends StatelessWidget {
-  const _PinButton({this.label, this.icon, required this.onTap});
+  const _PinButton({
+    this.label,
+    this.icon,
+    this.color,
+    required this.onTap,
+  });
 
   final String? label;
   final IconData? icon;
+  final Color? color;
   final VoidCallback? onTap;
 
   @override
@@ -226,7 +246,7 @@ class _PinButton extends StatelessWidget {
           ),
           child: Center(
             child: icon != null
-                ? Icon(icon, color: const Color(0xFF8D1B3D))
+                ? Icon(icon, color: color ?? const Color(0xFF8D1B3D))
                 : Text(
                     label ?? '',
                     style: const TextStyle(
