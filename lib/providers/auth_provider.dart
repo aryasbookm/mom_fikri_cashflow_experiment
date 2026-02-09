@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -7,8 +9,24 @@ import '../utils/password_hasher.dart';
 
 class AuthProvider extends ChangeNotifier {
   User? _currentUser;
+  bool _isOwnerAuthenticated = false;
+  DateTime? _ownerAuthExpiresAt;
+  Timer? _ownerAuthTimer;
+
+  static const Duration _ownerAuthDuration = Duration(minutes: 5);
 
   User? get currentUser => _currentUser;
+
+  bool get isOwnerAuthenticated {
+    if (_ownerAuthExpiresAt == null) {
+      return false;
+    }
+    if (DateTime.now().isAfter(_ownerAuthExpiresAt!)) {
+      _resetOwnerAuth(notify: false);
+      return false;
+    }
+    return _isOwnerAuthenticated;
+  }
 
   Future<bool> login(String username, String pin) async {
     final Database db = await DatabaseHelper.instance.database;
@@ -30,6 +48,7 @@ class AuthProvider extends ChangeNotifier {
 
     if (storedPin == hashedInput) {
       _currentUser = User.fromMap(userMap);
+      _resetOwnerAuth(notify: false);
       notifyListeners();
       return true;
     }
@@ -43,6 +62,7 @@ class AuthProvider extends ChangeNotifier {
       );
       userMap['pin'] = hashedInput;
       _currentUser = User.fromMap(userMap);
+      _resetOwnerAuth(notify: false);
       notifyListeners();
       return true;
     }
@@ -78,6 +98,23 @@ class AuthProvider extends ChangeNotifier {
     return true;
   }
 
+  Future<bool> authenticateOwner(String pin) async {
+    final user = _currentUser;
+    if (user == null || user.role != 'owner') {
+      return false;
+    }
+    final isValid = PasswordHasher.matches(pin, user.pin);
+    if (!isValid) {
+      return false;
+    }
+    _isOwnerAuthenticated = true;
+    _ownerAuthExpiresAt = DateTime.now().add(_ownerAuthDuration);
+    _ownerAuthTimer?.cancel();
+    _ownerAuthTimer = Timer(_ownerAuthDuration, _resetOwnerAuth);
+    notifyListeners();
+    return true;
+  }
+
   Future<void> updateProfileImagePath(String? path) async {
     final user = _currentUser;
     if (user == null) {
@@ -98,6 +135,17 @@ class AuthProvider extends ChangeNotifier {
 
   void logout() {
     _currentUser = null;
+    _resetOwnerAuth(notify: false);
     notifyListeners();
+  }
+
+  void _resetOwnerAuth({bool notify = true}) {
+    _isOwnerAuthenticated = false;
+    _ownerAuthExpiresAt = null;
+    _ownerAuthTimer?.cancel();
+    _ownerAuthTimer = null;
+    if (notify) {
+      notifyListeners();
+    }
   }
 }

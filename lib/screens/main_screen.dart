@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../providers/auth_provider.dart';
 import 'account_screen.dart';
 import 'owner_dashboard.dart';
 import 'production_screen.dart';
 import 'report_screen.dart';
+import '../widgets/owner_pin_dialog.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -39,6 +42,27 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
+  Future<bool> _ensureOwnerAccess() async {
+    final authProvider = context.read<AuthProvider>();
+    final user = authProvider.currentUser;
+    if (user?.role != 'owner') {
+      return true;
+    }
+    if (authProvider.isOwnerAuthenticated) {
+      return true;
+    }
+    final allowed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return OwnerPinDialog(
+          onAuthenticate: authProvider.authenticateOwner,
+        );
+      },
+    );
+    return allowed == true;
+  }
+
   @override
   Widget build(BuildContext context) {
     final reportState = _reportKey.currentState;
@@ -71,7 +95,13 @@ class _MainScreenState extends State<MainScreen> {
         selectedItemColor: const Color(0xFF8D1B3D),
         backgroundColor: Colors.white,
         currentIndex: _currentIndex,
-        onTap: (index) {
+        onTap: (index) async {
+          if (index == 3) {
+            final allowed = await _ensureOwnerAccess();
+            if (!allowed) {
+              return;
+            }
+          }
           setState(() {
             _currentIndex = index;
           });
