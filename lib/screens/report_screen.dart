@@ -29,6 +29,10 @@ class _ReportScreenState extends State<ReportScreen> {
 
     return Consumer<TransactionProvider>(
       builder: (context, provider, _) {
+        final last7Days = provider.getLast7DaysCashflow();
+        final hasTrendData = last7Days.any(
+          (entry) => entry.income > 0 || entry.expense > 0,
+        );
         final stats = _showExpense
             ? provider.getExpenseStatistics(date: _selectedDate)
             : provider.getIncomeStatistics(date: _selectedDate);
@@ -36,12 +40,28 @@ class _ReportScreenState extends State<ReportScreen> {
           0,
           (sum, item) => sum + (item['total'] as double),
         );
+        final compact = NumberFormat.compact(locale: 'id_ID');
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              const Text(
+                'Tren 7 Hari Terakhir',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 16),
+              if (!hasTrendData)
+                const _EmptyState(
+                  label: 'Belum ada transaksi 7 hari terakhir',
+                )
+              else
+                _CashflowChart(
+                  data: last7Days,
+                  compactFormat: compact,
+                ),
+              const SizedBox(height: 24),
               Text(
                 _showExpense ? 'Analisis Pengeluaran' : 'Analisis Pemasukan',
                 style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
@@ -298,6 +318,220 @@ class _LegendCard extends StatelessWidget {
           );
         }).toList(),
       ),
+    );
+  }
+}
+
+class _CashflowChart extends StatelessWidget {
+  const _CashflowChart({
+    required this.data,
+    required this.compactFormat,
+  });
+
+  final List<DailyCashflow> data;
+  final NumberFormat compactFormat;
+
+  String _dayLabel(DateTime date) {
+    switch (date.weekday) {
+      case DateTime.monday:
+        return 'Sen';
+      case DateTime.tuesday:
+        return 'Sel';
+      case DateTime.wednesday:
+        return 'Rab';
+      case DateTime.thursday:
+        return 'Kam';
+      case DateTime.friday:
+        return 'Jum';
+      case DateTime.saturday:
+        return 'Sab';
+      case DateTime.sunday:
+        return 'Min';
+      default:
+        return '';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final int maxValue = data.fold<int>(
+      0,
+      (max, entry) => [
+        max,
+        entry.income,
+        entry.expense,
+      ].reduce((a, b) => a > b ? a : b),
+    );
+    final double maxY = maxValue == 0 ? 1 : maxValue * 1.2;
+    final List<FlSpot> incomeSpots = [];
+    final List<FlSpot> expenseSpots = [];
+
+    for (int i = 0; i < data.length; i++) {
+      final entry = data[i];
+      incomeSpots.add(FlSpot(i.toDouble(), entry.income.toDouble()));
+      expenseSpots.add(FlSpot(i.toDouble(), entry.expense.toDouble()));
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              _ChartLegend(color: Colors.green, label: 'Pemasukan'),
+              SizedBox(width: 16),
+              _ChartLegend(color: Colors.red, label: 'Pengeluaran'),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 220,
+            child: LineChart(
+              LineChartData(
+                minX: 0,
+                maxX: 6,
+                minY: 0,
+                maxY: maxY,
+                clipData: const FlClipData(
+                  left: true,
+                  right: false,
+                  top: false,
+                  bottom: false,
+                ),
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: maxY / 4,
+                  getDrawingHorizontalLine: (value) => FlLine(
+                    color: Colors.black.withOpacity(0.08),
+                    strokeWidth: 1,
+                  ),
+                ),
+                borderData: FlBorderData(
+                  show: true,
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Colors.black.withOpacity(0.12),
+                    ),
+                    left: BorderSide(
+                      color: Colors.black.withOpacity(0.12),
+                    ),
+                  ),
+                ),
+                titlesData: FlTitlesData(
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 56,
+                      interval: maxY / 4,
+                      getTitlesWidget: (value, meta) {
+                        if (value == 0) {
+                          return const Text('0');
+                        }
+                        return Text(compactFormat.format(value));
+                      },
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      interval: 1,
+                      getTitlesWidget: (value, meta) {
+                        final index = value.toInt();
+                        if (index < 0 || index >= data.length) {
+                          return const SizedBox.shrink();
+                        }
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            _dayLabel(data[index].date),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: incomeSpots,
+                    isCurved: true,
+                    preventCurveOverShooting: true,
+                    color: Colors.green,
+                    barWidth: 3,
+                    dotData: FlDotData(show: false),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: Colors.green.withOpacity(0.12),
+                    ),
+                  ),
+                  LineChartBarData(
+                    spots: expenseSpots,
+                    isCurved: true,
+                    preventCurveOverShooting: true,
+                    color: Colors.red,
+                    barWidth: 3,
+                    dotData: FlDotData(show: false),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: Colors.red.withOpacity(0.12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChartLegend extends StatelessWidget {
+  const _ChartLegend({required this.color, required this.label});
+
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ],
     );
   }
 }

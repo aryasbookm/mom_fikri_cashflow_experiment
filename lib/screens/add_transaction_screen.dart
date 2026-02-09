@@ -37,11 +37,13 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     if (widget.initialType != null) {
       _type = widget.initialType!;
     }
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    Provider.of<CategoryProvider>(context, listen: false)
-        .setCurrentRole(authProvider.currentUser?.role);
-    Provider.of<CategoryProvider>(context, listen: false).loadCategories();
-    Provider.of<ProductProvider>(context, listen: false).loadProducts();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      Provider.of<CategoryProvider>(context, listen: false)
+          .setCurrentRole(authProvider.currentUser?.role);
+      Provider.of<CategoryProvider>(context, listen: false).loadCategories();
+      Provider.of<ProductProvider>(context, listen: false).loadProducts();
+    });
   }
 
   @override

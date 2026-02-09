@@ -63,6 +63,46 @@ class TransactionProvider extends ChangeNotifier {
 
   int get balance => totalIncome - totalExpense;
 
+  List<DailyCashflow> getLast7DaysCashflow({DateTime? referenceDate}) {
+    final DateTime now = referenceDate ?? DateTime.now();
+    final DateTime today = DateTime(now.year, now.month, now.day);
+    final DateTime startDate = today.subtract(const Duration(days: 6));
+    final Map<String, DailyCashflow> totals = {};
+
+    for (int i = 0; i < 7; i++) {
+      final date = startDate.add(Duration(days: i));
+      final key = DateFormat('yyyy-MM-dd').format(date);
+      totals[key] = DailyCashflow(date: date, income: 0, expense: 0);
+    }
+
+    for (final tx in _transactions) {
+      if (tx.type != 'IN' && tx.type != 'OUT') {
+        continue;
+      }
+      final txDate = DateTime.tryParse(tx.date);
+      if (txDate == null) {
+        continue;
+      }
+      final normalized = DateTime(txDate.year, txDate.month, txDate.day);
+      if (normalized.isBefore(startDate) || normalized.isAfter(today)) {
+        continue;
+      }
+      final key = DateFormat('yyyy-MM-dd').format(normalized);
+      final current = totals[key];
+      if (current == null) {
+        continue;
+      }
+      if (tx.type == 'IN') {
+        totals[key] = current.copyWith(income: current.income + tx.amount);
+      } else {
+        totals[key] = current.copyWith(expense: current.expense + tx.amount);
+      }
+    }
+
+    return totals.values.toList()
+      ..sort((a, b) => a.date.compareTo(b.date));
+  }
+
   Future<void> addTransaction(TransactionModel transaction) async {
     final Database db = await DatabaseHelper.instance.database;
     await db.insert('transactions', transaction.toMap());
@@ -305,5 +345,25 @@ class TransactionProvider extends ChangeNotifier {
         'color': colors[index % colors.length],
       };
     });
+  }
+}
+
+class DailyCashflow {
+  const DailyCashflow({
+    required this.date,
+    required this.income,
+    required this.expense,
+  });
+
+  final DateTime date;
+  final int income;
+  final int expense;
+
+  DailyCashflow copyWith({int? income, int? expense}) {
+    return DailyCashflow(
+      date: date,
+      income: income ?? this.income,
+      expense: expense ?? this.expense,
+    );
   }
 }
