@@ -8,6 +8,7 @@ This file defines working rules and expectations for AI agents collaborating on 
 - Ask before running destructive commands or changing DB schema/versions.
 - Keep UI changes consistent with existing design (maroon/cream theme).
 - Use Provider-based state management (no new state libs unless asked).
+ - Export PDF uses `printing`; keep macOS entitlements in sync if touched.
 
 ## Code Guidelines
 - Keep files in ASCII unless necessary.
@@ -27,6 +28,7 @@ This file defines working rules and expectations for AI agents collaborating on 
 - Laporan: `lib/screens/report_screen.dart`
 - Riwayat/Audit: `lib/screens/history_screen.dart`
 - Providers: `lib/providers/*`
+- PDF: `lib/services/pdf_service.dart`
 
 ## Build & Icons
 - App icon is `assets/icon_toko.png` with `flutter_launcher_icons`.

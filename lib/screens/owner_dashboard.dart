@@ -5,6 +5,7 @@ import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/product_model.dart';
 import '../providers/product_provider.dart';
 import '../providers/production_provider.dart';
 import '../providers/transaction_provider.dart';
@@ -21,8 +22,10 @@ class OwnerDashboard extends StatefulWidget {
 class _OwnerDashboardState extends State<OwnerDashboard> {
   static const String _targetKey = 'daily_target_amount';
   static const String _celebratedDateKey = 'daily_target_celebrated_date';
+  static const String _showStockAlertKey = 'show_stock_alert';
   int _dailyTarget = 0;
   bool _isLoadingTarget = true;
+  bool _showStockAlert = true;
   late final ConfettiController _confettiController;
 
   @override
@@ -49,7 +52,19 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     }
     setState(() {
       _dailyTarget = prefs.getInt(_targetKey) ?? 0;
+      _showStockAlert = prefs.getBool(_showStockAlertKey) ?? true;
       _isLoadingTarget = false;
+    });
+  }
+
+  Future<void> _setShowStockAlert(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_showStockAlertKey, value);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _showStockAlert = value;
     });
   }
 
@@ -147,6 +162,10 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
             .fold<int>(0, (sum, tx) => sum + tx.amount);
         final totalStock = productProvider.products
             .fold<int>(0, (sum, product) => sum + product.stock);
+        final lowStock = productProvider.products
+            .where((product) => product.isActive)
+            .where((product) => product.stock <= product.minStock)
+            .toList();
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _maybeCelebrate(todayIncome: todayIncome, todayKey: today);
@@ -186,6 +205,15 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                       },
                       onClear: _clearDailyTarget,
                     ),
+                  const SizedBox(height: 8),
+                  _StockAlertToggle(
+                    value: _showStockAlert,
+                    onChanged: _setShowStockAlert,
+                  ),
+                  if (lowStock.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    if (_showStockAlert) _LowStockCard(products: lowStock),
+                  ],
                   const SizedBox(height: 12),
                   const Text(
                     'Laporan Keuangan Anda',
@@ -434,6 +462,103 @@ class _TargetProgressCard extends StatelessWidget {
             progressColor: progressColor,
             barRadius: const Radius.circular(8),
             padding: EdgeInsets.zero,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StockAlertToggle extends StatelessWidget {
+  const _StockAlertToggle({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.notifications_active,
+              color: Color(0xFF8D1B3D), size: 18),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text(
+              'Peringatan Stok',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeColor: const Color(0xFF8D1B3D),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LowStockCard extends StatelessWidget {
+  const _LowStockCard({required this.products});
+
+  final List<ProductModel> products;
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = products.take(3).toList();
+    final remaining = products.length - visible.length;
+    final names = visible.map((p) => p.name).join(', ');
+    final summary = remaining > 0 ? '$names, +$remaining lainnya' : names;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF3E0),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange.shade200),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: Colors.orange.withOpacity(0.2),
+            child: const Icon(Icons.warning_amber, color: Colors.orange),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Stok Menipis (${products.length})',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Colors.orange,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  summary,
+                  style: const TextStyle(color: Colors.black87),
+                ),
+              ],
+            ),
           ),
         ],
       ),

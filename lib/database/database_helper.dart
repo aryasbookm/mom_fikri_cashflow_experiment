@@ -18,7 +18,7 @@ class DatabaseHelper {
     return _database!;
   }
 
-  static const int _dbVersion = 5;
+  static const int _dbVersion = 7;
 
   Future<Database> _initDatabase() async {
     final databasesPath = await getDatabasesPath();
@@ -84,7 +84,9 @@ class DatabaseHelper {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL UNIQUE,
         price INTEGER NOT NULL,
-        stock INTEGER NOT NULL DEFAULT 0
+        stock INTEGER NOT NULL DEFAULT 0,
+        min_stock INTEGER NOT NULL DEFAULT 5,
+        is_active INTEGER NOT NULL DEFAULT 1
       )
     ''');
 
@@ -181,7 +183,12 @@ class DatabaseHelper {
     ];
 
     for (final product in products) {
-      await db.insert('products', product);
+      await db.insert('products', {
+        'name': product['name'],
+        'price': product['price'],
+        'min_stock': 5,
+        'is_active': 1,
+      });
     }
   }
 
@@ -210,7 +217,8 @@ class DatabaseHelper {
           reason TEXT NOT NULL
         )
       ''');
-    } else if (oldVersion < 5) {
+    }
+    if (oldVersion < 5) {
       await db.execute(
         'ALTER TABLE deleted_transactions ADD COLUMN category_id INTEGER',
       );
@@ -222,6 +230,16 @@ class DatabaseHelper {
       );
       await db.execute(
         'ALTER TABLE deleted_transactions ADD COLUMN quantity INTEGER',
+      );
+    }
+    if (oldVersion < 6) {
+      await db.execute(
+        'ALTER TABLE products ADD COLUMN min_stock INTEGER NOT NULL DEFAULT 5',
+      );
+    }
+    if (oldVersion < 7) {
+      await db.execute(
+        'ALTER TABLE products ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1',
       );
     }
   }

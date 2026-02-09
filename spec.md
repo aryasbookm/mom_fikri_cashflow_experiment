@@ -11,6 +11,8 @@
 - **Database:** SQLite (package `sqflite`).
 - **State Management:** Provider.
 - **UI Style:** Material Design 3, tema marun/krem (bakery).
+- **Export PDF:** `pdf` + `printing`.
+- **Gamifikasi:** `shared_preferences`, `percent_indicator`, `confetti`.
 
 ## 3. Aktor & Hak Akses
 **Owner (Pemilik):**
@@ -41,7 +43,8 @@
 - **Pengeluaran:** input manual, kategori dinamis.
 - **Produksi & Stok:** produksi menambah stok, penjualan & waste mengurangi stok.
 - **Waste (Barang rusak/basi):** dicatat sebagai transaksi `WASTE` (amount 0).
-- **Laporan:** pie chart pemasukan/pengeluaran, toggle tipe, navigasi bulan.
+- **Laporan:** grafik tren 7 hari, pie chart pemasukan/pengeluaran, toggle tipe, navigasi bulan, export PDF (keuangan + waste).
+- **Target Harian (Owner):** opsional, progress bar omzet harian + confetti saat tercapai.
 - **Riwayat:** filter waktu (hari ini/kemarin/7 hari/bulan ini/semua), summary masuk/keluar/saldo, hapus transaksi, export Excel.
 - **Audit Log:** melihat transaksi yang dihapus, restore, hapus permanen.
 

@@ -37,8 +37,11 @@
    - Export Excel dari Riwayat (sesuai filter aktif)
 
 6. **Laporan**
+   - Grafik tren 7 hari (pemasukan vs pengeluaran)
    - Pie chart pemasukan/pengeluaran (toggle)
    - Navigasi bulan (prev/next)
+   - Ringkasan waste bulanan (qty saja)
+   - Export PDF laporan bulanan (keuangan + waste)
 
 7. **Manajemen Akun & Audit**
    - Owner dapat kelola staff (CRUD, reset password)
@@ -74,12 +77,15 @@
   - `lib/providers/category_provider.dart`
   - `lib/providers/auth_provider.dart`
   - `lib/providers/user_provider.dart`
-  - `lib/services/export_service.dart`
+- Services:
+  - `lib/services/export_service.dart` (Excel)
+  - `lib/services/pdf_service.dart` (PDF)
 
 ## Catatan UI/UX
 - Login: gradient maroon + card modern
 - Produk grid diurutkan: stok > 0 di atas, lalu alfabetis
 - Owner dashboard: combo card saldo + mini pemasukan/pengeluaran
+- Target harian opsional (progress + confetti) di header dashboard
 
 ## Build & Icon
 - Icon: `assets/icon_toko.png`

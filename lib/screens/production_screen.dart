@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../models/production_model.dart';
+import '../models/product_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/product_provider.dart';
@@ -24,6 +25,8 @@ class _ProductionScreenState extends State<ProductionScreen> {
   int? _selectedProductId;
   final TextEditingController _quantityController = TextEditingController();
   bool _isLoading = false;
+  bool _selectionMode = false;
+  final Set<int> _selectedProductIds = {};
 
   @override
   void initState() {
@@ -40,9 +43,87 @@ class _ProductionScreenState extends State<ProductionScreen> {
     super.dispose();
   }
 
+  void _toggleSelection(ProductModel product) {
+    final id = product.id;
+    if (id == null) {
+      return;
+    }
+    setState(() {
+      if (_selectedProductIds.contains(id)) {
+        _selectedProductIds.remove(id);
+      } else {
+        _selectedProductIds.add(id);
+      }
+      if (_selectedProductIds.isEmpty) {
+        _selectionMode = false;
+      }
+    });
+  }
+
+  void _enterSelectionMode(ProductModel product) {
+    final id = product.id;
+    if (id == null) {
+      return;
+    }
+    setState(() {
+      _selectionMode = true;
+      _selectedProductIds.add(id);
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectionMode = false;
+      _selectedProductIds.clear();
+    });
+  }
+
+  Future<void> _bulkSetActive(bool isActive) async {
+    final ids = _selectedProductIds.toList();
+    if (!isActive) {
+      final products = context.read<ProductProvider>().products;
+      final blocked = products
+          .where((product) =>
+              product.id != null &&
+              ids.contains(product.id) &&
+              product.stock > 0)
+          .toList();
+      if (blocked.isNotEmpty) {
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Gagal arsipkan. ${blocked.length} produk masih punya stok.',
+            ),
+          ),
+        );
+        return;
+      }
+    }
+    await context.read<ProductProvider>().updateProductsActive(
+          ids: ids,
+          isActive: isActive,
+        );
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isActive ? 'Produk diaktifkan.' : 'Produk diarsipkan.',
+        ),
+      ),
+    );
+    _clearSelection();
+  }
+
   Future<void> _addProduct() async {
     final nameController = TextEditingController();
     final priceController = TextEditingController();
+    final minStockController = TextEditingController(text: '5');
+    bool isActive = true;
     final result = await showDialog<bool>(
       context: context,
       builder: (context) {
@@ -66,6 +147,30 @@ class _ProductionScreenState extends State<ProductionScreen> {
                   labelText: 'Harga',
                 ),
               ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: minStockController,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: const InputDecoration(
+                  labelText: 'Batas Stok Minimum',
+                ),
+              ),
+              const SizedBox(height: 12),
+              StatefulBuilder(
+                builder: (context, setState) {
+                  return SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Produk Aktif'),
+                    value: isActive,
+                    onChanged: (value) {
+                      setState(() {
+                        isActive = value;
+                      });
+                    },
+                  );
+                },
+              ),
             ],
           ),
           actions: [
@@ -88,20 +193,148 @@ class _ProductionScreenState extends State<ProductionScreen> {
 
     final name = nameController.text.trim();
     final price = int.tryParse(priceController.text.trim()) ?? 0;
-    if (name.isEmpty || price <= 0) {
+    final minStock = int.tryParse(minStockController.text.trim()) ?? 5;
+    if (name.isEmpty || price <= 0 || minStock < 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Nama dan harga wajib diisi.')),
       );
       return;
     }
 
-    await context.read<ProductProvider>().addProduct(name, price);
+    await context.read<ProductProvider>().addProduct(
+          name,
+          price,
+          minStock: minStock,
+          isActive: isActive,
+        );
     if (!mounted) {
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Produk baru ditambahkan.')),
     );
+  }
+
+  Future<void> _editProduct(ProductModel product) async {
+    final nameController = TextEditingController(text: product.name);
+    final priceController = TextEditingController(text: '${product.price}');
+    final minStockController =
+        TextEditingController(text: '${product.minStock}');
+    bool isActive = product.isActive;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Edit Produk'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Nama Produk',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: priceController,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: const InputDecoration(
+                  labelText: 'Harga',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: minStockController,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: const InputDecoration(
+                  labelText: 'Batas Stok Minimum',
+                ),
+              ),
+              const SizedBox(height: 12),
+              StatefulBuilder(
+                builder: (context, setState) {
+                  return SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Produk Aktif'),
+                    value: isActive,
+                    onChanged: (value) {
+                      setState(() {
+                        isActive = value;
+                      });
+                    },
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Stok Saat Ini: ${product.stock}',
+                style: const TextStyle(color: Colors.grey),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Batal'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Simpan'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result != true) {
+      return;
+    }
+
+    final name = nameController.text.trim();
+    final price = int.tryParse(priceController.text.trim()) ?? 0;
+    final minStock = int.tryParse(minStockController.text.trim()) ?? 5;
+    if (name.isEmpty || price <= 0 || minStock < 0) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nama dan harga wajib diisi.')),
+      );
+      return;
+    }
+    if (!isActive && product.stock > 0) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Stok ${product.name} masih ${product.stock} pcs. '
+            'Habiskan dulu sebelum arsip.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (product.id != null) {
+      await context.read<ProductProvider>().updateProduct(
+            id: product.id!,
+            name: name,
+            price: price,
+            minStock: minStock,
+            isActive: isActive,
+          );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Produk diperbarui.')),
+      );
+    }
   }
 
   Future<void> _saveProduction() async {
@@ -172,29 +405,77 @@ class _ProductionScreenState extends State<ProductionScreen> {
 
   Future<void> _wasteStock(int productId, String productName) async {
     final controller = TextEditingController();
+    final noteController = TextEditingController();
+    const reasons = [
+      'Rusak / Basi',
+      'Sedekah / Sosial',
+      'Konsumsi Pribadi / Tester',
+      'Hilang / Selisih Stok',
+      'Lainnya',
+    ];
+    String selectedReason = reasons.first;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: Text('Buang $productName'),
-          content: TextField(
-            controller: controller,
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            decoration: const InputDecoration(
-              labelText: 'Jumlah',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Batal'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Buang'),
-            ),
-          ],
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text('Kurangi Stok - $productName'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    value: selectedReason,
+                    decoration: const InputDecoration(
+                      labelText: 'Alasan',
+                    ),
+                    items: reasons
+                        .map(
+                          (reason) => DropdownMenuItem<String>(
+                            value: reason,
+                            child: Text(reason),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value == null) {
+                        return;
+                      }
+                      setState(() {
+                        selectedReason = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: controller,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: const InputDecoration(
+                      labelText: 'Jumlah yang dikurangi',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: noteController,
+                    decoration: const InputDecoration(
+                      labelText: 'Catatan Tambahan (Opsional)',
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Batal'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('Catat'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -238,12 +519,20 @@ class _ProductionScreenState extends State<ProductionScreen> {
       return;
     }
 
+    final reasonTag = selectedReason
+        .split('/')
+        .first
+        .trim()
+        .toUpperCase()
+        .replaceAll(' ', '_');
+    final note = noteController.text.trim();
+    final noteSuffix = note.isEmpty ? '' : ' - $note';
     await context.read<TransactionProvider>().addWasteTransaction(
           productId: productId,
           quantity: qty,
           userId: userId,
           categoryId: wasteCategoryId,
-          description: 'Buang $productName ($qty pcs)',
+          description: '[$reasonTag] $productName ($qty pcs)$noteSuffix',
           date: DateFormat('yyyy-MM-dd').format(DateTime.now()),
         );
 
@@ -285,6 +574,9 @@ class _ProductionScreenState extends State<ProductionScreen> {
           }
           final sortedByStock = [...products]
             ..sort((a, b) {
+              if (a.isActive != b.isActive) {
+                return a.isActive ? -1 : 1;
+              }
               if (a.stock != b.stock) {
                 return b.stock.compareTo(a.stock);
               }
@@ -473,6 +765,37 @@ class _ProductionScreenState extends State<ProductionScreen> {
                     initiallyExpanded: false,
                     children: [
                       const SizedBox(height: 4),
+                      if (_selectionMode)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 4,
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  '${_selectedProductIds.length} dipilih',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () => _bulkSetActive(true),
+                                child: const Text('Aktifkan'),
+                              ),
+                              TextButton(
+                                onPressed: () => _bulkSetActive(false),
+                                child: const Text('Arsipkan'),
+                              ),
+                              TextButton(
+                                onPressed: _clearSelection,
+                                child: const Text('Batal'),
+                              ),
+                            ],
+                          ),
+                        ),
                       if (sortedByStock.isEmpty)
                         const Padding(
                           padding: EdgeInsets.only(bottom: 12),
@@ -483,20 +806,63 @@ class _ProductionScreenState extends State<ProductionScreen> {
                         )
                       else
                         ...sortedByStock.map((product) {
+                          final id = product.id;
+                          final isSelected =
+                              id != null && _selectedProductIds.contains(id);
+                          final isArchived = !product.isActive;
+                          final textColor =
+                              isArchived ? Colors.grey : Colors.black87;
                           return ListTile(
                             contentPadding:
                                 const EdgeInsets.symmetric(horizontal: 8),
-                            title: Text(product.name),
-                            subtitle: Text('Stok: ${product.stock}'),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.delete_outline,
-                                  color: Colors.red),
-                              onPressed: () {
-                                if (product.id != null) {
-                                  _wasteStock(product.id!, product.name);
-                                }
-                              },
+                            tileColor:
+                                isArchived ? Colors.grey.shade200 : null,
+                            leading: _selectionMode
+                                ? Checkbox(
+                                    value: isSelected,
+                                    onChanged: (_) => _toggleSelection(product),
+                                  )
+                                : null,
+                            title: Text(
+                              product.name,
+                              style: TextStyle(color: textColor),
                             ),
+                            subtitle: Text(
+                              'Stok: ${product.stock} • Min: ${product.minStock}${product.isActive ? '' : ' • Arsip'}',
+                              style: TextStyle(color: textColor),
+                            ),
+                            onTap: _selectionMode
+                                ? () => _toggleSelection(product)
+                                : null,
+                            onLongPress: _selectionMode
+                                ? null
+                                : () => _enterSelectionMode(product),
+                            trailing: _selectionMode
+                                ? null
+                                : Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(Icons.edit,
+                                            color: Color(0xFF1565C0)),
+                                        onPressed: () => _editProduct(product),
+                                      ),
+                                      if (product.stock > 0)
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.remove_circle_outline,
+                                            color: Colors.red,
+                                          ),
+                                          tooltip: 'Kurangi stok',
+                                          onPressed: () {
+                                            if (product.id != null) {
+                                              _wasteStock(
+                                                  product.id!, product.name);
+                                            }
+                                          },
+                                        ),
+                                    ],
+                                  ),
                           );
                         }).toList(),
                     ],

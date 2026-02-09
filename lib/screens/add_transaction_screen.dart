@@ -493,7 +493,9 @@ class _ProductGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<ProductProvider>(
       builder: (context, provider, _) {
-        if (provider.products.isEmpty) {
+        final visibleProducts =
+            provider.activeProducts.where((product) => product.stock > 0).toList();
+        if (visibleProducts.isEmpty) {
           return Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -512,7 +514,7 @@ class _ProductGrid extends StatelessWidget {
           );
         }
 
-        final sortedProducts = [...provider.products];
+        final sortedProducts = [...visibleProducts];
         sortedProducts.sort((a, b) {
           final aHasStock = a.stock > 0;
           final bHasStock = b.stock > 0;
