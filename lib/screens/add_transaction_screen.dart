@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../models/transaction_model.dart';
+import '../models/transaction_item_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/product_provider.dart';
@@ -28,8 +29,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   DateTime _selectedDate = DateTime.now();
   bool _manualIncomeInput = false;
   bool _isLoading = false;
-  int? _selectedProductId;
-  int? _selectedProductQty;
+  final List<_CartItem> _cartItems = [];
 
   @override
   void initState() {
@@ -103,10 +103,129 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   }
 
   void _resetProductSelection() {
-    _selectedProductId = null;
-    _selectedProductQty = null;
+    _cartItems.clear();
     _amountController.clear();
     _descriptionController.clear();
+  }
+
+  int _cartTotal() {
+    return _cartItems.fold<int>(
+      0,
+      (sum, item) => sum + (item.price * item.quantity),
+    );
+  }
+
+  Future<void> _addToCart({
+    required int productId,
+    required String name,
+    required int price,
+    required int stock,
+  }) async {
+    final qty = await _showQuantityDialog();
+    if (!mounted) {
+      return;
+    }
+    if (qty == null || qty <= 0) {
+      return;
+    }
+    final existingIndex =
+        _cartItems.indexWhere((item) => item.productId == productId);
+    if (existingIndex != -1) {
+      final currentQty = _cartItems[existingIndex].quantity;
+      final nextQty = currentQty + qty;
+      if (nextQty > stock) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Stok tidak cukup! Sisa: $stock')),
+        );
+        return;
+      }
+      setState(() {
+        _cartItems[existingIndex] =
+            _cartItems[existingIndex].copyWith(quantity: nextQty);
+      });
+    } else {
+      if (qty > stock) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Stok tidak cukup! Sisa: $stock')),
+        );
+        return;
+      }
+      setState(() {
+        _cartItems.add(
+          _CartItem(
+            productId: productId,
+            name: name,
+            price: price,
+            quantity: qty,
+          ),
+        );
+      });
+    }
+    _amountController.text = _cartTotal().toString();
+    _descriptionController.text =
+        'Penjualan ${_cartItems.length} item';
+  }
+
+  Future<void> _editCartItem(_CartItem item, int stock) async {
+    final controller = TextEditingController(text: '${item.quantity}');
+    final newQty = await showDialog<int>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Ubah jumlah ${item.name}'),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(hintText: 'Contoh: 5'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Batal'),
+            ),
+            TextButton(
+              onPressed: () {
+                final qty = int.tryParse(controller.text.trim());
+                Navigator.of(context).pop(qty);
+              },
+              child: const Text('Simpan'),
+            ),
+          ],
+        );
+      },
+    );
+    if (newQty == null || newQty <= 0) {
+      return;
+    }
+    if (newQty > stock) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Stok tidak cukup! Sisa: $stock')),
+      );
+      return;
+    }
+    setState(() {
+      final index =
+          _cartItems.indexWhere((entry) => entry.productId == item.productId);
+      if (index != -1) {
+        _cartItems[index] = _cartItems[index].copyWith(quantity: newQty);
+      }
+      _amountController.text = _cartTotal().toString();
+      _descriptionController.text =
+          'Penjualan ${_cartItems.length} item';
+    });
+  }
+
+  void _removeCartItem(_CartItem item) {
+    setState(() {
+      _cartItems.removeWhere((entry) => entry.productId == item.productId);
+      _amountController.text =
+          _cartItems.isEmpty ? '' : _cartTotal().toString();
+      _descriptionController.text =
+          _cartItems.isEmpty ? '' : 'Penjualan ${_cartItems.length} item';
+    });
   }
 
   Future<void> _saveTransaction() async {
@@ -167,12 +286,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       }
     }
 
-    int? productId;
-    int? quantity;
     if (_type == 'IN' && !_manualIncomeInput) {
-      productId = _selectedProductId;
-      quantity = _selectedProductQty;
-      if (productId == null || quantity == null || quantity <= 0) {
+      if (_cartItems.isEmpty) {
         setState(() {
           _isLoading = false;
         });
@@ -183,16 +298,18 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       }
 
       final productProvider = context.read<ProductProvider>();
-      final product = productProvider.getById(productId);
-      final available = product?.stock ?? 0;
-      if (quantity > available) {
-        setState(() {
-          _isLoading = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Stok tidak cukup! Sisa: $available')),
-        );
-        return;
+      for (final item in _cartItems) {
+        final product = productProvider.getById(item.productId);
+        final available = product?.stock ?? 0;
+        if (item.quantity > available) {
+          setState(() {
+            _isLoading = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Stok tidak cukup! Sisa: $available')),
+          );
+          return;
+        }
       }
     }
 
@@ -205,14 +322,34 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           : _descriptionController.text.trim(),
       date: DateFormat('yyyy-MM-dd').format(_selectedDate),
       userId: userId,
-      productId: productId,
-      quantity: quantity,
     );
 
-    await context.read<TransactionProvider>().addTransaction(transaction);
-
-    if (_type == 'IN' && !_manualIncomeInput && productId != null) {
-      await context.read<ProductProvider>().updateStock(productId, -quantity!);
+    if (_type == 'IN' && !_manualIncomeInput) {
+      final items = _cartItems.map((item) {
+        return TransactionItemModel(
+          transactionId: 0,
+          productId: item.productId,
+          productName: item.name,
+          unitPrice: item.price,
+          quantity: item.quantity,
+          total: item.price * item.quantity,
+        );
+      }).toList();
+      await context.read<TransactionProvider>().addTransactionWithItems(
+            transaction: transaction,
+            items: items,
+          );
+      for (final item in _cartItems) {
+        await context.read<ProductProvider>().updateStock(
+              item.productId,
+              -item.quantity,
+            );
+      }
+    } else {
+      await context.read<TransactionProvider>().addTransaction(transaction);
+      if (_type == 'IN' && !_manualIncomeInput) {
+        // no-op, handled above
+      }
     }
 
     if (!mounted) {
@@ -231,7 +368,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     final currency = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ');
     final showSummaryCard = _type == 'IN' &&
         !_manualIncomeInput &&
-        _amountController.text.trim().isNotEmpty;
+        _cartItems.isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -343,30 +480,109 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             const SizedBox(height: 16),
             Expanded(
               child: _type == 'IN' && !_manualIncomeInput
-                  ? _ProductGrid(
-                      currency: currency,
-                      onManualTap: () {
-                        setState(() {
-                          _manualIncomeInput = true;
-                          _resetProductSelection();
-                        });
-                      },
-                      onSelected: (productId, productName, price, stock) async {
-                        final qty = await _showQuantityDialog();
-                        if (!context.mounted) {
-                          return;
-                        }
-                        if (qty == null || qty <= 0) {
-                          return;
-                        }
-                        setState(() {
-                          _selectedProductId = productId;
-                          _selectedProductQty = qty;
-                          _amountController.text = (price * qty).toString();
-                          _descriptionController.text =
-                              'Penjualan $productName ($qty pcs)';
-                        });
-                      },
+                  ? Column(
+                      children: [
+                        Expanded(
+                          child: _ProductGrid(
+                            currency: currency,
+                            onManualTap: () {
+                              setState(() {
+                                _manualIncomeInput = true;
+                                _resetProductSelection();
+                              });
+                            },
+                            onSelected:
+                                (productId, productName, price, stock) async {
+                              await _addToCart(
+                                productId: productId,
+                                name: productName,
+                                price: price,
+                                stock: stock,
+                              );
+                            },
+                            isInCart: (productId) {
+                              return _cartItems.any(
+                                (item) => item.productId == productId,
+                              );
+                            },
+                          ),
+                        ),
+                        if (_cartItems.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Keranjang',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                SizedBox(
+                                  height: 140,
+                                  child: ListView.separated(
+                                    itemCount: _cartItems.length,
+                                    separatorBuilder: (_, __) =>
+                                        const Divider(height: 12),
+                                    itemBuilder: (context, index) {
+                                      final item = _cartItems[index];
+                                      final product =
+                                          context.read<ProductProvider>()
+                                              .getById(item.productId);
+                                      final stock = product?.stock ?? 0;
+                                      return Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              '${item.name} • ${item.quantity} pcs',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                          Text(
+                                            currency.format(
+                                              item.price * item.quantity,
+                                            ),
+                                            style: const TextStyle(
+                                                color: Colors.grey),
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(Icons.edit,
+                                                size: 18),
+                                            onPressed: () =>
+                                                _editCartItem(item, stock),
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(Icons.close,
+                                                size: 18),
+                                            onPressed: () =>
+                                                _removeCartItem(item),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
                     )
                   : ListView(
                       children: [
@@ -483,11 +699,13 @@ class _ProductGrid extends StatelessWidget {
     required this.currency,
     required this.onManualTap,
     required this.onSelected,
+    required this.isInCart,
   });
 
   final NumberFormat currency;
   final VoidCallback onManualTap;
   final void Function(int id, String name, int price, int stock) onSelected;
+  final bool Function(int productId) isInCart;
 
   @override
   Widget build(BuildContext context) {
@@ -552,6 +770,7 @@ class _ProductGrid extends StatelessWidget {
                 itemCount: sortedProducts.length,
                 itemBuilder: (context, index) {
                   final product = sortedProducts[index];
+                  final inCart = isInCart(product.id ?? -1);
                   return InkWell(
                     onTap: () {
                       if (product.id == null) {
@@ -568,8 +787,14 @@ class _ProductGrid extends StatelessWidget {
                     child: Ink(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: inCart ? Colors.orange.shade50 : Colors.white,
                         borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: inCart
+                              ? Colors.deepOrange
+                              : Colors.transparent,
+                          width: inCart ? 2 : 1,
+                        ),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withOpacity(0.05),
@@ -607,6 +832,34 @@ class _ProductGrid extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _CartItem {
+  _CartItem({
+    required this.productId,
+    required this.name,
+    required this.price,
+    required this.quantity,
+  });
+
+  final int productId;
+  final String name;
+  final int price;
+  final int quantity;
+
+  _CartItem copyWith({
+    int? productId,
+    String? name,
+    int? price,
+    int? quantity,
+  }) {
+    return _CartItem(
+      productId: productId ?? this.productId,
+      name: name ?? this.name,
+      price: price ?? this.price,
+      quantity: quantity ?? this.quantity,
     );
   }
 }

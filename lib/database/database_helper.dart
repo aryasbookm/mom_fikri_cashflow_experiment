@@ -18,7 +18,7 @@ class DatabaseHelper {
     return _database!;
   }
 
-  static const int _dbVersion = 7;
+  static const int _dbVersion = 8;
 
   Future<Database> _initDatabase() async {
     final databasesPath = await getDatabasesPath();
@@ -76,6 +76,20 @@ class DatabaseHelper {
         date TEXT NOT NULL,
         user_id INTEGER NOT NULL,
         FOREIGN KEY(user_id) REFERENCES users(id)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE transaction_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        transaction_id INTEGER NOT NULL,
+        product_id INTEGER,
+        product_name TEXT NOT NULL,
+        unit_price INTEGER NOT NULL,
+        quantity INTEGER NOT NULL,
+        total INTEGER NOT NULL,
+        FOREIGN KEY(transaction_id) REFERENCES transactions(id),
+        FOREIGN KEY(product_id) REFERENCES products(id)
       )
     ''');
 
@@ -241,6 +255,21 @@ class DatabaseHelper {
       await db.execute(
         'ALTER TABLE products ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1',
       );
+    }
+    if (oldVersion < 8) {
+      await db.execute('''
+        CREATE TABLE transaction_items (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          transaction_id INTEGER NOT NULL,
+          product_id INTEGER,
+          product_name TEXT NOT NULL,
+          unit_price INTEGER NOT NULL,
+          quantity INTEGER NOT NULL,
+          total INTEGER NOT NULL,
+          FOREIGN KEY(transaction_id) REFERENCES transactions(id),
+          FOREIGN KEY(product_id) REFERENCES products(id)
+        )
+      ''');
     }
   }
 

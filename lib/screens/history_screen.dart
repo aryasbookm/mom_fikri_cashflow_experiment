@@ -8,6 +8,7 @@ import '../providers/auth_provider.dart';
 import '../providers/product_provider.dart';
 import '../providers/transaction_provider.dart';
 import '../services/export_service.dart';
+import 'transaction_detail_screen.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -228,6 +229,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             leading: Icon(icon, color: color),
                             title: Text(tx.categoryName ?? 'Transaksi'),
                             subtitle: Text(subtitleText),
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      TransactionDetailScreen(transaction: tx),
+                                ),
+                              );
+                            },
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [

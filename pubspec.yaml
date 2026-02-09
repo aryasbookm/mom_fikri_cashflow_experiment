@@ -50,6 +50,7 @@ dependencies:
   printing: ^5.14.2
   percent_indicator: ^4.2.5
   confetti: ^0.8.0
+  screenshot: ^3.0.0
 
 dev_dependencies:
   flutter_test:

@@ -5,6 +5,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../database/database_helper.dart';
 import '../models/deleted_transaction_model.dart';
+import '../models/transaction_item_model.dart';
 import '../models/transaction_model.dart';
 import 'product_provider.dart';
 
@@ -109,6 +110,23 @@ class TransactionProvider extends ChangeNotifier {
     await loadTransactions();
   }
 
+  Future<void> addTransactionWithItems({
+    required TransactionModel transaction,
+    required List<TransactionItemModel> items,
+  }) async {
+    final Database db = await DatabaseHelper.instance.database;
+    await db.transaction((txn) async {
+      final txId = await txn.insert('transactions', transaction.toMap());
+      for (final item in items) {
+        await txn.insert(
+          'transaction_items',
+          item.copyWith(transactionId: txId).toMap(),
+        );
+      }
+    });
+    await loadTransactions();
+  }
+
   Future<void> addWasteTransaction({
     required int productId,
     required int quantity,
@@ -144,13 +162,35 @@ class TransactionProvider extends ChangeNotifier {
     );
     if (rows.isNotEmpty) {
       final tx = TransactionModel.fromMap(rows.first);
-      if ((tx.type == 'IN' || tx.type == 'WASTE') &&
+      if (tx.type == 'IN') {
+        final items = await db.query(
+          'transaction_items',
+          where: 'transaction_id = ?',
+          whereArgs: [id],
+        );
+        if (items.isNotEmpty) {
+          for (final item in items) {
+            final productId = item['product_id'] as int?;
+            final quantity = item['quantity'] as int? ?? 0;
+            if (productId != null && quantity > 0) {
+              await productProvider?.updateStock(productId, quantity);
+            }
+          }
+        } else if (tx.productId != null && tx.quantity != null) {
+          await productProvider?.updateStock(tx.productId!, tx.quantity!);
+        }
+      } else if (tx.type == 'WASTE' &&
           tx.productId != null &&
           tx.quantity != null) {
         await productProvider?.updateStock(tx.productId!, tx.quantity!);
       }
     }
     await db.delete('transactions', where: 'id = ?', whereArgs: [id]);
+    await db.delete(
+      'transaction_items',
+      where: 'transaction_id = ?',
+      whereArgs: [id],
+    );
     await loadTransactions();
   }
 
@@ -252,6 +292,16 @@ class TransactionProvider extends ChangeNotifier {
     await loadTransactions();
     await loadDeletedTransactions();
     return true;
+  }
+
+  Future<List<TransactionItemModel>> getTransactionItems(int transactionId) async {
+    final Database db = await DatabaseHelper.instance.database;
+    final rows = await db.query(
+      'transaction_items',
+      where: 'transaction_id = ?',
+      whereArgs: [transactionId],
+    );
+    return rows.map(TransactionItemModel.fromMap).toList();
   }
 
   Future<void> loadTodayTransactionsForUser(int userId) async {
