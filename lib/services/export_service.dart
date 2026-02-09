@@ -142,6 +142,7 @@ class ExportService {
     };
 
     final dateFormat = DateFormat('yyyy-MM-dd HH:mm');
+    final currency = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ');
 
     print('Mengekspor ${transactions.length} transaksi...');
 

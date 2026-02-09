@@ -313,6 +313,15 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       }
     }
 
+    final now = DateTime.now();
+    final txDateTime = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+      now.hour,
+      now.minute,
+      now.second,
+    );
     final transaction = TransactionModel(
       type: _type,
       amount: amount,
@@ -320,7 +329,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       description: _descriptionController.text.trim().isEmpty
           ? null
           : _descriptionController.text.trim(),
-      date: DateFormat('yyyy-MM-dd').format(_selectedDate),
+      date: txDateTime.toIso8601String(),
       userId: userId,
     );
 

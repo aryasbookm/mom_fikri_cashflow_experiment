@@ -342,11 +342,11 @@ class TransactionProvider extends ChangeNotifier {
         c.name AS category_name
       FROM transactions t
       LEFT JOIN categories c ON t.category_id = c.id
-      WHERE t.user_id = ? AND t.date = ? AND t.type != 'WASTE'
+      WHERE t.user_id = ? AND t.date LIKE ? AND t.type != 'WASTE'
       ORDER BY t.date DESC, t.id DESC
     ''';
     final List<Map<String, dynamic>> result =
-        await db.rawQuery(query, [userId, today]);
+        await db.rawQuery(query, [userId, '$today%']);
 
     _transactions
       ..clear()

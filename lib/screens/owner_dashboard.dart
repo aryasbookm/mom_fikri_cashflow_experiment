@@ -150,9 +150,16 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
 
     return Consumer3<TransactionProvider, ProductProvider, ProductionProvider>(
       builder: (context, provider, productProvider, productionProvider, _) {
-        final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+        final todayDate = DateTime.now();
         final todayTx = provider.transactions.where((tx) {
-          return tx.date == today && tx.type != 'WASTE';
+          final parsed = DateTime.tryParse(tx.date);
+          if (parsed == null) {
+            return false;
+          }
+          final sameDay = parsed.year == todayDate.year &&
+              parsed.month == todayDate.month &&
+              parsed.day == todayDate.day;
+          return sameDay && tx.type != 'WASTE';
         }).toList();
         final todayIncome = todayTx
             .where((tx) => tx.type == 'IN')
@@ -167,8 +174,10 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
             .where((product) => product.stock <= product.minStock)
             .toList();
 
+        final todayKey =
+            DateFormat('yyyy-MM-dd').format(DateTime.now());
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          _maybeCelebrate(todayIncome: todayIncome, todayKey: today);
+          _maybeCelebrate(todayIncome: todayIncome, todayKey: todayKey);
         });
 
         return Stack(

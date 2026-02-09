@@ -219,8 +219,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           final description = tx.description?.isNotEmpty == true
                               ? tx.description!
                               : null;
-                          final dateLabel = DateFormat('d MMMM y', 'id_ID')
-                              .format(DateTime.parse(tx.date));
+                          final dateLabel = DateFormat(
+                            'd MMMM y HH:mm',
+                            'id_ID',
+                          ).format(DateTime.parse(tx.date));
                           final subtitleText = description == null
                               ? dateLabel
                               : '$dateLabel • $description';

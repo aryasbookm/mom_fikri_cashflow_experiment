@@ -533,7 +533,7 @@ class _ProductionScreenState extends State<ProductionScreen> {
           userId: userId,
           categoryId: wasteCategoryId,
           description: '[$reasonTag] $productName ($qty pcs)$noteSuffix',
-          date: DateFormat('yyyy-MM-dd').format(DateTime.now()),
+          date: DateTime.now().toIso8601String(),
         );
 
     if (!mounted) {
@@ -582,9 +582,18 @@ class _ProductionScreenState extends State<ProductionScreen> {
               }
               return a.name.toLowerCase().compareTo(b.name.toLowerCase());
             });
-          final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+          final now = DateTime.now();
           final wasteToday = transactionProvider.transactions.where((tx) {
-            return tx.type == 'WASTE' && tx.date == today;
+            if (tx.type != 'WASTE') {
+              return false;
+            }
+            final parsed = DateTime.tryParse(tx.date);
+            if (parsed == null) {
+              return false;
+            }
+            return parsed.year == now.year &&
+                parsed.month == now.month &&
+                parsed.day == now.day;
           }).toList();
 
           final totalStock =

@@ -206,6 +206,6 @@ class PdfService {
     if (parsed == null) {
       return raw;
     }
-    return DateFormat('dd/MM/yyyy').format(parsed);
+    return DateFormat('dd/MM/yyyy HH:mm').format(parsed);
   }
 }
