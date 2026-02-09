@@ -56,7 +56,7 @@
 
 8. **Backup & Restore (Robust)**
    - Backup DB ke file `.db` (share + simpan ke Download)
-   - Restore via file picker dengan rollback, validasi versi, dan validasi struktur
+   - Restore via file picker (Android pakai `FileType.any`) dengan rollback, validasi versi, dan validasi struktur
    - Restore memicu refresh data + reset filter laporan/riwayat
 
 ## Skema Database (v8)

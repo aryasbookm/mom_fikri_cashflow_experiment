@@ -88,8 +88,7 @@ class BackupService {
 
   static Future<RestoreResult?> restoreDatabase() async {
     final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['db'],
+      type: FileType.any,
       withData: false,
       allowMultiple: false,
     );

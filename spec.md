@@ -16,6 +16,7 @@
 - **Struk Digital:** `screenshot` + `share_plus` + `path_provider`.
 - **Export Itemized:** Excel/PDF menampilkan rincian item per transaksi.
 - **Backup/Restore:** `file_picker` + `share_plus` + `path_provider`.
+  - Android picker memakai `FileType.any` + validasi manual `.db`.
 
 ## 3. Aktor & Hak Akses
 **Owner (Pemilik):**

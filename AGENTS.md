@@ -12,6 +12,7 @@ This file defines working rules and expectations for AI agents collaborating on 
 - Export PDF uses `printing`; keep macOS entitlements in sync if touched.
 - When changing transaction timestamps, update filters and exports consistently.
 - Backup/restore changes must be tested against rollback + schema/structure validation.
+- Android file picker uses `FileType.any`; validate `.db` manually in app logic.
 
 ## Code Guidelines
 - Keep files in ASCII unless necessary.
