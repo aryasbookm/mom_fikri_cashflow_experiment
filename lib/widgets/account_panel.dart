@@ -13,10 +13,18 @@ class AccountPanel extends StatelessWidget {
     super.key,
     required this.onLogout,
     this.onManageUsers,
+    this.onBackup,
+    this.isBackingUp = false,
+    this.onRestore,
+    this.isRestoring = false,
   });
 
   final VoidCallback onLogout;
   final VoidCallback? onManageUsers;
+  final VoidCallback? onBackup;
+  final bool isBackingUp;
+  final VoidCallback? onRestore;
+  final bool isRestoring;
 
   Future<void> _pickProfileImage(BuildContext context) async {
     final picker = ImagePicker();
@@ -212,6 +220,34 @@ class AccountPanel extends StatelessWidget {
               onPressed: onManageUsers,
               icon: const Icon(Icons.manage_accounts),
               label: const Text('Kelola Pengguna'),
+            ),
+          ],
+          if (onBackup != null) ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: isBackingUp ? null : onBackup,
+              icon: isBackingUp
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.backup),
+              label: Text(isBackingUp ? 'Membuat Backup...' : 'Backup Data'),
+            ),
+          ],
+          if (onRestore != null) ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: isRestoring ? null : onRestore,
+              icon: isRestoring
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.restore),
+              label: Text(isRestoring ? 'Memulihkan Data...' : 'Restore Data'),
             ),
           ],
           const SizedBox(height: 20),
