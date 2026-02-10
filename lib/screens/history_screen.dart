@@ -97,6 +97,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
             }
             setState(() {
               _filter = 'Semua';
+              _searchController.clear();
+              _searchQuery = '';
               _lastSeenEpoch = provider.restoreEpoch;
             });
           });

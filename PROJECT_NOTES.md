@@ -17,6 +17,7 @@ Prioritas (tanpa ubah DB v8):
    - Tidak ada auto-backup background.
    - Simpan tanggal backup terakhir.
    - Banner/alert di Dashboard jika > 3 hari belum backup.
+   - Banner hanya muncul jika sudah ada data (transaksi/produk).
    - Catatan: auto-backup lokal saja tidak melindungi jika HP hilang; aman mulai dari reminder.
    - Jika auto-backup lokal ditambahkan: wajib toggle ON/OFF, retention 5–10 file terbaru, lokasi Download/App Documents.
    - Cloud backup (Drive) lebih aman untuk kehilangan HP, tetapi kompleks (fase berikutnya).

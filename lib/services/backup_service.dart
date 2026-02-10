@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../database/database_helper.dart';
@@ -41,6 +42,8 @@ class RestoreResult {
 }
 
 class BackupService {
+  static const String _lastBackupKey = 'last_backup_timestamp';
+
   static Future<BackupResult> backupDatabase({
     bool shareAfter = true,
   }) async {
@@ -78,6 +81,9 @@ class BackupService {
         text: 'Backup Mom Fiqry',
       );
     }
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_lastBackupKey, DateTime.now().millisecondsSinceEpoch);
 
     return BackupResult(
       sourcePath: dbPath,

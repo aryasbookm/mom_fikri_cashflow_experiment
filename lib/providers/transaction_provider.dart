@@ -359,6 +359,40 @@ class TransactionProvider extends ChangeNotifier {
     return rows;
   }
 
+  Future<List<Map<String, dynamic>>> getSlowMovingProducts({
+    int limit = 5,
+    int days = 30,
+  }) async {
+    final Database db = await DatabaseHelper.instance.database;
+    final DateTime today = DateTime.now();
+    final DateTime start =
+        DateTime(today.year, today.month, today.day).subtract(
+      Duration(days: days - 1),
+    );
+    final startIso = start.toIso8601String();
+    final rows = await db.rawQuery(
+      '''
+        SELECT
+          p.id AS product_id,
+          p.name AS name,
+          p.stock AS stock,
+          COALESCE(SUM(i.quantity), 0) AS total_qty
+        FROM products p
+        LEFT JOIN transaction_items i ON i.product_id = p.id
+        LEFT JOIN transactions t
+          ON t.id = i.transaction_id
+          AND t.type = 'IN'
+          AND t.date >= ?
+        WHERE p.is_active = 1
+        GROUP BY p.id, p.name, p.stock
+        ORDER BY total_qty ASC, p.name ASC
+        LIMIT ?
+      ''',
+      [startIso, limit],
+    );
+    return rows;
+  }
+
   Future<void> loadTodayTransactionsForUser(int userId) async {
     final Database db = await DatabaseHelper.instance.database;
     final today = DateFormat('yyyy-MM-dd').format(DateTime.now());

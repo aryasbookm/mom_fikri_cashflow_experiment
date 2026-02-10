@@ -9,6 +9,7 @@ import '../models/product_model.dart';
 import '../providers/product_provider.dart';
 import '../providers/production_provider.dart';
 import '../providers/transaction_provider.dart';
+import '../services/backup_service.dart';
 import 'add_transaction_screen.dart';
 import 'history_screen.dart';
 
@@ -23,12 +24,18 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
   static const String _targetKey = 'daily_target_amount';
   static const String _celebratedDateKey = 'daily_target_celebrated_date';
   static const String _showStockAlertKey = 'show_stock_alert';
+  static const String _lastBackupKey = 'last_backup_timestamp';
   int _dailyTarget = 0;
   bool _isLoadingTarget = true;
   bool _showStockAlert = true;
+  bool _showBackupAlert = false;
+  bool _isBackingUp = false;
   late final ConfettiController _confettiController;
   Future<List<Map<String, dynamic>>>? _topProductsFuture;
+  Future<List<Map<String, dynamic>>>? _slowMovingFuture;
   int _lastTxCount = -1;
+  int _lastSlowTxCount = -1;
+  int _lastSlowProductCount = -1;
 
   @override
   void initState() {
@@ -39,6 +46,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     _confettiController =
         ConfettiController(duration: const Duration(seconds: 2));
     _loadDailyTarget();
+    _loadBackupReminder();
   }
 
   @override
@@ -57,6 +65,58 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
       _showStockAlert = prefs.getBool(_showStockAlertKey) ?? true;
       _isLoadingTarget = false;
     });
+  }
+
+  Future<void> _loadBackupReminder() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastBackup = prefs.getInt(_lastBackupKey);
+    final now = DateTime.now();
+    final isOverdue = lastBackup == null ||
+        now.difference(DateTime.fromMillisecondsSinceEpoch(lastBackup)) >
+            const Duration(days: 3);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _showBackupAlert = isOverdue;
+    });
+  }
+
+  Future<void> _backupDatabase() async {
+    if (_isBackingUp) {
+      return;
+    }
+    setState(() {
+      _isBackingUp = true;
+    });
+    try {
+      final result = await BackupService.backupDatabase(shareAfter: true);
+      if (!mounted) {
+        return;
+      }
+      final downloadMessage = result.downloadPath != null
+          ? 'Backup tersimpan di: ${result.downloadPath}'
+          : 'Backup selesai, tetapi gagal simpan ke folder Download.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(downloadMessage)),
+      );
+      setState(() {
+        _showBackupAlert = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal membuat backup: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isBackingUp = false;
+        });
+      }
+    }
   }
 
   Future<void> _setShowStockAlert(bool value) async {
@@ -152,10 +212,21 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
 
     return Consumer3<TransactionProvider, ProductProvider, ProductionProvider>(
       builder: (context, provider, productProvider, productionProvider, _) {
-        if (_topProductsFuture == null ||
-            _lastTxCount != provider.transactions.length) {
-          _lastTxCount = provider.transactions.length;
+        final txCount = provider.transactions.length;
+        final productCount = productProvider.products.length;
+        if (_topProductsFuture == null || _lastTxCount != txCount) {
+          _lastTxCount = txCount;
           _topProductsFuture = provider.getTopProductsLast7Days();
+        }
+        if (_slowMovingFuture == null ||
+            _lastSlowTxCount != txCount ||
+            _lastSlowProductCount != productCount) {
+          _lastSlowTxCount = txCount;
+          _lastSlowProductCount = productCount;
+          _slowMovingFuture = provider.getSlowMovingProducts(
+            limit: 5,
+            days: 30,
+          );
         }
         final todayDate = DateTime.now();
         final todayTx = provider.transactions.where((tx) {
@@ -174,6 +245,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
         final todayExpense = todayTx
             .where((tx) => tx.type == 'OUT')
             .fold<int>(0, (sum, tx) => sum + tx.amount);
+        final hasData = provider.transactions.isNotEmpty ||
+            productProvider.products.isNotEmpty;
         final totalStock = productProvider.products
             .fold<int>(0, (sum, product) => sum + product.stock);
         final lowStock = productProvider.products
@@ -195,6 +268,60 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (_showBackupAlert && hasData)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF3CD),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFFFE8A1)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.only(top: 2),
+                            child: Icon(Icons.warning_amber_rounded,
+                                color: Color(0xFF8D1B3D)),
+                          ),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Backup data belum dilakukan > 3 hari. '
+                              'Disarankan backup sekarang.',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Column(
+                            children: [
+                              TextButton(
+                                onPressed: _isBackingUp ? null : _backupDatabase,
+                                child: _isBackingUp
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Text('Backup'),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close, size: 18),
+                                onPressed: () {
+                                  setState(() {
+                                    _showBackupAlert = false;
+                                  });
+                                },
+                                tooltip: 'Tutup',
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (_showBackupAlert) const SizedBox(height: 12),
                   if (_isLoadingTarget)
                     const SizedBox(height: 12)
                   else if (_dailyTarget <= 0)
@@ -350,6 +477,10 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                   const SizedBox(height: 16),
                   _TopProductsCard(
                     future: _topProductsFuture,
+                  ),
+                  const SizedBox(height: 16),
+                  _SlowMovingCard(
+                    future: _slowMovingFuture,
                   ),
                 ],
               ),
@@ -843,6 +974,119 @@ class _TopProductRow extends StatelessWidget {
         ),
         Text(
           '$quantity pcs',
+          style: const TextStyle(color: Colors.black54),
+        ),
+      ],
+    );
+  }
+}
+
+class _SlowMovingCard extends StatelessWidget {
+  const _SlowMovingCard({required this.future});
+
+  final Future<List<Map<String, dynamic>>>? future;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Produk Lambat (30 Hari)',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 12),
+          if (future == null)
+            const Text('Belum ada data')
+          else
+            FutureBuilder<List<Map<String, dynamic>>>(
+              future: future,
+              builder: (context, snapshot) {
+                final items = snapshot.data ?? const [];
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  );
+                }
+                if (items.isEmpty) {
+                  return const Text('Belum ada produk aktif');
+                }
+                return Column(
+                  children: [
+                    for (int i = 0; i < items.length; i++)
+                      Padding(
+                        padding:
+                            EdgeInsets.only(bottom: i == items.length - 1 ? 0 : 8),
+                        child: _SlowMovingRow(
+                          name: items[i]['name']?.toString() ?? '-',
+                          sold:
+                              (items[i]['total_qty'] as num?)?.toInt() ?? 0,
+                          stock: (items[i]['stock'] as num?)?.toInt() ?? 0,
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SlowMovingRow extends StatelessWidget {
+  const _SlowMovingRow({
+    required this.name,
+    required this.sold,
+    required this.stock,
+  });
+
+  final String name;
+  final int sold;
+  final int stock;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 28,
+          height: 28,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Colors.orange.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Icon(Icons.trending_down, size: 16, color: Colors.orange),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            name,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        Text(
+          'Terjual $sold • Stok $stock',
           style: const TextStyle(color: Colors.black54),
         ),
       ],
