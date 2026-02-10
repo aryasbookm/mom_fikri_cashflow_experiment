@@ -45,6 +45,7 @@ class BackupService {
   static const String lastBackupKey = 'last_backup_timestamp';
   static const String autoBackupEnabledKey = 'auto_backup_enabled';
   static const String lastAutoBackupKey = 'last_auto_backup_timestamp';
+  static const String lastBackupDataCountKey = 'last_backup_data_count';
 
   static Future<BackupResult> backupDatabase({
     bool shareAfter = true,
@@ -84,8 +85,7 @@ class BackupService {
       );
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(lastBackupKey, DateTime.now().millisecondsSinceEpoch);
+    await _updateLastBackupMetadata();
 
     return BackupResult(
       sourcePath: dbPath,
@@ -112,7 +112,44 @@ class BackupService {
     await dbFile.copy(targetPath);
 
     _applyRetention(autoDir, retention);
+    await _updateLastBackupMetadata();
     return targetPath;
+  }
+
+  static Future<int> getCurrentDataCount() async {
+    final Database db = await DatabaseHelper.instance.database;
+    final txCount = Sqflite.firstIntValue(
+          await db.rawQuery('SELECT COUNT(*) FROM transactions'),
+        ) ??
+        0;
+    final productCount = Sqflite.firstIntValue(
+          await db.rawQuery('SELECT COUNT(*) FROM products'),
+        ) ??
+        0;
+    final deletedCount = Sqflite.firstIntValue(
+          await db.rawQuery('SELECT COUNT(*) FROM deleted_transactions'),
+        ) ??
+        0;
+    return txCount + productCount + deletedCount;
+  }
+
+  static Future<bool> hasDataChanged() async {
+    final prefs = await SharedPreferences.getInstance();
+    final currentCount = await getCurrentDataCount();
+    final lastCount = prefs.getInt(lastBackupDataCountKey);
+    if (lastCount == null) {
+      return currentCount > 0;
+    }
+    return currentCount != lastCount;
+  }
+
+  static Future<void> _updateLastBackupMetadata() async {
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await prefs.setInt(lastBackupKey, now);
+    await prefs.setInt(lastAutoBackupKey, now);
+    final currentCount = await getCurrentDataCount();
+    await prefs.setInt(lastBackupDataCountKey, currentCount);
   }
 
   static void _applyRetention(Directory dir, int retention) {

@@ -69,10 +69,16 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
   Future<void> _loadBackupReminder() async {
     final prefs = await SharedPreferences.getInstance();
     final lastBackup = prefs.getInt(BackupService.lastBackupKey);
+    final lastDataCount = prefs.getInt(BackupService.lastBackupDataCountKey);
+    final currentCount = await BackupService.getCurrentDataCount();
     final now = DateTime.now();
-    final isOverdue = lastBackup == null ||
-        now.difference(DateTime.fromMillisecondsSinceEpoch(lastBackup)) >
-            const Duration(days: 3);
+    final hasChanges = lastDataCount == null
+        ? currentCount > 0
+        : currentCount != lastDataCount;
+    final isOverdue = hasChanges &&
+        (lastBackup == null ||
+            now.difference(DateTime.fromMillisecondsSinceEpoch(lastBackup)) >
+                const Duration(days: 3));
     if (!mounted) {
       return;
     }

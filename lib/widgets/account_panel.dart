@@ -231,7 +231,7 @@ class AccountPanel extends StatelessWidget {
                     icon: Icons.backup_outlined,
                     label: 'Auto-backup Lokal',
                     value: autoBackupEnabled,
-                    onChanged: onToggleAutoBackup,
+                    onChanged: onToggleAutoBackup!,
                   ),
                 if (onBackup != null)
                   _SettingsTile(
@@ -472,7 +472,7 @@ class _SwitchTile extends StatelessWidget {
         ),
       ),
       value: value,
-      onChanged: onChanged,
+      onChanged: (value) => onChanged(value),
     );
   }
 }

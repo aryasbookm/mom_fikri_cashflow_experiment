@@ -58,6 +58,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     if (!enabled) {
       return;
     }
+    final hasChanged = await BackupService.hasDataChanged();
+    if (!hasChanged) {
+      return;
+    }
     final lastRun = prefs.getInt(BackupService.lastAutoBackupKey);
     final now = DateTime.now();
     if (lastRun != null) {
