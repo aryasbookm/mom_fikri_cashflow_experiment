@@ -102,6 +102,33 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return false;
   }
 
+  _MatchInfo? _buildMatchInfo(
+    int transactionId,
+    Map<int, List<TransactionItemModel>> itemsByTxId,
+  ) {
+    final query = _searchQuery.trim().toLowerCase();
+    if (query.isEmpty) {
+      return null;
+    }
+    final items = itemsByTxId[transactionId] ?? const [];
+    TransactionItemModel? firstMatch;
+    int matchCount = 0;
+    for (final item in items) {
+      if (item.productName.toLowerCase().contains(query)) {
+        matchCount += 1;
+        firstMatch ??= item;
+      }
+    }
+    if (firstMatch == null) {
+      return null;
+    }
+    return _MatchInfo(
+      name: firstMatch.productName,
+      quantity: firstMatch.quantity,
+      hasMore: matchCount > 1,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final currency = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ');
@@ -315,11 +342,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       );
                     }
 
+                    final searchActive = _searchQuery.trim().isNotEmpty;
+                    final searchLabel =
+                        "Ditemukan ${deepFiltered.length} transaksi dengan kata '${_searchQuery.trim()}'";
+
+                    Widget listContent;
                     if (deepFiltered.isEmpty) {
-                      final emptyLabel = _searchQuery.trim().isEmpty
-                          ? 'Belum ada transaksi'
-                          : 'Transaksi tidak ditemukan';
-                      return Center(
+                      final emptyLabel = searchActive
+                          ? 'Transaksi tidak ditemukan'
+                          : 'Belum ada transaksi';
+                      listContent = Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -333,95 +365,143 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           ],
                         ),
                       );
-                    }
+                    } else {
+                      listContent = ListView.builder(
+                        itemCount: deepFiltered.length,
+                        itemBuilder: (context, index) {
+                          final tx = deepFiltered[index];
+                          final isIncome = tx.type == 'IN';
+                          final color = isIncome ? Colors.green : Colors.red;
+                          final icon = isIncome
+                              ? Icons.arrow_downward
+                              : Icons.arrow_upward;
+                          final description = tx.description?.isNotEmpty == true
+                              ? tx.description!
+                              : null;
+                          final dateLabel = DateFormat(
+                            'd MMMM y HH:mm',
+                            'id_ID',
+                          ).format(DateTime.parse(tx.date));
+                          final subtitleText = description == null
+                              ? dateLabel
+                              : '$dateLabel • $description';
 
-                    return ListView.builder(
-                      itemCount: deepFiltered.length,
-                      itemBuilder: (context, index) {
-                        final tx = deepFiltered[index];
-                        final isIncome = tx.type == 'IN';
-                        final color = isIncome ? Colors.green : Colors.red;
-                        final icon = isIncome
-                            ? Icons.arrow_downward
-                            : Icons.arrow_upward;
-                        final description = tx.description?.isNotEmpty == true
-                            ? tx.description!
-                            : null;
-                        final dateLabel = DateFormat(
-                          'd MMMM y HH:mm',
-                          'id_ID',
-                        ).format(DateTime.parse(tx.date));
-                        final subtitleText = description == null
-                            ? dateLabel
-                            : '$dateLabel • $description';
+                          final matchInfo = searchActive && tx.id != null
+                              ? _buildMatchInfo(tx.id!, itemsByTxId)
+                              : null;
+                          final matchLabel = matchInfo == null
+                              ? null
+                              : 'Mengandung: ${matchInfo.name} '
+                                  '(${matchInfo.quantity} pcs)'
+                                  '${matchInfo.hasMore ? ' dan lainnya' : ''}';
 
-                        return ListTile(
-                          leading: Icon(icon, color: color),
-                          title: Text(tx.categoryName ?? 'Transaksi'),
-                          subtitle: Text(subtitleText),
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    TransactionDetailScreen(transaction: tx),
-                              ),
-                            );
-                          },
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                currency.format(tx.amount),
-                                style: TextStyle(
-                                  color: color,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete,
-                                    color: Colors.red),
-                                onPressed: () async {
-                                  final confirmed = await showDialog<bool>(
-                                    context: context,
-                                    builder: (context) => AlertDialog(
-                                      title: const Text('Hapus transaksi ini?'),
-                                      content: const Text(
-                                        'Data yang dihapus tidak bisa dikembalikan.',
+                          return ListTile(
+                            leading: Icon(icon, color: color),
+                            title: Text(tx.categoryName ?? 'Transaksi'),
+                            subtitle: matchLabel == null
+                                ? Text(subtitleText)
+                                : Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(subtitleText),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        matchLabel,
+                                        style: TextStyle(
+                                          color: Colors.grey.shade600,
+                                          fontStyle: FontStyle.italic,
+                                        ),
                                       ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.of(context).pop(false),
-                                          child: const Text('Batal'),
+                                    ],
+                                  ),
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      TransactionDetailScreen(transaction: tx),
+                                ),
+                              );
+                            },
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  currency.format(tx.amount),
+                                  style: TextStyle(
+                                    color: color,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete,
+                                      color: Colors.red),
+                                  onPressed: () async {
+                                    final confirmed = await showDialog<bool>(
+                                      context: context,
+                                      builder: (context) => AlertDialog(
+                                        title: const Text('Hapus transaksi ini?'),
+                                        content: const Text(
+                                          'Data yang dihapus tidak bisa dikembalikan.',
                                         ),
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.of(context).pop(true),
-                                          child: const Text('Hapus'),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-
-                                  if (confirmed == true && tx.id != null) {
-                                    await Provider.of<TransactionProvider>(
-                                      context,
-                                      listen: false,
-                                    ).deleteTransaction(
-                                      tx.id!,
-                                      productProvider:
-                                          Provider.of<ProductProvider>(
-                                        context,
-                                        listen: false,
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.of(context).pop(false),
+                                            child: const Text('Batal'),
+                                          ),
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.of(context).pop(true),
+                                            child: const Text('Hapus'),
+                                          ),
+                                        ],
                                       ),
                                     );
-                                  }
-                                },
+
+                                    if (confirmed == true && tx.id != null) {
+                                      await Provider.of<TransactionProvider>(
+                                        context,
+                                        listen: false,
+                                      ).deleteTransaction(
+                                        tx.id!,
+                                        productProvider:
+                                            Provider.of<ProductProvider>(
+                                          context,
+                                          listen: false,
+                                        ),
+                                      );
+                                    }
+                                  },
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      );
+                    }
+
+                    return Column(
+                      children: [
+                        if (searchActive)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 4,
+                            ),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                searchLabel,
+                                style: TextStyle(
+                                  color: Colors.grey.shade600,
+                                  fontStyle: FontStyle.italic,
+                                ),
                               ),
-                            ],
+                            ),
                           ),
-                        );
-                      },
+                        Expanded(child: listContent),
+                      ],
                     );
                   },
                 ),
@@ -724,6 +804,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
       },
     );
   }
+}
+
+class _MatchInfo {
+  const _MatchInfo({
+    required this.name,
+    required this.quantity,
+    required this.hasMore,
+  });
+
+  final String name;
+  final int quantity;
+  final bool hasMore;
 }
 
 class _SummaryItem extends StatelessWidget {
