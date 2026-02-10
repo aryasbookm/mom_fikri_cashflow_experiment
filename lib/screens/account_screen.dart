@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../providers/auth_provider.dart';
 import '../providers/category_provider.dart';
@@ -147,6 +148,22 @@ class _AccountScreenState extends State<AccountScreen> {
     }
   }
 
+  Future<void> _simulateBackupReminder() async {
+    final prefs = await SharedPreferences.getInstance();
+    final timestamp = DateTime.now()
+        .subtract(const Duration(days: 4))
+        .millisecondsSinceEpoch;
+    await prefs.setInt(BackupService.lastBackupKey, timestamp);
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Timestamp backup berhasil dimundurkan 4 hari.'),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
@@ -204,6 +221,7 @@ class _AccountScreenState extends State<AccountScreen> {
       isBackingUp: _isBackingUp,
       onRestore: isOwner ? _restoreDatabase : null,
       isRestoring: _isRestoring,
+      onDebugSimulateBackup: isOwner ? _simulateBackupReminder : null,
     );
   }
 }

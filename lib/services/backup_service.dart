@@ -42,7 +42,7 @@ class RestoreResult {
 }
 
 class BackupService {
-  static const String _lastBackupKey = 'last_backup_timestamp';
+  static const String lastBackupKey = 'last_backup_timestamp';
 
   static Future<BackupResult> backupDatabase({
     bool shareAfter = true,
@@ -83,7 +83,7 @@ class BackupService {
     }
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_lastBackupKey, DateTime.now().millisecondsSinceEpoch);
+    await prefs.setInt(lastBackupKey, DateTime.now().millisecondsSinceEpoch);
 
     return BackupResult(
       sourcePath: dbPath,

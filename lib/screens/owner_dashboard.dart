@@ -24,7 +24,6 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
   static const String _targetKey = 'daily_target_amount';
   static const String _celebratedDateKey = 'daily_target_celebrated_date';
   static const String _showStockAlertKey = 'show_stock_alert';
-  static const String _lastBackupKey = 'last_backup_timestamp';
   int _dailyTarget = 0;
   bool _isLoadingTarget = true;
   bool _showStockAlert = true;
@@ -69,7 +68,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
 
   Future<void> _loadBackupReminder() async {
     final prefs = await SharedPreferences.getInstance();
-    final lastBackup = prefs.getInt(_lastBackupKey);
+    final lastBackup = prefs.getInt(BackupService.lastBackupKey);
     final now = DateTime.now();
     final isOverdue = lastBackup == null ||
         now.difference(DateTime.fromMillisecondsSinceEpoch(lastBackup)) >
@@ -216,7 +215,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
         final productCount = productProvider.products.length;
         if (_topProductsFuture == null || _lastTxCount != txCount) {
           _lastTxCount = txCount;
-          _topProductsFuture = provider.getTopProductsLast7Days();
+          _topProductsFuture = provider.getTopProductsLast7Days(limit: 5);
         }
         if (_slowMovingFuture == null ||
             _lastSlowTxCount != txCount ||
@@ -870,31 +869,12 @@ class _TopProductsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Top Produk (7 Hari)',
-            style: TextStyle(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 12),
-          if (future == null)
-            const Text('Belum ada data')
-          else
-            FutureBuilder<List<Map<String, dynamic>>>(
+    return _DashboardExpansionCard(
+      title: 'Produk Terlaris (7 Hari)',
+      initiallyExpanded: true,
+      child: future == null
+          ? const Text('Belum ada data')
+          : FutureBuilder<List<Map<String, dynamic>>>(
               future: future,
               builder: (context, snapshot) {
                 final items = snapshot.data ?? const [];
@@ -914,7 +894,9 @@ class _TopProductsCard extends StatelessWidget {
                   children: [
                     for (int i = 0; i < items.length; i++)
                       Padding(
-                        padding: EdgeInsets.only(bottom: i == items.length - 1 ? 0 : 8),
+                        padding: EdgeInsets.only(
+                          bottom: i == items.length - 1 ? 0 : 8,
+                        ),
                         child: _TopProductRow(
                           rank: i + 1,
                           name: items[i]['name']?.toString() ?? '-',
@@ -926,8 +908,6 @@ class _TopProductsCard extends StatelessWidget {
                 );
               },
             ),
-        ],
-      ),
     );
   }
 }
@@ -988,31 +968,12 @@ class _SlowMovingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Produk Lambat (30 Hari)',
-            style: TextStyle(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 12),
-          if (future == null)
-            const Text('Belum ada data')
-          else
-            FutureBuilder<List<Map<String, dynamic>>>(
+    return _DashboardExpansionCard(
+      title: 'Produk Kurang Laris (30 Hari)',
+      initiallyExpanded: true,
+      child: future == null
+          ? const Text('Belum ada data')
+          : FutureBuilder<List<Map<String, dynamic>>>(
               future: future,
               builder: (context, snapshot) {
                 final items = snapshot.data ?? const [];
@@ -1032,8 +993,9 @@ class _SlowMovingCard extends StatelessWidget {
                   children: [
                     for (int i = 0; i < items.length; i++)
                       Padding(
-                        padding:
-                            EdgeInsets.only(bottom: i == items.length - 1 ? 0 : 8),
+                        padding: EdgeInsets.only(
+                          bottom: i == items.length - 1 ? 0 : 8,
+                        ),
                         child: _SlowMovingRow(
                           name: items[i]['name']?.toString() ?? '-',
                           sold:
@@ -1045,8 +1007,6 @@ class _SlowMovingCard extends StatelessWidget {
                 );
               },
             ),
-        ],
-      ),
     );
   }
 }
@@ -1090,6 +1050,49 @@ class _SlowMovingRow extends StatelessWidget {
           style: const TextStyle(color: Colors.black54),
         ),
       ],
+    );
+  }
+}
+
+class _DashboardExpansionCard extends StatelessWidget {
+  const _DashboardExpansionCard({
+    required this.title,
+    required this.child,
+    required this.initiallyExpanded,
+  });
+
+  final String title;
+  final Widget child;
+  final bool initiallyExpanded;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          title: Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+          childrenPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          initiallyExpanded: initiallyExpanded,
+          children: [child],
+        ),
+      ),
     );
   }
 }

@@ -13,6 +13,7 @@ Prioritas (tanpa ubah DB v8):
 1. **Global Search**
    - Search bar di Kasir, Stok, dan Riwayat.
    - Filtering real-time saat mengetik.
+   - Riwayat mendukung deep search (nama produk dari `transaction_items`).
 2. **Smart Backup Reminder**
    - Tidak ada auto-backup background.
    - Simpan tanggal backup terakhir.
@@ -21,9 +22,11 @@ Prioritas (tanpa ubah DB v8):
    - Catatan: auto-backup lokal saja tidak melindungi jika HP hilang; aman mulai dari reminder.
    - Jika auto-backup lokal ditambahkan: wajib toggle ON/OFF, retention 5–10 file terbaru, lokasi Download/App Documents.
    - Cloud backup (Drive) lebih aman untuk kehilangan HP, tetapi kompleks (fase berikutnya).
+   - Debug owner: tombol simulasi lupa backup (mundurkan timestamp 4 hari).
 3. **Slow Moving Analytics**
    - Tampilkan 3–5 produk dengan penjualan terendah (7–30 hari terakhir).
    - Fokus insight operasional: kurangi produksi barang lambat.
+   - Dashboard: Ringkasan Hari Ini statis, analitik produk foldable default terbuka.
 
 Catatan:
 - Peak Hours ditunda.

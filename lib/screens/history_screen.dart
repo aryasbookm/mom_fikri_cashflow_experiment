@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../models/deleted_transaction_model.dart';
+import '../models/transaction_item_model.dart';
 import '../models/transaction_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/product_provider.dart';
@@ -84,6 +85,23 @@ class _HistoryScreenState extends State<HistoryScreen> {
         rawDate.contains(query);
   }
 
+  bool _matchesItemSearch(
+    int transactionId,
+    Map<int, List<TransactionItemModel>> itemsByTxId,
+  ) {
+    final query = _searchQuery.trim().toLowerCase();
+    if (query.isEmpty) {
+      return true;
+    }
+    final items = itemsByTxId[transactionId] ?? const [];
+    for (final item in items) {
+      if (item.productName.toLowerCase().contains(query)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final currency = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ');
@@ -103,7 +121,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             });
           });
         }
-        final filtered = provider.transactions.where((tx) {
+        final baseFiltered = provider.transactions.where((tx) {
           if (tx.type == 'WASTE') {
             return false;
           }
@@ -111,13 +129,23 @@ class _HistoryScreenState extends State<HistoryScreen> {
           if (date == null) {
             return false;
           }
-          return _matchesFilter(date) && _matchesSearch(tx);
+          return _matchesFilter(date);
         }).toList();
+        final needsItemSearch = _searchQuery.trim().isNotEmpty;
+        final txIds = needsItemSearch
+            ? baseFiltered
+                .map((tx) => tx.id)
+                .whereType<int>()
+                .toList()
+            : const <int>[];
+        final itemsFuture = needsItemSearch && txIds.isNotEmpty
+            ? provider.getItemsByTransactionIds(txIds)
+            : Future.value(<int, List<TransactionItemModel>>{});
 
-        final totalIncome = filtered
+        final totalIncome = baseFiltered
             .where((tx) => tx.type == 'IN')
             .fold<int>(0, (sum, tx) => sum + tx.amount);
-        final totalExpense = filtered
+        final totalExpense = baseFiltered
             .where((tx) => tx.type == 'OUT')
             .fold<int>(0, (sum, tx) => sum + tx.amount);
         final balance = totalIncome - totalExpense;
@@ -261,108 +289,142 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
               ),
               Expanded(
-                child: filtered.isEmpty
-                    ? const Center(
+                child: FutureBuilder<Map<int, List<TransactionItemModel>>>(
+                  future: itemsFuture,
+                  builder: (context, snapshot) {
+                    final itemsByTxId = snapshot.data ?? const {};
+                    final deepFiltered = baseFiltered.where((tx) {
+                      if (_searchQuery.trim().isEmpty) {
+                        return true;
+                      }
+                      final id = tx.id;
+                      if (id == null) {
+                        return _matchesSearch(tx);
+                      }
+                      return _matchesSearch(tx) ||
+                          _matchesItemSearch(id, itemsByTxId);
+                    }).toList();
+
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      );
+                    }
+
+                    if (deepFiltered.isEmpty) {
+                      final emptyLabel = _searchQuery.trim().isEmpty
+                          ? 'Belum ada transaksi'
+                          : 'Transaksi tidak ditemukan';
+                      return Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.history, size: 64, color: Colors.grey),
-                            SizedBox(height: 12),
+                            const Icon(Icons.history,
+                                size: 64, color: Colors.grey),
+                            const SizedBox(height: 12),
                             Text(
-                              'Belum ada transaksi',
+                              emptyLabel,
                               style: TextStyle(color: Colors.grey),
                             ),
                           ],
                         ),
-                      )
-                    : ListView.builder(
-                        itemCount: filtered.length,
-                        itemBuilder: (context, index) {
-                          final tx = filtered[index];
-                          final isIncome = tx.type == 'IN';
-                          final color = isIncome ? Colors.green : Colors.red;
-                          final icon = isIncome
-                              ? Icons.arrow_downward
-                              : Icons.arrow_upward;
-                          final description = tx.description?.isNotEmpty == true
-                              ? tx.description!
-                              : null;
-                          final dateLabel = DateFormat(
-                            'd MMMM y HH:mm',
-                            'id_ID',
-                          ).format(DateTime.parse(tx.date));
-                          final subtitleText = description == null
-                              ? dateLabel
-                              : '$dateLabel • $description';
+                      );
+                    }
 
-                          return ListTile(
-                            leading: Icon(icon, color: color),
-                            title: Text(tx.categoryName ?? 'Transaksi'),
-                            subtitle: Text(subtitleText),
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      TransactionDetailScreen(transaction: tx),
+                    return ListView.builder(
+                      itemCount: deepFiltered.length,
+                      itemBuilder: (context, index) {
+                        final tx = deepFiltered[index];
+                        final isIncome = tx.type == 'IN';
+                        final color = isIncome ? Colors.green : Colors.red;
+                        final icon = isIncome
+                            ? Icons.arrow_downward
+                            : Icons.arrow_upward;
+                        final description = tx.description?.isNotEmpty == true
+                            ? tx.description!
+                            : null;
+                        final dateLabel = DateFormat(
+                          'd MMMM y HH:mm',
+                          'id_ID',
+                        ).format(DateTime.parse(tx.date));
+                        final subtitleText = description == null
+                            ? dateLabel
+                            : '$dateLabel • $description';
+
+                        return ListTile(
+                          leading: Icon(icon, color: color),
+                          title: Text(tx.categoryName ?? 'Transaksi'),
+                          subtitle: Text(subtitleText),
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    TransactionDetailScreen(transaction: tx),
+                              ),
+                            );
+                          },
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                currency.format(tx.amount),
+                                style: TextStyle(
+                                  color: color,
+                                  fontWeight: FontWeight.w600,
                                 ),
-                              );
-                            },
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  currency.format(tx.amount),
-                                  style: TextStyle(
-                                    color: color,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                IconButton(
-                                  icon:
-                                      const Icon(Icons.delete, color: Colors.red),
-                                  onPressed: () async {
-                                    final confirmed = await showDialog<bool>(
-                                      context: context,
-                                      builder: (context) => AlertDialog(
-                                        title: const Text('Hapus transaksi ini?'),
-                                        content: const Text(
-                                          'Data yang dihapus tidak bisa dikembalikan.',
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () => Navigator.of(context)
-                                                .pop(false),
-                                            child: const Text('Batal'),
-                                          ),
-                                          TextButton(
-                                            onPressed: () => Navigator.of(context)
-                                                .pop(true),
-                                            child: const Text('Hapus'),
-                                          ),
-                                        ],
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete,
+                                    color: Colors.red),
+                                onPressed: () async {
+                                  final confirmed = await showDialog<bool>(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: const Text('Hapus transaksi ini?'),
+                                      content: const Text(
+                                        'Data yang dihapus tidak bisa dikembalikan.',
                                       ),
-                                    );
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.of(context).pop(false),
+                                          child: const Text('Batal'),
+                                        ),
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.of(context).pop(true),
+                                          child: const Text('Hapus'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
 
-                                    if (confirmed == true && tx.id != null) {
-                                      await Provider.of<TransactionProvider>(
+                                  if (confirmed == true && tx.id != null) {
+                                    await Provider.of<TransactionProvider>(
+                                      context,
+                                      listen: false,
+                                    ).deleteTransaction(
+                                      tx.id!,
+                                      productProvider:
+                                          Provider.of<ProductProvider>(
                                         context,
                                         listen: false,
-                                      ).deleteTransaction(
-                                        tx.id!,
-                                        productProvider:
-                                            Provider.of<ProductProvider>(
-                                          context,
-                                          listen: false,
-                                        ),
-                                      );
-                                    }
-                                  },
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
+                                      ),
+                                    );
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
             ],
           ),

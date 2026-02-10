@@ -17,6 +17,7 @@ class AccountPanel extends StatelessWidget {
     this.isBackingUp = false,
     this.onRestore,
     this.isRestoring = false,
+    this.onDebugSimulateBackup,
   });
 
   final VoidCallback onLogout;
@@ -25,6 +26,7 @@ class AccountPanel extends StatelessWidget {
   final bool isBackingUp;
   final VoidCallback? onRestore;
   final bool isRestoring;
+  final VoidCallback? onDebugSimulateBackup;
 
   Future<void> _pickProfileImage(BuildContext context) async {
     final picker = ImagePicker();
@@ -246,6 +248,20 @@ class AccountPanel extends StatelessWidget {
                           )
                         : null,
                   ),
+              ],
+            ),
+          ],
+          if (onDebugSimulateBackup != null) ...[
+            const SizedBox(height: 16),
+            const _SectionTitle(title: 'Debug'),
+            _SectionCard(
+              children: [
+                // DEBUG ONLY: Hapus sebelum rilis.
+                _SettingsTile(
+                  icon: Icons.bug_report_outlined,
+                  label: '[DEV] Simulasi Lupa Backup (4 Hari)',
+                  onTap: onDebugSimulateBackup,
+                ),
               ],
             ),
           ],
