@@ -17,6 +17,10 @@ This file defines working rules and expectations for AI agents collaborating on 
 - Dashboard experiments should happen on a `codex/` feature branch until approved.
 - Shorthand: `unc` = Update `AGENTS.md`, `PROJECT_NOTES.md`, `spec.md`, `CHANGELOG.md`, `README.md` (as needed) and then Commit.
 - Release notes live in `CHANGELOG.md` (timeline v0.9.0 → v1.0.0-rc3).
+- Commit practice:
+  - Commit after each coherent, testable change or feature slice.
+  - Commit before switching to a different task/feature.
+  - Use descriptive messages (`feat:`, `fix:`, `docs:`) and keep commits focused (avoid mixing unrelated changes).
 
 ## Code Guidelines
 - Keep files in ASCII unless necessary.
