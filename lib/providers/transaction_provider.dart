@@ -332,6 +332,33 @@ class TransactionProvider extends ChangeNotifier {
     return result;
   }
 
+  Future<List<Map<String, dynamic>>> getTopProductsLast7Days({
+    int limit = 3,
+  }) async {
+    final Database db = await DatabaseHelper.instance.database;
+    final DateTime today = DateTime.now();
+    final DateTime start =
+        DateTime(today.year, today.month, today.day).subtract(
+      const Duration(days: 6),
+    );
+    final startIso = start.toIso8601String();
+    final rows = await db.rawQuery(
+      '''
+        SELECT
+          i.product_name AS name,
+          SUM(i.quantity) AS total_qty
+        FROM transaction_items i
+        JOIN transactions t ON t.id = i.transaction_id
+        WHERE t.type = 'IN' AND t.date >= ?
+        GROUP BY i.product_name
+        ORDER BY total_qty DESC
+        LIMIT ?
+      ''',
+      [startIso, limit],
+    );
+    return rows;
+  }
+
   Future<void> loadTodayTransactionsForUser(int userId) async {
     final Database db = await DatabaseHelper.instance.database;
     final today = DateFormat('yyyy-MM-dd').format(DateTime.now());

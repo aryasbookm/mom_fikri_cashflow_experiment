@@ -60,6 +60,8 @@
 - **Backup & Restore:** backup DB ke `.db` (share + download), restore dengan rollback + validasi versi/struktur.
 - **PIN Guard:** tab Akun meminta PIN owner, sesi 5 menit.
   - UI PIN mendukung panjang PIN variabel (submit manual).
+  - Dialog PIN menyediakan opsi Logout/Ganti Akun (dengan konfirmasi).
+- **Dashboard Owner:** menampilkan Top Produk (7 hari) sebagai info operasional.
 
 ## 6. Alur Utama
 - Buka aplikasi → Login → cek role.

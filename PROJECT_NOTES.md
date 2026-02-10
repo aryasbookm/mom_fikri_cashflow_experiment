@@ -60,6 +60,9 @@
    - Restore via file picker (Android pakai `FileType.any`) dengan rollback, validasi versi, dan validasi struktur
    - Restore memicu refresh data + reset filter laporan/riwayat
 
+9. **Dashboard Owner (Ringkas)**
+   - Menampilkan Top Produk (7 hari) untuk keputusan produksi
+
 ## Skema Database (v8)
 - **products**: id, name (unique), price, stock, min_stock, is_active
 - **transactions**: id, type, amount, category_id, description, date, user_id, product_id, quantity

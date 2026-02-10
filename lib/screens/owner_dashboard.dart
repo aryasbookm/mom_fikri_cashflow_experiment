@@ -27,6 +27,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
   bool _isLoadingTarget = true;
   bool _showStockAlert = true;
   late final ConfettiController _confettiController;
+  Future<List<Map<String, dynamic>>>? _topProductsFuture;
+  int _lastTxCount = -1;
 
   @override
   void initState() {
@@ -150,6 +152,11 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
 
     return Consumer3<TransactionProvider, ProductProvider, ProductionProvider>(
       builder: (context, provider, productProvider, productionProvider, _) {
+        if (_topProductsFuture == null ||
+            _lastTxCount != provider.transactions.length) {
+          _lastTxCount = provider.transactions.length;
+          _topProductsFuture = provider.getTopProductsLast7Days();
+        }
         final todayDate = DateTime.now();
         final todayTx = provider.transactions.where((tx) {
           final parsed = DateTime.tryParse(tx.date);
@@ -339,6 +346,10 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                         ),
                       ],
                     ),
+                  ),
+                  const SizedBox(height: 16),
+                  _TopProductsCard(
+                    future: _topProductsFuture,
                   ),
                 ],
               ),
@@ -715,6 +726,124 @@ class _SummaryRow extends StatelessWidget {
             color: color,
             fontWeight: FontWeight.w700,
           ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TopProductsCard extends StatelessWidget {
+  const _TopProductsCard({required this.future});
+
+  final Future<List<Map<String, dynamic>>>? future;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Top Produk (7 Hari)',
+            style: TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 12),
+          if (future == null)
+            const Text('Belum ada data')
+          else
+            FutureBuilder<List<Map<String, dynamic>>>(
+              future: future,
+              builder: (context, snapshot) {
+                final items = snapshot.data ?? const [];
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  );
+                }
+                if (items.isEmpty) {
+                  return const Text('Belum ada transaksi 7 hari terakhir');
+                }
+                return Column(
+                  children: [
+                    for (int i = 0; i < items.length; i++)
+                      Padding(
+                        padding: EdgeInsets.only(bottom: i == items.length - 1 ? 0 : 8),
+                        child: _TopProductRow(
+                          rank: i + 1,
+                          name: items[i]['name']?.toString() ?? '-',
+                          quantity:
+                              (items[i]['total_qty'] as num?)?.toInt() ?? 0,
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TopProductRow extends StatelessWidget {
+  const _TopProductRow({
+    required this.rank,
+    required this.name,
+    required this.quantity,
+  });
+
+  final int rank;
+  final String name;
+  final int quantity;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 28,
+          height: 28,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: const Color(0xFF8D1B3D).withOpacity(0.12),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            '$rank',
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF8D1B3D),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            name,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        Text(
+          '$quantity pcs',
+          style: const TextStyle(color: Colors.black54),
         ),
       ],
     );
