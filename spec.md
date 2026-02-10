@@ -5,6 +5,7 @@
 - **Tujuan:** Digitalisasi pencatatan keuangan & stok toko kue (menggantikan buku manual).
 - **Platform:** Android (Mobile) + pengembangan di desktop.
 - **Sifat:** Offline-First (data disimpan lokal di perangkat).
+- **Release Notes:** `CHANGELOG.md`
 
 ## 2. Tech Stack (Wajib)
 - **Framework:** Flutter (Dart).

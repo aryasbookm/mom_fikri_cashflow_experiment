@@ -16,6 +16,7 @@ This file defines working rules and expectations for AI agents collaborating on 
 - Before each commit, update `AGENTS.md`, `PROJECT_NOTES.md`, and `spec.md` to reflect the latest progress and keep them in sync.
 - Dashboard experiments should happen on a `codex/` feature branch until approved.
 - Shorthand: `unc` = Update `AGENTS.md`, `PROJECT_NOTES.md`, `spec.md` and then Commit.
+- Release notes live in `CHANGELOG.md`.
 
 ## Code Guidelines
 - Keep files in ASCII unless necessary.
