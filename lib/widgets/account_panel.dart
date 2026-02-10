@@ -20,6 +20,8 @@ class AccountPanel extends StatelessWidget {
     this.onDebugSimulateBackup,
     this.autoBackupEnabled = true,
     this.onToggleAutoBackup,
+    this.onTestCloudConnection,
+    this.isTestingCloud = false,
   });
 
   final VoidCallback onLogout;
@@ -31,6 +33,8 @@ class AccountPanel extends StatelessWidget {
   final VoidCallback? onDebugSimulateBackup;
   final bool autoBackupEnabled;
   final ValueChanged<bool>? onToggleAutoBackup;
+  final VoidCallback? onTestCloudConnection;
+  final bool isTestingCloud;
 
   Future<void> _pickProfileImage(BuildContext context) async {
     final picker = ImagePicker();
@@ -272,6 +276,19 @@ class AccountPanel extends StatelessWidget {
                   icon: Icons.bug_report_outlined,
                   label: '[DEV] Simulasi Lupa Backup (4 Hari)',
                   onTap: onDebugSimulateBackup,
+                ),
+                _SettingsTile(
+                  icon: Icons.cloud_done_outlined,
+                  label:
+                      isTestingCloud ? 'Menguji Cloud...' : 'Test Cloud Connection',
+                  onTap: isTestingCloud ? null : onTestCloudConnection,
+                  trailing: isTestingCloud
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : null,
                 ),
               ],
             ),

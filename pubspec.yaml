@@ -52,6 +52,10 @@ dependencies:
   percent_indicator: ^4.2.5
   confetti: ^0.8.0
   screenshot: ^3.0.0
+  google_sign_in: ^6.2.1
+  googleapis: ^13.2.0
+  extension_google_sign_in_as_googleapis_auth: ^2.0.12
+  http: ^1.2.0
 
 dev_dependencies:
   flutter_test:

@@ -11,6 +11,7 @@ import '../providers/production_provider.dart';
 import '../providers/transaction_provider.dart';
 import '../providers/user_provider.dart';
 import '../services/backup_service.dart';
+import '../services/cloud_drive_service.dart';
 import '../widgets/account_panel.dart';
 import 'login_screen.dart';
 import 'manage_users_screen.dart';
@@ -26,6 +27,7 @@ class _AccountScreenState extends State<AccountScreen> {
   bool _isBackingUp = false;
   bool _isRestoring = false;
   bool _autoBackupEnabled = true;
+  bool _isTestingCloud = false;
 
   @override
   void initState() {
@@ -302,6 +304,41 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
+  Future<void> _testCloudConnection() async {
+    if (_isTestingCloud) {
+      return;
+    }
+    setState(() {
+      _isTestingCloud = true;
+    });
+    try {
+      final success = await CloudDriveService().testConnection();
+      if (!mounted) {
+        return;
+      }
+      _showSnackBar(
+        context,
+        success ? 'Koneksi Google Drive berhasil.' : 'Login dibatalkan.',
+        isError: !success,
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      _showSnackBar(
+        context,
+        'Gagal uji koneksi Google Drive: $error',
+        isError: true,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isTestingCloud = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
@@ -362,6 +399,8 @@ class _AccountScreenState extends State<AccountScreen> {
       onDebugSimulateBackup: isOwner ? _simulateBackupReminder : null,
       autoBackupEnabled: _autoBackupEnabled,
       onToggleAutoBackup: isOwner ? _setAutoBackupEnabled : null,
+      onTestCloudConnection: isOwner ? _testCloudConnection : null,
+      isTestingCloud: _isTestingCloud,
     );
   }
 }
