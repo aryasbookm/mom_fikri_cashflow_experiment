@@ -14,6 +14,7 @@ This file defines working rules and expectations for AI agents collaborating on 
 - Backup/restore changes must be tested against rollback + schema/structure validation.
 - Android file picker uses `FileType.any`; validate `.db` manually in app logic.
 - Before each commit, update `AGENTS.md`, `PROJECT_NOTES.md`, and `spec.md` to reflect the latest progress and keep them in sync.
+- Shorthand: `unc` = Update `AGENTS.md`, `PROJECT_NOTES.md`, `spec.md` and then Commit.
 
 ## Code Guidelines
 - Keep files in ASCII unless necessary.

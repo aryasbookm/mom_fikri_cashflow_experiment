@@ -107,7 +107,36 @@ class _OwnerPinDialogState extends State<OwnerPinDialog> {
               child: const Text('Batal'),
             ),
             TextButton(
-              onPressed: _isSubmitting ? null : () => Navigator.of(context).pop('logout'),
+              onPressed: _isSubmitting
+                  ? null
+                  : () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (context) {
+                          return AlertDialog(
+                            title: const Text('Konfirmasi Keluar'),
+                            content: const Text(
+                              'Apakah Anda yakin ingin keluar?',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () =>
+                                    Navigator.of(context).pop(false),
+                                child: const Text('Batal'),
+                              ),
+                              TextButton(
+                                onPressed: () =>
+                                    Navigator.of(context).pop(true),
+                                child: const Text('Ya, Keluar'),
+                              ),
+                            ],
+                          );
+                        },
+                      );
+                      if (confirm == true && context.mounted) {
+                        Navigator.of(context).pop('logout');
+                      }
+                    },
               child: const Text('Logout / Ganti Akun'),
             ),
           ],

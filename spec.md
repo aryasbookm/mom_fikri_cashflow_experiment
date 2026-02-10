@@ -29,6 +29,7 @@
 - Bisa melihat Audit Log, restore, dan hapus permanen log.
 - Tab Akun dilindungi PIN owner (session 5 menit, panjang PIN fleksibel).
   - Dialog PIN menyediakan opsi Logout/Ganti Akun.
+  - Logout dari dialog PIN memakai konfirmasi.
 
 **Staff (Karyawan):**
 - Bisa login.
