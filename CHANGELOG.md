@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 - Dashboard owner: ringkasan harian statis, analitik produk foldable default terbuka.
+- Riwayat: result counter dan subtitle match saat pencarian aktif.
 
 ---
 

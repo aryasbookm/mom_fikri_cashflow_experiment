@@ -14,6 +14,7 @@ Prioritas (tanpa ubah DB v8):
    - Search bar di Kasir, Stok, dan Riwayat.
    - Filtering real-time saat mengetik.
    - Riwayat mendukung deep search (nama produk dari `transaction_items`).
+   - Riwayat menampilkan result counter + subtitle match saat pencarian aktif.
 2. **Smart Backup Reminder**
    - Tidak ada auto-backup background.
    - Simpan tanggal backup terakhir.
