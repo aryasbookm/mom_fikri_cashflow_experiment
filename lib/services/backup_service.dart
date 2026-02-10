@@ -193,7 +193,38 @@ class BackupService {
     if (sourcePath == null || sourcePath.isEmpty) {
       throw Exception('File backup tidak valid.');
     }
+    return _restoreFromPath(sourcePath);
+  }
 
+  static Future<RestoreResult> restoreDatabaseFromPath(
+    String sourcePath,
+  ) async {
+    return _restoreFromPath(sourcePath);
+  }
+
+  static Future<List<File>> getAutoBackupFiles({int limit = 5}) async {
+    final docsDir = await getApplicationDocumentsDirectory();
+    final autoDir = Directory(p.join(docsDir.path, 'auto_backups'));
+    if (!autoDir.existsSync()) {
+      return [];
+    }
+    final files = autoDir
+        .listSync()
+        .whereType<File>()
+        .where((file) => file.path.toLowerCase().endsWith('.db'))
+        .toList();
+    files.sort((a, b) {
+      final aTime = a.lastModifiedSync();
+      final bTime = b.lastModifiedSync();
+      return bTime.compareTo(aTime);
+    });
+    if (files.length <= limit) {
+      return files;
+    }
+    return files.sublist(0, limit);
+  }
+
+  static Future<RestoreResult> _restoreFromPath(String sourcePath) async {
     final extension = p.extension(sourcePath).toLowerCase();
     if (extension != '.db') {
       throw Exception('Format file harus .db');

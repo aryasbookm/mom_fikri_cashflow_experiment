@@ -15,7 +15,7 @@ This file defines working rules and expectations for AI agents collaborating on 
 - Android file picker uses `FileType.any`; validate `.db` manually in app logic.
 - Before each commit, update `AGENTS.md`, `PROJECT_NOTES.md`, `spec.md`, `CHANGELOG.md`, and `README.md` as needed to reflect the latest progress and keep them in sync.
 - Dashboard experiments should happen on a `codex/` feature branch until approved.
-- Shorthand: `unc` = Update `AGENTS.md`, `PROJECT_NOTES.md`, `spec.md`, `CHANGELOG.md`, `README.md` (as needed) and then Commit.
+- Shorthand: `unc` = Update docs first (`AGENTS.md`, `PROJECT_NOTES.md`, `spec.md`, `CHANGELOG.md`, `README.md` as needed) **then** commit. Jadi cukup bilang “jalankan `unc`” tanpa menambahkan “update docs +” lagi.
 - Release notes live in `CHANGELOG.md` (timeline v0.9.0 → v1.0.0-rc3).
 - Commit practice:
   - Commit after each coherent, testable change or feature slice.

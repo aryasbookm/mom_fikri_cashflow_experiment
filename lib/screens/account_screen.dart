@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -104,7 +106,52 @@ class _AccountScreenState extends State<AccountScreen> {
     if (_isRestoring) {
       return;
     }
+    final choice = await _showRestoreOptions();
+    if (choice == null) {
+      return;
+    }
+    if (choice == _RestoreChoice.manual) {
+      await _restoreManual();
+    } else {
+      await _restoreAutoBackup();
+    }
+  }
 
+  Future<_RestoreChoice?> _showRestoreOptions() {
+    return showModalBottomSheet<_RestoreChoice>(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ListTile(
+                title: Text(
+                  'Pilih Sumber Restore',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.folder_open),
+                title: const Text('Pilih File Manual'),
+                subtitle: const Text('Ambil dari Download/Drive/WhatsApp'),
+                onTap: () => Navigator.of(context).pop(_RestoreChoice.manual),
+              ),
+              ListTile(
+                leading: const Icon(Icons.history),
+                title: const Text('Gunakan Auto-backup'),
+                subtitle: const Text('Daftar backup otomatis aplikasi'),
+                onTap: () => Navigator.of(context).pop(_RestoreChoice.auto),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<bool> _confirmRestore() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
@@ -126,17 +173,79 @@ class _AccountScreenState extends State<AccountScreen> {
         );
       },
     );
+    return confirmed == true;
+  }
 
-    if (confirmed != true) {
+  Future<void> _restoreManual() async {
+    final confirmed = await _confirmRestore();
+    if (!confirmed) {
       return;
     }
+    await _performRestore(() => BackupService.restoreDatabase());
+  }
 
+  Future<void> _restoreAutoBackup() async {
+    final files = await BackupService.getAutoBackupFiles();
+    if (!mounted) {
+      return;
+    }
+    if (files.isEmpty) {
+      _showSnackBar(
+        context,
+        'Belum ada auto-backup yang tersedia.',
+        isError: true,
+      );
+      return;
+    }
+    final selected = await showModalBottomSheet<_AutoBackupChoice>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return SafeArea(
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: files.length,
+            itemBuilder: (context, index) {
+              final file = files[index];
+              final modified = file.lastModifiedSync();
+              final label =
+                  DateFormat('d MMM y HH:mm', 'id_ID').format(modified);
+              return ListTile(
+                leading: const Icon(Icons.restore),
+                title: Text('Backup $label'),
+                subtitle: Text(p.basename(file.path)),
+                onTap: () => Navigator.of(context).pop(
+                  _AutoBackupChoice(filePath: file.path),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+    if (selected == null) {
+      return;
+    }
+    final confirmed = await _confirmRestore();
+    if (!confirmed) {
+      return;
+    }
+    await _performRestore(
+      () => BackupService.restoreDatabaseFromPath(selected.filePath),
+    );
+  }
+
+  Future<void> _performRestore(
+    Future<RestoreResult?> Function() action,
+  ) async {
+    if (_isRestoring) {
+      return;
+    }
     setState(() {
       _isRestoring = true;
     });
-
     try {
-      final restored = await BackupService.restoreDatabase();
+      final restored = await action();
       if (!mounted) {
         return;
       }
@@ -255,4 +364,12 @@ class _AccountScreenState extends State<AccountScreen> {
       onToggleAutoBackup: isOwner ? _setAutoBackupEnabled : null,
     );
   }
+}
+
+enum _RestoreChoice { manual, auto }
+
+class _AutoBackupChoice {
+  const _AutoBackupChoice({required this.filePath});
+
+  final String filePath;
 }

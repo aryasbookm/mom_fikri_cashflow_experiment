@@ -26,6 +26,7 @@ Prioritas (tanpa ubah DB v8):
    - Debug owner: tombol simulasi lupa backup (mundurkan timestamp 4 hari).
    - Auto-backup lokal: berjalan saat app paused, maksimal 1x/24 jam, simpan 5 file terakhir di `auto_backups/`.
    - Deteksi perubahan data memakai snapshot jumlah transaksi + produk + audit log.
+   - Restore: dua jalur (manual file picker + auto-backup list internal).
 3. **Slow Moving Analytics**
    - Tampilkan 3–5 produk dengan penjualan terendah (7–30 hari terakhir).
    - Fokus insight operasional: kurangi produksi barang lambat.
