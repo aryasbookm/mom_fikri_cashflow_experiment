@@ -21,6 +21,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
   String _filter = 'Semua';
   bool _isExporting = false;
   int _lastSeenEpoch = 0;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   final List<String> _filters = [
     'Hari Ini',
@@ -34,6 +36,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
   void initState() {
     super.initState();
     Provider.of<TransactionProvider>(context, listen: false).loadTransactions();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   bool _isSameDate(DateTime a, DateTime b) {
@@ -61,6 +69,21 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
+  bool _matchesSearch(TransactionModel tx) {
+    final query = _searchQuery.trim().toLowerCase();
+    if (query.isEmpty) {
+      return true;
+    }
+    final category = (tx.categoryName ?? '').toLowerCase();
+    final description = (tx.description ?? '').toLowerCase();
+    final amountText = tx.amount.toString();
+    final rawDate = tx.date.toLowerCase();
+    return category.contains(query) ||
+        description.contains(query) ||
+        amountText.contains(query) ||
+        rawDate.contains(query);
+  }
+
   @override
   Widget build(BuildContext context) {
     final currency = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ');
@@ -86,7 +109,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           if (date == null) {
             return false;
           }
-          return _matchesFilter(date);
+          return _matchesFilter(date) && _matchesSearch(tx);
         }).toList();
 
         final totalIncome = filtered
@@ -157,6 +180,37 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   },
                   separatorBuilder: (_, __) => const SizedBox(width: 8),
                   itemCount: _filters.length,
+                ),
+              ),
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (value) {
+                    setState(() {
+                      _searchQuery = value;
+                    });
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'Cari transaksi...',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _searchQuery.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () {
+                              setState(() {
+                                _searchController.clear();
+                                _searchQuery = '';
+                              });
+                            },
+                          ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    isDense: true,
+                  ),
                 ),
               ),
               Padding(

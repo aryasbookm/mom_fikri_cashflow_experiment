@@ -24,9 +24,12 @@ class _ProductionScreenState extends State<ProductionScreen> {
   String? _selectedProductName;
   int? _selectedProductId;
   final TextEditingController _quantityController = TextEditingController();
+  final TextEditingController _stockSearchController =
+      TextEditingController();
   bool _isLoading = false;
   bool _selectionMode = false;
   final Set<int> _selectedProductIds = {};
+  String _stockSearchQuery = '';
 
   @override
   void initState() {
@@ -40,6 +43,7 @@ class _ProductionScreenState extends State<ProductionScreen> {
   @override
   void dispose() {
     _quantityController.dispose();
+    _stockSearchController.dispose();
     super.dispose();
   }
 
@@ -582,6 +586,13 @@ class _ProductionScreenState extends State<ProductionScreen> {
               }
               return a.name.toLowerCase().compareTo(b.name.toLowerCase());
             });
+          final query = _stockSearchQuery.trim().toLowerCase();
+          final filteredBySearch = query.isEmpty
+              ? sortedByStock
+              : sortedByStock
+                  .where((product) =>
+                      product.name.toLowerCase().contains(query))
+                  .toList();
           final now = DateTime.now();
           final wasteToday = transactionProvider.transactions.where((tx) {
             if (tx.type != 'WASTE') {
@@ -805,6 +816,40 @@ class _ProductionScreenState extends State<ProductionScreen> {
                             ],
                           ),
                         ),
+                      if (sortedByStock.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 4,
+                          ),
+                          child: TextField(
+                            controller: _stockSearchController,
+                            onChanged: (value) {
+                              setState(() {
+                                _stockSearchQuery = value;
+                              });
+                            },
+                            decoration: InputDecoration(
+                              hintText: 'Cari produk...',
+                              prefixIcon: const Icon(Icons.search),
+                              suffixIcon: _stockSearchQuery.isEmpty
+                                  ? null
+                                  : IconButton(
+                                      icon: const Icon(Icons.close),
+                                      onPressed: () {
+                                        setState(() {
+                                          _stockSearchController.clear();
+                                          _stockSearchQuery = '';
+                                        });
+                                      },
+                                    ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
                       if (sortedByStock.isEmpty)
                         const Padding(
                           padding: EdgeInsets.only(bottom: 12),
@@ -813,8 +858,16 @@ class _ProductionScreenState extends State<ProductionScreen> {
                             style: TextStyle(color: Colors.grey),
                           ),
                         )
+                      else if (filteredBySearch.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            'Produk tidak ditemukan',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                        )
                       else
-                        ...sortedByStock.map((product) {
+                        ...filteredBySearch.map((product) {
                           final id = product.id;
                           final isSelected =
                               id != null && _selectedProductIds.contains(id);

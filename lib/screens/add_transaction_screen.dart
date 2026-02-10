@@ -23,6 +23,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _customCategoryController =
       TextEditingController();
+  final TextEditingController _productSearchController =
+      TextEditingController();
 
   String _type = 'IN';
   int? _selectedCategoryId;
@@ -30,6 +32,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   bool _manualIncomeInput = false;
   bool _isLoading = false;
   final List<_CartItem> _cartItems = [];
+  String _productSearchQuery = '';
 
   @override
   void initState() {
@@ -51,6 +54,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     _amountController.dispose();
     _descriptionController.dispose();
     _customCategoryController.dispose();
+    _productSearchController.dispose();
     super.dispose();
   }
 
@@ -106,6 +110,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     _cartItems.clear();
     _amountController.clear();
     _descriptionController.clear();
+    _productSearchController.clear();
+    _productSearchQuery = '';
   }
 
   int _cartTotal() {
@@ -500,6 +506,19 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                                 _resetProductSelection();
                               });
                             },
+                            searchController: _productSearchController,
+                            searchQuery: _productSearchQuery,
+                            onSearchChanged: (value) {
+                              setState(() {
+                                _productSearchQuery = value;
+                              });
+                            },
+                            onClearSearch: () {
+                              setState(() {
+                                _productSearchController.clear();
+                                _productSearchQuery = '';
+                              });
+                            },
                             onSelected:
                                 (productId, productName, price, stock) async {
                               await _addToCart(
@@ -707,12 +726,20 @@ class _ProductGrid extends StatelessWidget {
   const _ProductGrid({
     required this.currency,
     required this.onManualTap,
+    required this.searchController,
+    required this.searchQuery,
+    required this.onSearchChanged,
+    required this.onClearSearch,
     required this.onSelected,
     required this.isInCart,
   });
 
   final NumberFormat currency;
   final VoidCallback onManualTap;
+  final TextEditingController searchController;
+  final String searchQuery;
+  final ValueChanged<String> onSearchChanged;
+  final VoidCallback onClearSearch;
   final void Function(int id, String name, int price, int stock) onSelected;
   final bool Function(int productId) isInCart;
 
@@ -750,6 +777,13 @@ class _ProductGrid extends StatelessWidget {
           }
           return a.name.toLowerCase().compareTo(b.name.toLowerCase());
         });
+        final query = searchQuery.trim().toLowerCase();
+        final filteredProducts = query.isEmpty
+            ? sortedProducts
+            : sortedProducts
+                .where((product) =>
+                    product.name.toLowerCase().contains(query))
+                .toList();
 
         return Column(
           children: [
@@ -768,75 +802,115 @@ class _ProductGrid extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            Expanded(
-              child: GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 1.2,
+            TextField(
+              controller: searchController,
+              onChanged: onSearchChanged,
+              decoration: InputDecoration(
+                hintText: 'Cari produk...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: searchQuery.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: onClearSearch,
+                      ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                itemCount: sortedProducts.length,
-                itemBuilder: (context, index) {
-                  final product = sortedProducts[index];
-                  final inCart = isInCart(product.id ?? -1);
-                  return InkWell(
-                    onTap: () {
-                      if (product.id == null) {
-                        return;
-                      }
-                      onSelected(
-                        product.id!,
-                        product.name,
-                        product.price,
-                        product.stock,
-                      );
-                    },
-                    borderRadius: BorderRadius.circular(12),
-                    child: Ink(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: inCart ? Colors.orange.shade50 : Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: inCart
-                              ? Colors.deepOrange
-                              : Colors.transparent,
-                          width: inCart ? 2 : 1,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            product.name,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          const Spacer(),
-                          Text(
-                            currency.format(product.price),
-                            style: const TextStyle(color: Colors.grey),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Stok: ${product.stock}',
-                            style: const TextStyle(color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
+                isDense: true,
               ),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: filteredProducts.isEmpty
+                  ? Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.search_off,
+                            size: 48, color: Colors.grey),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Produk tidak ditemukan',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: onClearSearch,
+                          child: const Text('Reset Pencarian'),
+                        ),
+                      ],
+                    )
+                  : GridView.builder(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: 1.2,
+                      ),
+                      itemCount: filteredProducts.length,
+                      itemBuilder: (context, index) {
+                        final product = filteredProducts[index];
+                        final inCart = isInCart(product.id ?? -1);
+                        return InkWell(
+                          onTap: () {
+                            if (product.id == null) {
+                              return;
+                            }
+                            onSelected(
+                              product.id!,
+                              product.name,
+                              product.price,
+                              product.stock,
+                            );
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Ink(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color:
+                                  inCart ? Colors.orange.shade50 : Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: inCart
+                                    ? Colors.deepOrange
+                                    : Colors.transparent,
+                                width: inCart ? 2 : 1,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  product.name,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600),
+                                ),
+                                const Spacer(),
+                                Text(
+                                  currency.format(product.price),
+                                  style: const TextStyle(color: Colors.grey),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Stok: ${product.stock}',
+                                  style: const TextStyle(color: Colors.grey),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
             ),
           ],
         );
