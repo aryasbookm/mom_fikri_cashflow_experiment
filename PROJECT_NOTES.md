@@ -6,7 +6,7 @@
 - **Platform:** Flutter (Android + desktop macOS untuk dev)
 - **DB:** SQLite (`sqflite`)
 - **State:** Provider
-- **Release Notes:** lihat `CHANGELOG.md`
+- **Release Notes:** lihat `CHANGELOG.md` (format tanggal, tanpa versi)
 
 ## Fitur Utama
 1. **Login Role**
