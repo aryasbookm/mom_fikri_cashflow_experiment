@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
+import '../widgets/owner_pin_dialog.dart';
 import 'account_screen.dart';
+import 'login_screen.dart';
 import 'owner_dashboard.dart';
 import 'production_screen.dart';
 import 'report_screen.dart';
-import '../widgets/owner_pin_dialog.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -51,7 +52,7 @@ class _MainScreenState extends State<MainScreen> {
     if (authProvider.isOwnerAuthenticated) {
       return true;
     }
-    final allowed = await showDialog<bool>(
+    final result = await showDialog<Object?>(
       context: context,
       barrierDismissible: false,
       builder: (context) {
@@ -60,7 +61,16 @@ class _MainScreenState extends State<MainScreen> {
         );
       },
     );
-    return allowed == true;
+    if (result == 'logout') {
+      authProvider.logout();
+      if (context.mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+      }
+      return false;
+    }
+    return result == true;
   }
 
   @override

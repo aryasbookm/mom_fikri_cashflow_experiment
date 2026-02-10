@@ -14,6 +14,7 @@
    - Seed user: admin/1234 (owner), karyawan/0000 (staff)
    - Password disimpan dalam bentuk hash (SHA-256)
    - Tab Akun untuk owner dilindungi PIN (session 5 menit, panjang PIN fleksibel)
+   - Dialog PIN menyediakan opsi Logout/Ganti Akun untuk mencegah deadlock akses
 
 2. **Pemasukan (Kasir)**
    - Grid produk → tambah ke keranjang (multi-item)

@@ -28,6 +28,7 @@
 - Bisa kelola akun staff (tambah/ubah/hapus, reset password).
 - Bisa melihat Audit Log, restore, dan hapus permanen log.
 - Tab Akun dilindungi PIN owner (session 5 menit, panjang PIN fleksibel).
+  - Dialog PIN menyediakan opsi Logout/Ganti Akun.
 
 **Staff (Karyawan):**
 - Bisa login.

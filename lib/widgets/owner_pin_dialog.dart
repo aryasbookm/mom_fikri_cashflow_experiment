@@ -106,6 +106,10 @@ class _OwnerPinDialogState extends State<OwnerPinDialog> {
               onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(false),
               child: const Text('Batal'),
             ),
+            TextButton(
+              onPressed: _isSubmitting ? null : () => Navigator.of(context).pop('logout'),
+              child: const Text('Logout / Ganti Akun'),
+            ),
           ],
         ),
       ),
