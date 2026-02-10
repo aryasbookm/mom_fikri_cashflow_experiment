@@ -21,6 +21,7 @@ This file defines working rules and expectations for AI agents collaborating on 
   - Commit after each coherent, testable change or feature slice.
   - Commit before switching to a different task/feature.
   - Use descriptive messages (`feat:`, `fix:`, `docs:`) and keep commits focused (avoid mixing unrelated changes).
+- After commits, say: "Kalau sudah siap, silakan jalankan `git push` secara manual di terminal."
 
 ## Code Guidelines
 - Keep files in ASCII unless necessary.
@@ -48,3 +49,16 @@ This file defines working rules and expectations for AI agents collaborating on 
 ## Build & Icons
 - App icon is `assets/icon_toko.png` with `flutter_launcher_icons`.
 - Do not run `flutter_launcher_icons` or `flutter pub get` unless requested.
+
+## Commit Best Practices
+- Commit after each coherent, testable change or feature slice.
+- Commit before switching to a different task/feature.
+- Use descriptive messages (`feat:`, `fix:`, `docs:`) and keep commits focused (avoid mixing unrelated changes).
+- After commits, say: "Kalau sudah siap, silakan jalankan `git push` secara manual di terminal."
+
+## Handoff Protocol
+When tokens run low or the session ends, create a handoff prompt that includes:
+1. **Context Snapshot:** current branch, last commit, uncommitted changes (if any).
+2. **Work in Progress:** what is being worked on and what is incomplete.
+3. **Next Action Items:** 3–5 concrete next steps for the new session.
+4. **Critical Context:** sensitive constraints (e.g., DB version, schema rules, doc rules).
