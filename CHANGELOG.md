@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased] - Experimental #4 (Planned)
+*Fokus: Pencarian Global, Reminder Backup, Insight Produk Lambat*
+
+### Planned
+- Global Search: search bar di Kasir, Stok, dan Riwayat dengan filtering real-time.
+- Smart Backup Reminder + catatan rencana auto-backup lokal (toggle + retention) dan cloud backup fase berikutnya.
+- Slow Moving Analytics: tampilkan 3–5 produk dengan penjualan terendah (7–30 hari terakhir) untuk insight operasional.
+
+---
+
 ## [v1.0.0-rc3] - 2026-02-10 (Experimental #3)
 *Fokus: Keamanan Data & Penyempurnaan UX*
 

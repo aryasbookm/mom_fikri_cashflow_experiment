@@ -7,6 +7,26 @@
 - **Sifat:** Offline-First (data disimpan lokal di perangkat).
 - **Release Notes:** `CHANGELOG.md` (timeline v0.9.0 → v1.0.0-rc3)
 
+## Rencana Experimental #4 (Final)
+Prioritas (tanpa ubah DB v8):
+1. **Global Search**
+   - Search bar di Kasir, Stok, dan Riwayat.
+   - Filtering real-time saat mengetik.
+2. **Smart Backup Reminder**
+   - Tidak ada auto-backup background.
+   - Simpan tanggal backup terakhir.
+   - Banner/alert di Dashboard jika > 3 hari belum backup.
+   - Catatan: auto-backup lokal saja tidak melindungi jika HP hilang; aman mulai dari reminder.
+   - Jika auto-backup lokal ditambahkan: wajib toggle ON/OFF, retention 5–10 file terbaru, lokasi Download/App Documents.
+   - Cloud backup (Drive) lebih aman untuk kehilangan HP, tetapi kompleks (fase berikutnya).
+3. **Slow Moving Analytics**
+   - Tampilkan 3–5 produk dengan penjualan terendah (7–30 hari terakhir).
+   - Fokus insight operasional: kurangi produksi barang lambat.
+
+Catatan:
+- Peak Hours ditunda.
+- Stock Opname ditunda ke fase berikutnya.
+
 ## 2. Tech Stack (Wajib)
 - **Framework:** Flutter (Dart).
 - **Database:** SQLite (package `sqflite`).
