@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 - Smart Backup Reminder + catatan rencana auto-backup lokal (toggle + retention) dan cloud backup fase berikutnya.
 - Debug owner: tombol simulasi lupa backup (mundurkan timestamp 4 hari).
 - Slow Moving Analytics: tampilkan 3–5 produk dengan penjualan terendah (30 hari terakhir) untuk insight operasional.
+- Auto-backup lokal: otomatis saat app paused, maksimal 1x/24 jam, simpan 5 file terakhir.
 
 ### Changed
 - Dashboard owner: ringkasan harian statis, analitik produk foldable default terbuka.

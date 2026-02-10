@@ -23,6 +23,35 @@ class AccountScreen extends StatefulWidget {
 class _AccountScreenState extends State<AccountScreen> {
   bool _isBackingUp = false;
   bool _isRestoring = false;
+  bool _autoBackupEnabled = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAutoBackupSetting();
+  }
+
+  Future<void> _loadAutoBackupSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _autoBackupEnabled =
+          prefs.getBool(BackupService.autoBackupEnabledKey) ?? true;
+    });
+  }
+
+  Future<void> _setAutoBackupEnabled(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(BackupService.autoBackupEnabledKey, value);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _autoBackupEnabled = value;
+    });
+  }
 
   void _showSnackBar(
     BuildContext context,
@@ -222,6 +251,8 @@ class _AccountScreenState extends State<AccountScreen> {
       onRestore: isOwner ? _restoreDatabase : null,
       isRestoring: _isRestoring,
       onDebugSimulateBackup: isOwner ? _simulateBackupReminder : null,
+      autoBackupEnabled: _autoBackupEnabled,
+      onToggleAutoBackup: isOwner ? _setAutoBackupEnabled : null,
     );
   }
 }

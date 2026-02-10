@@ -43,6 +43,8 @@ class RestoreResult {
 
 class BackupService {
   static const String lastBackupKey = 'last_backup_timestamp';
+  static const String autoBackupEnabledKey = 'auto_backup_enabled';
+  static const String lastAutoBackupKey = 'last_auto_backup_timestamp';
 
   static Future<BackupResult> backupDatabase({
     bool shareAfter = true,
@@ -90,6 +92,54 @@ class BackupService {
       tempPath: tempPath,
       downloadPath: downloadPath,
     );
+  }
+
+  static Future<String> autoBackupLocal({int retention = 5}) async {
+    final dbPath = await DatabaseHelper.instance.getDatabasePath();
+    final dbFile = File(dbPath);
+    if (!dbFile.existsSync()) {
+      throw Exception('Database tidak ditemukan');
+    }
+
+    final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+    final fileName = 'mom_fikri_autobackup_$timestamp.db';
+    final docsDir = await getApplicationDocumentsDirectory();
+    final autoDir = Directory(p.join(docsDir.path, 'auto_backups'));
+    if (!autoDir.existsSync()) {
+      autoDir.createSync(recursive: true);
+    }
+    final targetPath = p.join(autoDir.path, fileName);
+    await dbFile.copy(targetPath);
+
+    _applyRetention(autoDir, retention);
+    return targetPath;
+  }
+
+  static void _applyRetention(Directory dir, int retention) {
+    if (retention <= 0) {
+      return;
+    }
+    final files = dir
+        .listSync()
+        .whereType<File>()
+        .where((file) => file.path.toLowerCase().endsWith('.db'))
+        .toList();
+    if (files.length <= retention) {
+      return;
+    }
+    files.sort((a, b) {
+      final aTime = a.lastModifiedSync();
+      final bTime = b.lastModifiedSync();
+      return aTime.compareTo(bTime);
+    });
+    final toDelete = files.length - retention;
+    for (var i = 0; i < toDelete; i++) {
+      try {
+        files[i].deleteSync();
+      } catch (_) {
+        // ignore delete failures
+      }
+    }
   }
 
   static Future<RestoreResult?> restoreDatabase() async {

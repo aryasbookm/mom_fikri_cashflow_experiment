@@ -18,6 +18,8 @@ class AccountPanel extends StatelessWidget {
     this.onRestore,
     this.isRestoring = false,
     this.onDebugSimulateBackup,
+    this.autoBackupEnabled = true,
+    this.onToggleAutoBackup,
   });
 
   final VoidCallback onLogout;
@@ -27,6 +29,8 @@ class AccountPanel extends StatelessWidget {
   final VoidCallback? onRestore;
   final bool isRestoring;
   final VoidCallback? onDebugSimulateBackup;
+  final bool autoBackupEnabled;
+  final ValueChanged<bool>? onToggleAutoBackup;
 
   Future<void> _pickProfileImage(BuildContext context) async {
     final picker = ImagePicker();
@@ -222,6 +226,13 @@ class AccountPanel extends StatelessWidget {
             const _SectionTitle(title: 'Data & Keamanan'),
             _SectionCard(
               children: [
+                if (onToggleAutoBackup != null)
+                  _SwitchTile(
+                    icon: Icons.backup_outlined,
+                    label: 'Auto-backup Lokal',
+                    value: autoBackupEnabled,
+                    onChanged: onToggleAutoBackup,
+                  ),
                 if (onBackup != null)
                   _SettingsTile(
                     icon: Icons.cloud_upload_outlined,
@@ -432,6 +443,36 @@ class _SettingsTile extends StatelessWidget {
       onTap: onTap,
       enabled: !disabled,
       dense: false,
+    );
+  }
+}
+
+class _SwitchTile extends StatelessWidget {
+  const _SwitchTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SwitchListTile(
+      secondary: Icon(icon, color: const Color(0xFF8D1B3D)),
+      title: Text(
+        label,
+        style: const TextStyle(
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+      ),
+      value: value,
+      onChanged: onChanged,
     );
   }
 }

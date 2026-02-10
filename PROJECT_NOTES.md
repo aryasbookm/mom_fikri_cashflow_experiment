@@ -24,6 +24,7 @@ Prioritas (tanpa ubah DB v8):
    - Jika auto-backup lokal ditambahkan: wajib toggle ON/OFF, retention 5–10 file terbaru, lokasi Download/App Documents.
    - Cloud backup (Drive) lebih aman untuk kehilangan HP, tetapi kompleks (fase berikutnya).
    - Debug owner: tombol simulasi lupa backup (mundurkan timestamp 4 hari).
+   - Auto-backup lokal: berjalan saat app paused, maksimal 1x/24 jam, simpan 5 file terakhir di `auto_backups/`.
 3. **Slow Moving Analytics**
    - Tampilkan 3–5 produk dengan penjualan terendah (7–30 hari terakhir).
    - Fokus insight operasional: kurangi produksi barang lambat.
