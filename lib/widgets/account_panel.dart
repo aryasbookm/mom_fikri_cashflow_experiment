@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
@@ -272,49 +273,54 @@ class AccountPanel extends StatelessWidget {
               ],
             ),
           ],
-          if (onDebugSimulateBackup != null) ...[
+          if (onTestCloudConnection != null ||
+              onRestoreCloudBackup != null ||
+              (kDebugMode && onDebugSimulateBackup != null)) ...[
             const SizedBox(height: 16),
-            const _SectionTitle(title: 'Debug'),
+            const _SectionTitle(title: 'Cloud & Debug'),
             _SectionCard(
               children: [
-                // DEBUG ONLY: Hapus sebelum rilis.
-                _SettingsTile(
-                  icon: Icons.bug_report_outlined,
-                  label: '[DEV] Simulasi Lupa Backup (4 Hari)',
-                  onTap: onDebugSimulateBackup,
-                ),
-                _SettingsTile(
-                  icon: Icons.cloud_done_outlined,
-                  label:
-                      isTestingCloud
-                          ? 'Backup ke Cloud...'
-                          : 'Backup ke Google Drive',
-                  onTap: isTestingCloud ? null : onTestCloudConnection,
-                  trailing:
-                      isTestingCloud
-                          ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                          : null,
-                ),
-                _SettingsTile(
-                  icon: Icons.cloud_download_outlined,
-                  label:
-                      isRestoringCloud
-                          ? 'Restore dari Cloud...'
-                          : 'Restore dari Google Drive',
-                  onTap: isRestoringCloud ? null : onRestoreCloudBackup,
-                  trailing:
-                      isRestoringCloud
-                          ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                          : null,
-                ),
+                if (onTestCloudConnection != null)
+                  _SettingsTile(
+                    icon: Icons.cloud_done_outlined,
+                    label:
+                        isTestingCloud
+                            ? 'Backup ke Cloud...'
+                            : 'Backup ke Google Drive',
+                    onTap: isTestingCloud ? null : onTestCloudConnection,
+                    trailing:
+                        isTestingCloud
+                            ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                            : null,
+                  ),
+                if (onRestoreCloudBackup != null)
+                  _SettingsTile(
+                    icon: Icons.cloud_download_outlined,
+                    label:
+                        isRestoringCloud
+                            ? 'Restore dari Cloud...'
+                            : 'Restore dari Google Drive',
+                    onTap: isRestoringCloud ? null : onRestoreCloudBackup,
+                    trailing:
+                        isRestoringCloud
+                            ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                            : null,
+                  ),
+                if (kDebugMode && onDebugSimulateBackup != null)
+                  // DEBUG ONLY: Hapus sebelum rilis.
+                  _SettingsTile(
+                    icon: Icons.bug_report_outlined,
+                    label: '[DEV] Simulasi Lupa Backup (4 Hari)',
+                    onTap: onDebugSimulateBackup,
+                  ),
               ],
             ),
           ],
