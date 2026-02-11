@@ -39,6 +39,10 @@ For cashflow/financial logic, `Verify` is mandatory and must include:
 - If a new instruction is generic (cross-project), update global standard (`/Users/aryasaputra/Projects/_standards/AGENTS.template.md`) in the same session.
 - For non-trivial changes, run a mandatory MD Sync Check on core docs (`AI_CONTEXT.md`, `PROJECT_NOTES.md`, `spec.md`, `CHANGELOG.md`, `README.md`, `AGENTS.md`) and update all impacted files before commit.
 - If a core doc is intentionally unchanged, state it explicitly in handoff/summary as "checked, no update needed".
+- Project Capsule baseline (repo ini):
+  - maintain `WORKFLOW.md` di root repo,
+  - gunakan fixed dev port per project (saat ini `3010`),
+  - gunakan browser profile dedicated untuk isolasi cookie/auth.
 - Shorthand:
   - `unc` = review/update impacted core docs first, then commit.
   - `hld` = Hold / Answer Only: jawab/verifikasi saja; jangan jalankan tool, jangan edit file, jangan commit.

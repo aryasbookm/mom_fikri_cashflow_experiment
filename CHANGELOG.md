@@ -32,6 +32,10 @@ All notable changes to this project will be documented in this file.
 - Validasi fitur cloud dilakukan di Android; kendala keychain/signing macOS dicatat sebagai batasan environment development.
 - UX cloud: pesan error jaringan dibuat lebih ramah pengguna (tanpa detail exception teknis).
 - Kasir (pemasukan): kartu grid produk kini memakai vertical stack responsif dengan thumbnail rounded agar hierarki visual lebih rapat.
+- Kasir (pemasukan): fine-tuning visual akhir pada kartu grid:
+  - format harga tanpa desimal (contoh `Rp 15.000`),
+  - avatar produk diperbesar proporsional (`(tileWidth * 0.15).clamp(28, 52)`),
+  - penekanan harga ditingkatkan (font lebih menonjol).
 - Restore cloud: daftar backup menandai item terbaru dengan badge "Terbaru".
 - Cloud account: aksi akun cloud kini adaptif:
   - saat belum login tampil "Hubungkan Akun Google Drive",
@@ -41,6 +45,7 @@ All notable changes to this project will be documented in this file.
 - Restore kini kompatibel dua format:
   - `.zip` memulihkan database + foto produk,
   - `.db` lama tetap didukung (database only, tanpa foto).
+- Operasional repo: ditambahkan `WORKFLOW.md` + konvensi `.env` `PORT=3010` untuk fixed-port workflow dan recovery cepat.
 
 ---
 

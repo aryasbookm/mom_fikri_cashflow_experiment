@@ -381,7 +381,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   @override
   Widget build(BuildContext context) {
     final dateLabel = DateFormat('dd MMM yyyy', 'id_ID').format(_selectedDate);
-    final currency = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ');
+    final currency = NumberFormat.currency(
+      locale: 'id_ID',
+      symbol: 'Rp ',
+      decimalDigits: 0,
+    );
     final showSummaryCard = _type == 'IN' &&
         !_manualIncomeInput &&
         _cartItems.isNotEmpty;
@@ -850,7 +854,7 @@ class _ProductGrid extends StatelessWidget {
                             (maxWidth - ((crossAxisCount - 1) * 12)) /
                             crossAxisCount;
                         final avatarRadius =
-                            ((tileWidth * 0.22).clamp(24.0, 48.0)).toDouble();
+                            ((tileWidth * 0.15).clamp(28.0, 52.0)).toDouble();
 
                         return GridView.builder(
                           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -924,6 +928,7 @@ class _ProductGrid extends StatelessWidget {
                                       style: const TextStyle(
                                         color: Color(0xFF8D1B3D),
                                         fontWeight: FontWeight.w600,
+                                        fontSize: 16,
                                       ),
                                     ),
                                     const SizedBox(height: 4),

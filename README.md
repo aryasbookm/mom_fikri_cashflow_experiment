@@ -46,8 +46,12 @@ cd mom_fiqry_cashflow_experiment
 # 3. Instal dependensi
 flutter pub get
 
-# 4. Jalankan aplikasi (pilih device target)
-flutter run
+# 4. Jalankan aplikasi web dengan fixed port project
+flutter run -d chrome --web-port 3010
 ```
+
+Catatan operasional:
+- Runbook workspace ada di `WORKFLOW.md` (port, profile browser, recovery 30 detik).
+- Konvensi env repo ini: `.env` menggunakan `PORT=3010`.
 
 Dikembangkan oleh Aryasaputra untuk Skripsi 2026.

@@ -19,12 +19,18 @@ Hard rules for mentor/reviewer AI:
 - Return implementation advice in **Codex-ready prompt** format when action is requested.
 
 ## 3) Current Project State
-- Active branch: `main`
+- Active workspace branch (current session): `codex/feat-product-photo-filesystem`
 - Recent commits:
-  - `be47fe9` chore: add bootstrap script and standardize agent workflow rules
-  - `7456ee9` chore: hide dev-only backup simulation behind `kDebugMode`
-  - `ed9d9c4` merge `codex/feat-cloud-backup` into `main`
+  - `e980e82` feat: ship zip backup with image restore support
+  - `9e9dd05` docs: add source-label and md-sync check rules
+  - `098cd71` docs: sync context and changelog for filesystem product photos
 - DB policy: **SQLite v8 locked** (no schema changes without migration approval).
+
+## 3.5) Workspace Capsule (Operational)
+- File operasional: `WORKFLOW.md` di root repo.
+- Fixed dev port: `3010` (gunakan `flutter run -d chrome --web-port 3010` untuk web dev).
+- Env convention: `.env` memuat `PORT=3010` untuk konsistensi lintas proyek.
+- Browser isolation: gunakan satu profile browser khusus project ini untuk mencegah bentrok auth/cookie.
 
 ## 3.1) Technical Context
 - Language/runtime:

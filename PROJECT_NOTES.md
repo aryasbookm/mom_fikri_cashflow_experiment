@@ -14,6 +14,7 @@
 - **Blocker timebox:** maksimal 3 percobaan atau 45–60 menit, lalu fallback/pivot.
 - **Quality gate sebelum merge:** Happy Path + Edge Case + Rollback/Recovery.
 - **Dokumentasi:** gunakan prinsip impacted-docs-only.
+- **Project capsule:** maintain `WORKFLOW.md` + fixed port + browser profile dedicated untuk isolasi konteks antar proyek.
 
 ## Rencana Fase 4 (Final)
 Prioritas (tanpa ubah DB v8):
@@ -155,6 +156,10 @@ Catatan:
 - Owner dashboard fresh install: banner backup dan widget/toggle peringatan stok tidak ditampilkan sampai ada data operasional (transaksi/produksi/stok nyata).
 - Target harian opsional (progress + confetti) di header dashboard
 - Transaksi sekarang menyimpan timestamp lengkap (tanggal + jam)
+- Kasir (catatan pemasukan) memakai kartu grid compact vertical stack:
+  - thumbnail produk rounded,
+  - harga tanpa desimal agar cepat dibaca,
+  - ukuran avatar responsif agar kartu terasa lebih terisi.
 - Akun: tampilan grouped sections (Pengaturan, Administrasi, Data & Keamanan)
   - Style: ListTile + card sections (lebih rapat & terstruktur)
 
