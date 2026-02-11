@@ -19,6 +19,9 @@ All notable changes to this project will be documented in this file.
 - Cloud Restore Picker Android: restore dari file cloud terpilih (bukan hanya latest) via bottom sheet list.
 - Cloud Metadata UI: tampilkan "Terakhir Backup Cloud" berdasarkan timestamp lokal backup cloud terakhir.
 - Backup format v2: paket `.zip` berisi database + folder `product_images` + metadata manifest.
+- Hybrid backup mode (manual): pilih **Data Only** (DB saja) atau **Full** (DB + foto produk), dengan flag `includeImages` di `manifest.json`.
+- Produksi: filter daftar stok **Aktif / Arsip / Semua** (default: Aktif).
+- Guarded delete produk: hapus permanen hanya diizinkan jika stok `0` dan belum punya riwayat di `transaction_items`.
 
 ### Changed
 - Branding aplikasi disederhanakan dari "Toko Kue Mom Fiqry (Eksperimen)" menjadi "Toko Kue Mom Fiqry" pada Android/iOS/Web/Desktop.
@@ -46,6 +49,10 @@ All notable changes to this project will be documented in this file.
   - `.zip` memulihkan database + foto produk,
   - `.db` lama tetap didukung (database only, tanpa foto).
 - Operasional repo: ditambahkan `WORKFLOW.md` + konvensi `.env` `PORT=3010` untuk fixed-port workflow dan recovery cepat.
+- Restore hybrid mode:
+  - jika backup `includeImages=true`, restore mengganti database + folder foto produk,
+  - jika backup `includeImages=false`, restore hanya mengganti database dan mempertahankan foto lokal.
+- Seed produk awal kini default **arsip** (`is_active=0`) dengan `min_stock=5`; produk arsip auto-aktif saat stok bertambah.
 
 ---
 
