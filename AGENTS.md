@@ -35,6 +35,7 @@ For cashflow/financial logic, `Verify` is mandatory and must include:
 
 ## Docs + Commit Workflow
 - Impacted-docs-only: update only docs affected by the change.
+- If a new instruction is generic (cross-project), update global standard (`/Users/aryasaputra/Projects/_standards/AGENTS.template.md`) in the same session.
 - Shorthand:
   - `unc` = review/update impacted core docs first, then commit.
   - `hld` = Hold / Answer Only: jawab/verifikasi saja; jangan jalankan tool, jangan edit file, jangan commit.
@@ -55,6 +56,16 @@ For cashflow/financial logic, `Verify` is mandatory and must include:
 ## Build / Tooling Notes
 - App icon source: `assets/icon_toko.png` (`flutter_launcher_icons`).
 - Do not run `flutter_launcher_icons` or `flutter pub get` unless requested.
+
+## Command Access & Blocker Policy
+- Some commands can be blocked by environment policy (sandbox scope, network restriction, or OS privilege such as `sudo` with TTY password).
+- Treat blocked commands as execution constraints, not feature failure.
+- Mandatory fallback order when a command is blocked:
+  1. Try a safe non-privileged alternative command/tool.
+  2. If still blocked, ask user to run the required command manually.
+  3. Continue execution using the command output/artifact provided by user.
+- Never loop repeatedly on the same blocked command without changing approach.
+- If user action is required, provide one exact command and explain expected output briefly.
 
 ## Safety
 - DB v8 is locked unless explicit migration approval exists.
