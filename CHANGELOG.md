@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - Global Search: search bar di Kasir, Stok, dan Riwayat dengan filtering real-time.
 - Deep Search Riwayat: pencarian juga mencakup nama produk dari transaksi multi-item.
+- Foto produk opsional berbasis filesystem lokal (`product_images/prod_{id}.jpg`) dengan picker galeri/kamera.
 - Smart Backup Reminder + catatan rencana auto-backup lokal (toggle + retention) dan cloud backup fase berikutnya.
 - Debug owner: tombol simulasi lupa backup (mundurkan timestamp 4 hari).
 - Slow Moving Analytics: tampilkan 3–5 produk dengan penjualan terendah (30 hari terakhir) untuk insight operasional.
@@ -33,6 +34,7 @@ All notable changes to this project will be documented in this file.
 - Cloud account: aksi akun cloud kini adaptif:
   - saat belum login tampil "Hubungkan Akun Google Drive",
   - saat sudah login tampil "Ganti Akun Google Drive" dengan dialog konfirmasi sebelum disconnect dan re-login.
+- UI backup menampilkan catatan bahwa foto produk saat ini disimpan lokal dan belum ikut backup/restore database.
 
 ---
 

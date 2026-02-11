@@ -278,6 +278,13 @@ class AccountPanel extends StatelessWidget {
                             )
                             : null,
                   ),
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Text(
+                    'Catatan: foto produk disimpan lokal di perangkat ini dan belum ikut backup/restore data.',
+                    style: TextStyle(color: Colors.black54, fontSize: 12),
+                  ),
+                ),
               ],
             ),
           ],

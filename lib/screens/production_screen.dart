@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -10,6 +13,8 @@ import '../providers/category_provider.dart';
 import '../providers/product_provider.dart';
 import '../providers/production_provider.dart';
 import '../providers/transaction_provider.dart';
+import '../services/product_image_service.dart';
+import '../widgets/product_avatar.dart';
 
 class ProductionScreen extends StatefulWidget {
   const ProductionScreen({super.key, this.showAppBar = true});
@@ -82,6 +87,24 @@ class _ProductionScreenState extends State<ProductionScreen> {
     });
   }
 
+  Future<XFile?> _pickProductImage(ImageSource source) async {
+    try {
+      return await ImagePicker().pickImage(
+        source: source,
+        imageQuality: 80,
+        maxWidth: 1600,
+      );
+    } catch (_) {
+      if (!mounted) {
+        return null;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Gagal membuka pemilih foto.')),
+      );
+      return null;
+    }
+  }
+
   Future<void> _bulkSetActive(bool isActive) async {
     final ids = _selectedProductIds.toList();
     if (!isActive) {
@@ -128,65 +151,132 @@ class _ProductionScreenState extends State<ProductionScreen> {
     final priceController = TextEditingController();
     final minStockController = TextEditingController(text: '5');
     bool isActive = true;
+    XFile? selectedImage;
     final result = await showDialog<bool>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Tambah Produk Baru'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Nama Produk',
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Tambah Produk Baru'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircleAvatar(
+                      radius: 30,
+                      backgroundColor: const Color(0xFFF3E5E5),
+                      backgroundImage:
+                          selectedImage != null
+                              ? FileImage(File(selectedImage!.path))
+                              : null,
+                      child:
+                          selectedImage == null
+                              ? const Icon(
+                                Icons.image_outlined,
+                                color: Color(0xFF8D1B3D),
+                              )
+                              : null,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            final image = await _pickProductImage(
+                              ImageSource.gallery,
+                            );
+                            if (image == null) {
+                              return;
+                            }
+                            setState(() {
+                              selectedImage = image;
+                            });
+                          },
+                          icon: const Icon(Icons.photo_library_outlined),
+                          label: const Text('Galeri'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            final image = await _pickProductImage(
+                              ImageSource.camera,
+                            );
+                            if (image == null) {
+                              return;
+                            }
+                            setState(() {
+                              selectedImage = image;
+                            });
+                          },
+                          icon: const Icon(Icons.photo_camera_outlined),
+                          label: const Text('Kamera'),
+                        ),
+                        if (selectedImage != null)
+                          TextButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                selectedImage = null;
+                              });
+                            },
+                            icon: const Icon(Icons.delete_outline),
+                            label: const Text('Hapus'),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Nama Produk',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: priceController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: const InputDecoration(
+                        labelText: 'Harga',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: minStockController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: const InputDecoration(
+                        labelText: 'Batas Stok Minimum',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Produk Aktif'),
+                      value: isActive,
+                      onChanged: (value) {
+                        setState(() {
+                          isActive = value;
+                        });
+                      },
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: priceController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(
-                  labelText: 'Harga',
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Batal'),
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: minStockController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(
-                  labelText: 'Batas Stok Minimum',
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('Simpan'),
                 ),
-              ),
-              const SizedBox(height: 12),
-              StatefulBuilder(
-                builder: (context, setState) {
-                  return SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Produk Aktif'),
-                    value: isActive,
-                    onChanged: (value) {
-                      setState(() {
-                        isActive = value;
-                      });
-                    },
-                  );
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Batal'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Simpan'),
-            ),
-          ],
+              ],
+            );
+          },
         );
       },
     );
@@ -205,17 +295,30 @@ class _ProductionScreenState extends State<ProductionScreen> {
       return;
     }
 
-    await context.read<ProductProvider>().addProduct(
+    final newProductId = await context.read<ProductProvider>().addProduct(
           name,
           price,
           minStock: minStock,
           isActive: isActive,
         );
+    var imageSaved = true;
+    if (selectedImage != null) {
+      imageSaved = await ProductImageService.saveProductImage(
+        productId: newProductId,
+        sourceImage: selectedImage!,
+      );
+    }
     if (!mounted) {
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Produk baru ditambahkan.')),
+      SnackBar(
+        content: Text(
+          imageSaved
+              ? 'Produk baru ditambahkan.'
+              : 'Produk ditambahkan, tapi foto gagal disimpan.',
+        ),
+      ),
     );
   }
 
@@ -224,71 +327,157 @@ class _ProductionScreenState extends State<ProductionScreen> {
     final priceController = TextEditingController(text: '${product.price}');
     final minStockController =
         TextEditingController(text: '${product.minStock}');
+    File? existingImage;
+    if (product.id != null) {
+      existingImage = await ProductImageService.getProductImage(product.id!);
+    }
+    XFile? selectedImage;
+    bool removeCurrentImage = false;
     bool isActive = product.isActive;
     final result = await showDialog<bool>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text('Edit Produk'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Nama Produk',
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final currentImage = !removeCurrentImage ? existingImage : null;
+            final imageProvider =
+                selectedImage != null
+                    ? FileImage(File(selectedImage!.path))
+                    : (currentImage != null ? FileImage(currentImage) : null);
+            return AlertDialog(
+              title: const Text('Edit Produk'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircleAvatar(
+                      radius: 30,
+                      backgroundColor: const Color(0xFFF3E5E5),
+                      backgroundImage: imageProvider,
+                      child:
+                          imageProvider == null
+                              ? Text(
+                                product.name.trim().isEmpty
+                                    ? '?'
+                                    : product.name
+                                        .trim()
+                                        .substring(0, 1)
+                                        .toUpperCase(),
+                                style: const TextStyle(
+                                  color: Color(0xFF8D1B3D),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              )
+                              : null,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            final image = await _pickProductImage(
+                              ImageSource.gallery,
+                            );
+                            if (image == null) {
+                              return;
+                            }
+                            setState(() {
+                              selectedImage = image;
+                              removeCurrentImage = false;
+                            });
+                          },
+                          icon: const Icon(Icons.photo_library_outlined),
+                          label: const Text('Galeri'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            final image = await _pickProductImage(
+                              ImageSource.camera,
+                            );
+                            if (image == null) {
+                              return;
+                            }
+                            setState(() {
+                              selectedImage = image;
+                              removeCurrentImage = false;
+                            });
+                          },
+                          icon: const Icon(Icons.photo_camera_outlined),
+                          label: const Text('Kamera'),
+                        ),
+                        if (selectedImage != null ||
+                            (!removeCurrentImage && existingImage != null))
+                          TextButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                selectedImage = null;
+                                removeCurrentImage = true;
+                              });
+                            },
+                            icon: const Icon(Icons.delete_outline),
+                            label: const Text('Hapus'),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Nama Produk',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: priceController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: const InputDecoration(
+                        labelText: 'Harga',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: minStockController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: const InputDecoration(
+                        labelText: 'Batas Stok Minimum',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Produk Aktif'),
+                      value: isActive,
+                      onChanged: (value) {
+                        setState(() {
+                          isActive = value;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Stok Saat Ini: ${product.stock}',
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: priceController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(
-                  labelText: 'Harga',
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Batal'),
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: minStockController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: const InputDecoration(
-                  labelText: 'Batas Stok Minimum',
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('Simpan'),
                 ),
-              ),
-              const SizedBox(height: 12),
-              StatefulBuilder(
-                builder: (context, setState) {
-                  return SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Produk Aktif'),
-                    value: isActive,
-                    onChanged: (value) {
-                      setState(() {
-                        isActive = value;
-                      });
-                    },
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Stok Saat Ini: ${product.stock}',
-                style: const TextStyle(color: Colors.grey),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Batal'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Simpan'),
-            ),
-          ],
+              ],
+            );
+          },
         );
       },
     );
@@ -332,11 +521,26 @@ class _ProductionScreenState extends State<ProductionScreen> {
             minStock: minStock,
             isActive: isActive,
           );
+      bool imageSaved = true;
+      if (selectedImage != null) {
+        imageSaved = await ProductImageService.saveProductImage(
+          productId: product.id!,
+          sourceImage: selectedImage!,
+        );
+      } else if (removeCurrentImage) {
+        imageSaved = await ProductImageService.deleteProductImage(product.id!);
+      }
       if (!mounted) {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Produk diperbarui.')),
+        SnackBar(
+          content: Text(
+            imageSaved
+                ? 'Produk diperbarui.'
+                : 'Produk diperbarui, tapi foto gagal diproses.',
+          ),
+        ),
       );
     }
   }
@@ -884,7 +1088,11 @@ class _ProductionScreenState extends State<ProductionScreen> {
                                     value: isSelected,
                                     onChanged: (_) => _toggleSelection(product),
                                   )
-                                : null,
+                                : ProductAvatar(
+                                    productId: product.id,
+                                    productName: product.name,
+                                    radius: 20,
+                                  ),
                             title: Text(
                               product.name,
                               style: TextStyle(color: textColor),

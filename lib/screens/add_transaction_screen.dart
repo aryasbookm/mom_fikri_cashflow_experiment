@@ -8,6 +8,7 @@ import '../providers/auth_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/product_provider.dart';
 import '../providers/transaction_provider.dart';
+import '../widgets/product_avatar.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   const AddTransactionScreen({super.key, this.initialType});
@@ -888,12 +889,25 @@ class _ProductGrid extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  product.name,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w600),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    ProductAvatar(
+                                      productId: product.id,
+                                      productName: product.name,
+                                      radius: 18,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        product.name,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w600),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                                 const Spacer(),
                                 Text(

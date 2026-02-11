@@ -68,6 +68,7 @@ Catatan:
    - Produksi menambah stok
    - Penjualan & waste mengurangi stok
    - Produk baru bisa ditambah (nama + harga)
+   - Produk dapat memiliki foto opsional (galeri/kamera) yang disimpan lokal per perangkat
    - Waste dicatat sebagai transaksi `type='WASTE'`
 
 5. **Riwayat Transaksi (Owner)**
@@ -107,6 +108,7 @@ Catatan:
    - Aksi akun cloud adaptif:
      - jika belum login, tombol menjadi "Hubungkan Akun Google Drive"
      - jika sudah login, tombol menjadi "Ganti Akun Google Drive" dengan konfirmasi sebelum putus akun lalu pilih akun ulang
+   - Catatan batasan saat ini: foto produk belum ikut backup/restore karena masih disimpan sebagai file lokal perangkat
 
 9. **Dashboard Owner (Ringkas)**
    - Menampilkan Top Produk (7 hari) untuk keputusan produksi
