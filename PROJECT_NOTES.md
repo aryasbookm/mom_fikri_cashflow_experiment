@@ -23,7 +23,8 @@ Prioritas (tanpa ubah DB v8):
    - Banner hanya muncul jika ada perubahan data sejak backup terakhir.
    - Catatan: auto-backup lokal saja tidak melindungi jika HP hilang; aman mulai dari reminder.
    - Jika auto-backup lokal ditambahkan: wajib toggle ON/OFF, retention 5–10 file terbaru, lokasi Download/App Documents.
-   - Cloud backup (Drive) lebih aman untuk kehilangan HP, tetapi kompleks (fase berikutnya).
+   - Cloud backup (Drive) sudah tersedia untuk Android: upload/restore file `.db` via Google Drive `appDataFolder`.
+   - Catatan dev: pengujian macOS dapat terkendala keychain/signing environment (Personal Team).
    - Debug owner: tombol simulasi lupa backup (mundurkan timestamp 4 hari).
    - Auto-backup lokal: berjalan saat app paused, maksimal 1x/24 jam, simpan 5 file terakhir di `auto_backups/`.
    - Deteksi perubahan data memakai snapshot jumlah transaksi + produk + audit log.
@@ -89,6 +90,8 @@ Catatan:
    - Backup DB ke file `.db` (share + simpan ke Download)
    - Restore via file picker (Android pakai `FileType.any`) dengan rollback, validasi versi, dan validasi struktur
    - Restore memicu refresh data + reset filter laporan/riwayat
+   - Cloud backup Android: upload database `.db` ke Google Drive `appDataFolder`
+   - Cloud restore Android: pulihkan dari backup cloud terbaru
 
 9. **Dashboard Owner (Ringkas)**
    - Menampilkan Top Produk (7 hari) untuk keputusan produksi
