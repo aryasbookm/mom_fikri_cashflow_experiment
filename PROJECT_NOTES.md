@@ -71,6 +71,13 @@ Catatan:
    - Produk baru bisa ditambah (nama + harga)
    - Produk dapat memiliki foto opsional (galeri/kamera) yang disimpan lokal per perangkat
    - Waste dicatat sebagai transaksi `type='WASTE'`
+   - Daftar stok mendukung filter tampilan: **Aktif** (default), **Arsip**, **Semua**
+   - Seed produk default dalam kondisi **arsip** (`is_active=0`) agar dashboard awal bersih
+   - Produk arsip otomatis aktif saat stok ditambah (`stock > 0`)
+   - Hapus permanen produk bersifat **guarded**:
+     - hanya boleh jika `stock == 0`
+     - dan produk belum pernah dipakai di `transaction_items`
+     - jika tidak memenuhi syarat, arahkan user ke aksi arsip
 
 5. **Riwayat Transaksi (Owner)**
    - Filter waktu: Hari Ini, Kemarin, 7 Hari, Bulan Ini, Semua
@@ -188,6 +195,14 @@ Catatan:
   - [ ] Grafik (`fl_chart`) berubah sesuai data transaksi terbaru.
   - [ ] Export PDF berhasil dibuat dan dapat dibuka.
 - [ ] Edge case narrative: siapkan jawaban "apa yang terjadi jika proses backup/restore gagal di tengah jalan?" (rollback-safe behavior).
+- [ ] Produksi & arsip:
+  - [ ] Filter `Aktif/Arsip/Semua` menampilkan daftar sesuai status produk.
+  - [ ] Hapus permanen ditolak jika stok masih ada.
+  - [ ] Hapus permanen ditolak jika produk memiliki riwayat transaksi.
+  - [ ] Produk dengan stok 0 dan tanpa riwayat transaksi bisa dihapus permanen.
+- [ ] Konsistensi aset stok:
+  - [ ] Pastikan metrik total stok di dashboard menggunakan seluruh produk (bukan hanya filter tampilan produksi).
+  - [ ] Verifikasi perubahan filter `Aktif` vs `Semua` di layar produksi tidak mengubah nilai total stok global.
 
 ## Validasi Stok (kasir)
 ```dart

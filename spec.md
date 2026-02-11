@@ -88,6 +88,12 @@ Setiap fitur non-trivial dinyatakan siap merge jika lolos:
 - **Kasir (Pemasukan):** grid produk + input jumlah, validasi stok, ringkasan sebelum simpan.
 - **Pengeluaran:** input manual, kategori dinamis.
 - **Produksi & Stok:** produksi menambah stok, penjualan & waste mengurangi stok.
+- **Produksi & Stok:** produksi menambah stok, penjualan & waste mengurangi stok.
+  - Daftar stok memiliki filter tampilan `Aktif` (default), `Arsip`, `Semua`.
+  - Seed produk awal disimpan dalam status arsip (`is_active=0`) untuk menghindari noise awal.
+  - Produk arsip auto-aktif saat stok bertambah (`stock > 0`).
+  - Hapus permanen produk hanya diizinkan jika `stock == 0` dan tidak ada referensi di `transaction_items`.
+  - Jika syarat hapus permanen tidak terpenuhi, alur yang direkomendasikan adalah arsip/nonaktif.
 - **Waste (Barang rusak/basi):** dicatat sebagai transaksi `WASTE` (amount 0).
 - **Laporan:** grafik tren 7 hari, pie chart pemasukan/pengeluaran, toggle tipe, navigasi bulan, export PDF (keuangan + waste).
 - **Struk Digital:** detail transaksi + bagikan struk (gambar) dari transaksi pemasukan.
@@ -109,6 +115,17 @@ Setiap fitur non-trivial dinyatakan siap merge jika lolos:
 - Buka aplikasi → Login → cek role.
 - Owner: Dashboard dengan saldo, stok tersedia, ringkasan hari ini, tombol aksi (pemasukan/pengeluaran/riwayat).
 - Staff: Beranda (transaksi hari ini + total setoran), tab Stok, tab Akun.
+
+## 6.1 Skenario Uji Produksi & Aset
+- **Guarded Delete (Happy Path):**
+  - Produk stok 0, belum pernah terjual -> dapat dihapus permanen.
+- **Guarded Delete (Edge Case):**
+  - Produk stok > 0 -> hapus permanen ditolak.
+  - Produk stok 0 tapi pernah dipakai transaksi -> hapus permanen ditolak.
+- **Filter View:**
+  - `Aktif/Arsip/Semua` hanya memengaruhi daftar tampilan di layar produksi.
+- **Konsistensi Aset Stok:**
+  - Perubahan filter tampilan produksi tidak boleh mengubah perhitungan total stok global/dashboard.
 
 ## 7. Data Awal (Seeding)
 - User default: admin/1234 (owner), karyawan/0000 (staff).
