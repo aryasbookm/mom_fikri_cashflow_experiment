@@ -304,7 +304,7 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  Future<void> _testCloudConnection() async {
+  Future<void> _uploadCloudBackup() async {
     if (_isTestingCloud) {
       return;
     }
@@ -312,13 +312,13 @@ class _AccountScreenState extends State<AccountScreen> {
       _isTestingCloud = true;
     });
     try {
-      final success = await CloudDriveService().testConnection();
+      final success = await CloudDriveService().uploadDatabaseBackup();
       if (!mounted) {
         return;
       }
       _showSnackBar(
         context,
-        success ? 'Koneksi Google Drive berhasil.' : 'Login dibatalkan.',
+        success ? 'Backup ke Google Drive berhasil.' : 'Login dibatalkan.',
         isError: !success,
       );
     } catch (error) {
@@ -327,7 +327,7 @@ class _AccountScreenState extends State<AccountScreen> {
       }
       _showSnackBar(
         context,
-        'Gagal uji koneksi Google Drive: $error',
+        'Gagal backup ke Google Drive: $error',
         isError: true,
       );
     } finally {
@@ -399,7 +399,7 @@ class _AccountScreenState extends State<AccountScreen> {
       onDebugSimulateBackup: isOwner ? _simulateBackupReminder : null,
       autoBackupEnabled: _autoBackupEnabled,
       onToggleAutoBackup: isOwner ? _setAutoBackupEnabled : null,
-      onTestCloudConnection: isOwner ? _testCloudConnection : null,
+      onTestCloudConnection: isOwner ? _uploadCloudBackup : null,
       isTestingCloud: _isTestingCloud,
     );
   }

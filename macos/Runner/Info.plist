@@ -30,5 +30,18 @@
 	<string>NSApplication</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Izinkan aplikasi mengakses galeri untuk foto profil.</string>
+	<key>GIDClientID</key>
+	<string>834572509698-5pfuvp27lr9jm2427989nojmr8qpppi8.apps.googleusercontent.com</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.834572509698-5pfuvp27lr9jm2427989nojmr8qpppi8</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

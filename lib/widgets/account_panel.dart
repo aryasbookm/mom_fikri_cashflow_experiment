@@ -280,7 +280,7 @@ class AccountPanel extends StatelessWidget {
                 _SettingsTile(
                   icon: Icons.cloud_done_outlined,
                   label:
-                      isTestingCloud ? 'Menguji Cloud...' : 'Test Cloud Connection',
+                      isTestingCloud ? 'Backup ke Cloud...' : 'Backup ke Google Drive',
                   onTap: isTestingCloud ? null : onTestCloudConnection,
                   trailing: isTestingCloud
                       ? const SizedBox(
