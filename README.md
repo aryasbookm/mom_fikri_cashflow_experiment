@@ -23,6 +23,13 @@ Repositori ini dilengkapi dengan dokumentasi teknis dan operasional sebagai beri
 ### 3. Protokol & Pengujian
 - **[TESTING_BACKUP_RESTORE.md](TESTING_BACKUP_RESTORE.md)**: Dokumen User Acceptance Test (UAT) khusus untuk fitur kritikal Backup & Restore.
 - **[AGENTS.md](AGENTS.md)**: Dokumentasi mengenai role dan aturan kerja AI Agent yang membantu pengembangan proyek ini.
+- **[AI_CONTEXT.md](AI_CONTEXT.md)**: Konteks lintas-sesi universal untuk semua AI (role boundary, technical map, quality gate).
+
+## 🤖 SOP AI Collaboration (Ringkas)
+- Best-practice check dijalankan **default** untuk perubahan non-trivial (tanpa menunggu keyword).
+- Timebox blocker: maksimal **3 percobaan** atau **45–60 menit**, lalu pivot ke alternatif paling aman.
+- Quality gate sebelum merge: **Happy Path + Edge Case + Rollback/Recovery**.
+- Update dokumen memakai prinsip **impacted docs only** (hindari noise).
 
 ## 🚀 Cara Menjalankan Aplikasi
 

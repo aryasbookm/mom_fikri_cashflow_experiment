@@ -17,6 +17,8 @@ fi
 
 flutter create "$TARGET_PATH"
 cp "$PWD/AGENTS.md" "$TARGET_PATH/AGENTS.md"
+cp "$PWD/AI_CONTEXT.md" "$TARGET_PATH/AI_CONTEXT.md"
 
 echo "Project created: $TARGET_PATH"
 echo "AGENTS copied to: $TARGET_PATH/AGENTS.md"
+echo "AI context copied to: $TARGET_PATH/AI_CONTEXT.md"

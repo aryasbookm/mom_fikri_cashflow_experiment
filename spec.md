@@ -50,6 +50,12 @@ Catatan:
   - Android picker memakai `FileType.any` + validasi manual `.db`.
   - Cloud Android memakai `google_sign_in` + `googleapis` (folder `appDataFolder`).
 
+## 2.1 Quality Gate (Engineering Process)
+Setiap fitur non-trivial dinyatakan siap merge jika lolos:
+1. **Happy Path** (alur normal sukses end-to-end).
+2. **Edge Case** (minimal 1 skenario gagal ditangani aman).
+3. **Rollback/Recovery** (tidak meninggalkan state parsial/korup saat gagal).
+
 ## 3. Aktor & Hak Akses
 **Owner (Pemilik):**
 - Bisa login.

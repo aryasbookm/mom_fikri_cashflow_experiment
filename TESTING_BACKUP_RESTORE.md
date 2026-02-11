@@ -1,5 +1,10 @@
 # UAT Backup & Restore
 
+## Quality Gate Checklist
+- [ ] Happy Path tervalidasi.
+- [ ] Minimal 1 Edge Case tervalidasi.
+- [ ] Rollback/Recovery tervalidasi.
+
 | Scenario | Steps | Expected Result |
 | --- | --- | --- |
 | 1. Backup berhasil | 1. Buka aplikasi, login sebagai owner. 2. Buka tab Akun. 3. Tekan "Backup Data". 4. Pastikan share sheet muncul. 5. Pastikan file backup tersimpan di folder Download (atau lokasi fallback). | Share sheet muncul. File backup berekstensi `.db` tersimpan dengan timestamp. |

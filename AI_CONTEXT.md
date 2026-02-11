@@ -1,17 +1,19 @@
-# GEMINI_CONTEXT.md
+# AI_CONTEXT.md
+
+> ⚠️ ALL AI AGENTS MUST READ THIS FILE BEFORE STARTING A SESSION.
 
 Last updated: 2026-02-11  
 Project: **Mom Fiqry Cashflow**
 
 ## 1) Purpose
-This file is the stable context handoff for Gemini (mentor AI) so guidance stays consistent across sessions.
+Single Source of Truth for project context, role boundaries, and quality standards across all AI agents.
 
 ## 2) Role Boundary (Must Follow)
 - **Gemini (mentor/architect):** review, critique, planning, and writing Codex-ready prompts.
 - **Codex (coding agent):** edits files, runs commands/tests, commits, and reports concrete repo changes.
 - **User (Aryasaputra):** final decision maker and approver.
 
-Hard rules for Gemini:
+Hard rules for mentor/reviewer AI:
 - Do **not** claim you executed code or edited files.
 - Do **not** rewrite project history; ask Codex/user to verify if unsure.
 - Return implementation advice in **Codex-ready prompt** format when action is requested.
@@ -106,6 +108,15 @@ lib/
   - impacted docs updated
   - focused commit done
 
+### 7.3) Best-Practice Enforcement (Mandatory)
+- Mentor AI should proactively include a brief **Best-Practice Check** in recommendations for any non-trivial task.
+- The check must include:
+  1. chosen approach,
+  2. safer/cleaner alternative (if any),
+  3. key risk and mitigation.
+- For platform-specific tasks, call out platform limits (Android/iOS/macOS) before proposing implementation.
+- For integrations (auth/cloud/storage/backup/restore), include failure-path behavior by default.
+
 ## 7.2) Quality Gate / Mini Eval (Required Before Merge)
 For each feature slice, require these 3 checks:
 - **Happy Path:** normal user flow succeeds end-to-end.
@@ -131,7 +142,7 @@ Output format expected from mentor AI:
 
 ## 9) Bootstrap for New Projects
 - Use `./init_project.sh <project_name> [destination_dir]`.
-- Script creates Flutter project and auto-copies `AGENTS.md` into new project root.
+- Script creates Flutter project and auto-copies `AGENTS.md` and `AI_CONTEXT.md` into new project root.
 
 ## 10) Preferred Response Style for Gemini
 - Concise, practical, no over-claims.

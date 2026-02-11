@@ -8,6 +8,13 @@
 - **State:** Provider
 - **Release Notes:** lihat `CHANGELOG.md` (timeline v0.9.0 → v1.0.0-rc3)
 
+## SOP Kolaborasi AI (Aktif)
+- **Role boundary:** Gemini = mentor/reviewer, Codex = eksekutor perubahan repo, User = approver final.
+- **Best-practice default:** tidak menunggu keyword; perubahan non-trivial wajib lewat Best-Practice Check singkat.
+- **Blocker timebox:** maksimal 3 percobaan atau 45–60 menit, lalu fallback/pivot.
+- **Quality gate sebelum merge:** Happy Path + Edge Case + Rollback/Recovery.
+- **Dokumentasi:** gunakan prinsip impacted-docs-only.
+
 ## Rencana Experimental #4 (Final)
 Prioritas (tanpa ubah DB v8):
 1. **Global Search**
