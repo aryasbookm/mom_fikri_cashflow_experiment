@@ -16,6 +16,8 @@ import '../providers/transaction_provider.dart';
 import '../services/product_image_service.dart';
 import '../widgets/product_avatar.dart';
 
+enum _StockListFilter { active, archived, all }
+
 class ProductionScreen extends StatefulWidget {
   const ProductionScreen({super.key, this.showAppBar = true});
 
@@ -35,6 +37,7 @@ class _ProductionScreenState extends State<ProductionScreen> {
   bool _selectionMode = false;
   final Set<int> _selectedProductIds = {};
   String _stockSearchQuery = '';
+  _StockListFilter _stockListFilter = _StockListFilter.active;
 
   @override
   void initState() {
@@ -85,6 +88,85 @@ class _ProductionScreenState extends State<ProductionScreen> {
       _selectionMode = false;
       _selectedProductIds.clear();
     });
+  }
+
+  bool _matchesStockListFilter(ProductModel product) {
+    switch (_stockListFilter) {
+      case _StockListFilter.active:
+        return product.isActive;
+      case _StockListFilter.archived:
+        return !product.isActive;
+      case _StockListFilter.all:
+        return true;
+    }
+  }
+
+  Future<void> _deleteProduct(ProductModel product) async {
+    final productId = product.id;
+    if (productId == null) {
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hapus produk permanen?'),
+        content: Text(
+          'Produk "${product.name}" akan dihapus permanen. '
+          'Aksi ini tidak bisa dibatalkan.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Hapus'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
+    final status =
+        await context.read<ProductProvider>().deleteProductSafely(productId);
+    if (!mounted) {
+      return;
+    }
+    switch (status) {
+      case ProductDeleteStatus.deleted:
+        await ProductImageService.deleteProductImage(productId);
+        if (!mounted) {
+          return;
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Produk berhasil dihapus permanen.')),
+        );
+        return;
+      case ProductDeleteStatus.blockedHasStock:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Produk tidak bisa dihapus karena stok masih ada.'),
+          ),
+        );
+        return;
+      case ProductDeleteStatus.blockedHasTransactions:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Produk tidak bisa dihapus karena sudah memiliki riwayat transaksi. '
+              'Silakan arsipkan produk.',
+            ),
+          ),
+        );
+        return;
+      case ProductDeleteStatus.notFound:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Produk tidak ditemukan.')),
+        );
+        return;
+    }
   }
 
   Future<XFile?> _pickProductImage(ImageSource source) async {
@@ -803,6 +885,9 @@ class _ProductionScreenState extends State<ProductionScreen> {
                   .where((product) =>
                       product.name.toLowerCase().contains(query))
                   .toList();
+          final filteredProducts = filteredBySearch
+              .where(_matchesStockListFilter)
+              .toList();
           final now = DateTime.now();
           final wasteToday = transactionProvider.transactions.where((tx) {
             if (tx.type != 'WASTE') {
@@ -1060,6 +1145,45 @@ class _ProductionScreenState extends State<ProductionScreen> {
                             ),
                           ),
                         ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
+                        child: Wrap(
+                          spacing: 8,
+                          children: [
+                            ChoiceChip(
+                              label: const Text('Aktif'),
+                              selected: _stockListFilter == _StockListFilter.active,
+                              onSelected: (_) {
+                                setState(() {
+                                  _stockListFilter = _StockListFilter.active;
+                                });
+                              },
+                            ),
+                            ChoiceChip(
+                              label: const Text('Arsip'),
+                              selected:
+                                  _stockListFilter == _StockListFilter.archived,
+                              onSelected: (_) {
+                                setState(() {
+                                  _stockListFilter = _StockListFilter.archived;
+                                });
+                              },
+                            ),
+                            ChoiceChip(
+                              label: const Text('Semua'),
+                              selected: _stockListFilter == _StockListFilter.all,
+                              onSelected: (_) {
+                                setState(() {
+                                  _stockListFilter = _StockListFilter.all;
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
                       if (sortedByStock.isEmpty)
                         const Padding(
                           padding: EdgeInsets.only(bottom: 12),
@@ -1068,16 +1192,16 @@ class _ProductionScreenState extends State<ProductionScreen> {
                             style: TextStyle(color: Colors.grey),
                           ),
                         )
-                      else if (filteredBySearch.isEmpty)
+                      else if (filteredProducts.isEmpty)
                         const Padding(
                           padding: EdgeInsets.only(bottom: 12),
                           child: Text(
-                            'Produk tidak ditemukan',
+                            'Produk tidak ditemukan pada filter ini',
                             style: TextStyle(color: Colors.grey),
                           ),
                         )
                       else
-                        ...filteredBySearch.map((product) {
+                        ...filteredProducts.map((product) {
                           final id = product.id;
                           final isSelected =
                               id != null && _selectedProductIds.contains(id);
@@ -1123,20 +1247,99 @@ class _ProductionScreenState extends State<ProductionScreen> {
                                             color: Color(0xFF1565C0)),
                                         onPressed: () => _editProduct(product),
                                       ),
-                                      if (product.stock > 0)
-                                        IconButton(
-                                          icon: const Icon(
-                                            Icons.remove_circle_outline,
-                                            color: Colors.red,
-                                          ),
-                                          tooltip: 'Kurangi stok',
-                                          onPressed: () {
+                                      PopupMenuButton<String>(
+                                        onSelected: (value) async {
+                                          if (value == 'waste') {
                                             if (product.id != null) {
-                                              _wasteStock(
-                                                  product.id!, product.name);
+                                              await _wasteStock(
+                                                product.id!,
+                                                product.name,
+                                              );
                                             }
-                                          },
-                                        ),
+                                            return;
+                                          }
+                                          if (value == 'toggle') {
+                                            if (!product.isActive &&
+                                                product.id != null) {
+                                              await context
+                                                  .read<ProductProvider>()
+                                                  .updateProductsActive(
+                                                    ids: [product.id!],
+                                                    isActive: true,
+                                                  );
+                                              if (!mounted) {
+                                                return;
+                                              }
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    '${product.name} diaktifkan.',
+                                                  ),
+                                                ),
+                                              );
+                                              return;
+                                            }
+                                            if (product.stock > 0) {
+                                              if (!mounted) {
+                                                return;
+                                              }
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    'Stok ${product.name} masih ${product.stock} pcs. '
+                                                    'Habiskan dulu sebelum arsip.',
+                                                  ),
+                                                ),
+                                              );
+                                              return;
+                                            }
+                                            if (product.id != null) {
+                                              await context
+                                                  .read<ProductProvider>()
+                                                  .updateProductsActive(
+                                                    ids: [product.id!],
+                                                    isActive: false,
+                                                  );
+                                              if (!mounted) {
+                                                return;
+                                              }
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    '${product.name} diarsipkan.',
+                                                  ),
+                                                ),
+                                              );
+                                            }
+                                            return;
+                                          }
+                                          if (value == 'delete') {
+                                            await _deleteProduct(product);
+                                          }
+                                        },
+                                        itemBuilder: (context) => [
+                                          if (product.stock > 0)
+                                            const PopupMenuItem<String>(
+                                              value: 'waste',
+                                              child: Text('Kurangi stok'),
+                                            ),
+                                          PopupMenuItem<String>(
+                                            value: 'toggle',
+                                            child: Text(
+                                              product.isActive
+                                                  ? 'Arsipkan produk'
+                                                  : 'Aktifkan produk',
+                                            ),
+                                          ),
+                                          const PopupMenuItem<String>(
+                                            value: 'delete',
+                                            child: Text('Hapus permanen'),
+                                          ),
+                                        ],
+                                      ),
                                     ],
                                   ),
                           );

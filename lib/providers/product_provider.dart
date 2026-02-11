@@ -4,6 +4,13 @@ import 'package:sqflite/sqflite.dart';
 import '../database/database_helper.dart';
 import '../models/product_model.dart';
 
+enum ProductDeleteStatus {
+  deleted,
+  blockedHasStock,
+  blockedHasTransactions,
+  notFound,
+}
+
 class ProductProvider extends ChangeNotifier {
   ProductProvider() {
     loadProducts();
@@ -126,5 +133,37 @@ class ProductProvider extends ChangeNotifier {
     );
     await loadProducts();
     return true;
+  }
+
+  Future<ProductDeleteStatus> deleteProductSafely(int productId) async {
+    final Database db = await DatabaseHelper.instance.database;
+    final result = await db.query(
+      'products',
+      columns: ['stock'],
+      where: 'id = ?',
+      whereArgs: [productId],
+      limit: 1,
+    );
+    if (result.isEmpty) {
+      return ProductDeleteStatus.notFound;
+    }
+    final stock = (result.first['stock'] as num?)?.toInt() ?? 0;
+    if (stock > 0) {
+      return ProductDeleteStatus.blockedHasStock;
+    }
+    final transactionRef = await db.rawQuery(
+      'SELECT 1 FROM transaction_items WHERE product_id = ? LIMIT 1',
+      [productId],
+    );
+    if (transactionRef.isNotEmpty) {
+      return ProductDeleteStatus.blockedHasTransactions;
+    }
+    await db.delete(
+      'products',
+      where: 'id = ?',
+      whereArgs: [productId],
+    );
+    await loadProducts();
+    return ProductDeleteStatus.deleted;
   }
 }
