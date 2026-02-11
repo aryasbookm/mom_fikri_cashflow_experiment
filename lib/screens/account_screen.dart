@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
@@ -105,12 +106,19 @@ class _AccountScreenState extends State<AccountScreen> {
     if (_isBackingUp) {
       return;
     }
+    final includeImages = await _showBackupModeDialog();
+    if (includeImages == null) {
+      return;
+    }
     setState(() {
       _isBackingUp = true;
     });
 
     try {
-      final result = await BackupService.backupDatabase(shareAfter: true);
+      final result = await BackupService.backupDatabase(
+        shareAfter: true,
+        includeImages: includeImages,
+      );
       if (!mounted) {
         return;
       }
@@ -118,7 +126,15 @@ class _AccountScreenState extends State<AccountScreen> {
           result.downloadPath != null
               ? 'Backup tersimpan di: ${result.downloadPath}'
               : 'Backup selesai, tetapi gagal simpan ke folder Download.';
-      _showSnackBar(context, downloadMessage, isError: false);
+      final modeLabel =
+          result.includeImages
+              ? 'Mode: Lengkap (dengan foto produk).'
+              : 'Mode: Data saja (tanpa foto produk).';
+      _showSnackBar(
+        context,
+        '$downloadMessage\n$modeLabel',
+        isError: false,
+      );
     } catch (error) {
       if (!mounted) {
         return;
@@ -131,6 +147,58 @@ class _AccountScreenState extends State<AccountScreen> {
         });
       }
     }
+  }
+
+  Future<bool?> _showBackupModeDialog() async {
+    var includeImages = false;
+    return showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Pilih Mode Backup'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: includeImages,
+                    onChanged: (value) {
+                      setState(() {
+                        includeImages = value ?? false;
+                      });
+                    },
+                    title: const Text('Sertakan Foto Produk'),
+                    subtitle: Text(
+                      includeImages
+                          ? 'Backup Lengkap (lebih besar, cocok migrasi).'
+                          : 'Backup Cepat (data saja, lebih kecil).',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Catatan: restore data-only akan mempertahankan foto lokal, namun foto mungkin tidak sinkron dengan data backup.',
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Batal'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(includeImages),
+                  child: const Text('Lanjut Backup'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _restoreDatabase() async {
@@ -182,15 +250,17 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  Future<bool> _confirmRestore() async {
+  Future<bool> _confirmRestore({bool isLegacyDb = false}) async {
+    final message =
+        isLegacyDb
+            ? 'Peringatan: Restore file database lama (.db) akan mengganti data saat ini dan menghapus semua foto produk lokal karena file .db tidak menyimpan data foto. Lanjutkan?'
+            : 'Peringatan: Data saat ini akan dihapus dan diganti dengan data backup. Lanjutkan?';
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text('Konfirmasi Restore'),
-          content: const Text(
-            'Peringatan: Data saat ini akan dihapus dan diganti dengan data backup. Lanjutkan?',
-          ),
+          content: Text(message),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -208,11 +278,39 @@ class _AccountScreenState extends State<AccountScreen> {
   }
 
   Future<void> _restoreManual() async {
-    final confirmed = await _confirmRestore();
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.any,
+      withData: false,
+      allowMultiple: false,
+    );
+    if (result == null || result.files.isEmpty) {
+      return;
+    }
+    final sourcePath = result.files.single.path;
+    if (sourcePath == null || sourcePath.isEmpty) {
+      if (!mounted) {
+        return;
+      }
+      _showSnackBar(context, 'File backup tidak valid.', isError: true);
+      return;
+    }
+
+    final extension = p.extension(sourcePath).toLowerCase();
+    if (extension != '.zip' && extension != '.db') {
+      if (!mounted) {
+        return;
+      }
+      _showSnackBar(context, 'Format file harus .zip atau .db', isError: true);
+      return;
+    }
+
+    final confirmed = await _confirmRestore(isLegacyDb: extension == '.db');
     if (!confirmed) {
       return;
     }
-    await _performRestore(() => BackupService.restoreDatabase());
+    await _performRestore(
+      () => BackupService.restoreDatabaseFromPath(sourcePath),
+    );
   }
 
   Future<void> _restoreAutoBackup() async {
@@ -290,11 +388,11 @@ class _AccountScreenState extends State<AccountScreen> {
       if (!mounted) {
         return;
       }
-      _showSnackBar(
-        context,
-        'Data berhasil dipulihkan. Jika data belum berubah, silakan buka kembali aplikasi.',
-        isError: false,
-      );
+      final restoreMessage =
+          restored.includeImagesFromBackup
+              ? 'Data dan foto berhasil dipulihkan.'
+              : 'Data dipulihkan. Foto lokal dipertahankan (tidak disinkronisasi).';
+      _showSnackBar(context, restoreMessage, isError: false);
     } catch (error) {
       if (!mounted) {
         return;

@@ -278,6 +278,13 @@ class AccountPanel extends StatelessWidget {
                             )
                             : null,
                   ),
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Text(
+                    'Catatan: backup manual mendukung mode Data Saja atau Lengkap + Foto. Restore data-only akan mempertahankan foto lokal (tidak disinkronisasi).',
+                    style: TextStyle(color: Colors.black54, fontSize: 12),
+                  ),
+                ),
               ],
             ),
           ],

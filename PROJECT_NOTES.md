@@ -14,6 +14,7 @@
 - **Blocker timebox:** maksimal 3 percobaan atau 45–60 menit, lalu fallback/pivot.
 - **Quality gate sebelum merge:** Happy Path + Edge Case + Rollback/Recovery.
 - **Dokumentasi:** gunakan prinsip impacted-docs-only.
+- **Project capsule:** maintain `WORKFLOW.md` + fixed port + browser profile dedicated untuk isolasi konteks antar proyek.
 
 ## Rencana Fase 4 (Final)
 Prioritas (tanpa ubah DB v8):
@@ -68,6 +69,7 @@ Catatan:
    - Produksi menambah stok
    - Penjualan & waste mengurangi stok
    - Produk baru bisa ditambah (nama + harga)
+   - Produk dapat memiliki foto opsional (galeri/kamera) yang disimpan lokal per perangkat
    - Waste dicatat sebagai transaksi `type='WASTE'`
 
 5. **Riwayat Transaksi (Owner)**
@@ -94,10 +96,10 @@ Catatan:
    - Owner dapat melihat, restore, atau hapus permanen audit log
 
 8. **Backup & Restore (Robust)**
-   - Backup DB ke file `.db` (share + simpan ke Download)
+   - Backup data ke file `.zip` (berisi database + foto produk) dengan opsi share + simpan ke Download
    - Restore via file picker (Android pakai `FileType.any`) dengan rollback, validasi versi, dan validasi struktur
    - Restore memicu refresh data + reset filter laporan/riwayat
-   - Cloud backup Android: upload database `.db` ke Google Drive `appDataFolder`
+   - Cloud backup Android: upload backup `.zip` (database + foto produk) ke Google Drive `appDataFolder`
    - Cloud restore Android: pulihkan dari backup cloud terbaru atau file cloud terpilih (via daftar)
    - UI cloud menampilkan metadata lokal: "Terakhir Backup Cloud: [tanggal/jam]"
    - Restore cloud menampilkan bottom sheet daftar backup (nama file, tanggal modifikasi, ukuran)
@@ -107,6 +109,7 @@ Catatan:
    - Aksi akun cloud adaptif:
      - jika belum login, tombol menjadi "Hubungkan Akun Google Drive"
      - jika sudah login, tombol menjadi "Ganti Akun Google Drive" dengan konfirmasi sebelum putus akun lalu pilih akun ulang
+   - Kompatibilitas restore: file `.db` lama tetap didukung (database only, tanpa foto produk)
 
 9. **Dashboard Owner (Ringkas)**
    - Menampilkan Top Produk (7 hari) untuk keputusan produksi
@@ -153,6 +156,10 @@ Catatan:
 - Owner dashboard fresh install: banner backup dan widget/toggle peringatan stok tidak ditampilkan sampai ada data operasional (transaksi/produksi/stok nyata).
 - Target harian opsional (progress + confetti) di header dashboard
 - Transaksi sekarang menyimpan timestamp lengkap (tanggal + jam)
+- Kasir (catatan pemasukan) memakai kartu grid compact vertical stack:
+  - thumbnail produk rounded,
+  - harga tanpa desimal agar cepat dibaca,
+  - ukuran avatar responsif agar kartu terasa lebih terisi.
 - Akun: tampilan grouped sections (Pengaturan, Administrasi, Data & Keamanan)
   - Style: ListTile + card sections (lebih rapat & terstruktur)
 

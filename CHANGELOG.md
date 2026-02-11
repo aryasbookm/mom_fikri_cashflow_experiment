@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - Global Search: search bar di Kasir, Stok, dan Riwayat dengan filtering real-time.
 - Deep Search Riwayat: pencarian juga mencakup nama produk dari transaksi multi-item.
+- Foto produk opsional berbasis filesystem lokal (`product_images/prod_{id}.jpg`) dengan picker galeri/kamera.
 - Smart Backup Reminder + catatan rencana auto-backup lokal (toggle + retention) dan cloud backup fase berikutnya.
 - Debug owner: tombol simulasi lupa backup (mundurkan timestamp 4 hari).
 - Slow Moving Analytics: tampilkan 3–5 produk dengan penjualan terendah (30 hari terakhir) untuk insight operasional.
@@ -17,6 +18,7 @@ All notable changes to this project will be documented in this file.
 - Cloud Restore Android: pulihkan database dari backup cloud terbaru (`appDataFolder`).
 - Cloud Restore Picker Android: restore dari file cloud terpilih (bukan hanya latest) via bottom sheet list.
 - Cloud Metadata UI: tampilkan "Terakhir Backup Cloud" berdasarkan timestamp lokal backup cloud terakhir.
+- Backup format v2: paket `.zip` berisi database + folder `product_images` + metadata manifest.
 
 ### Changed
 - Branding aplikasi disederhanakan dari "Toko Kue Mom Fiqry (Eksperimen)" menjadi "Toko Kue Mom Fiqry" pada Android/iOS/Web/Desktop.
@@ -29,10 +31,21 @@ All notable changes to this project will be documented in this file.
 - Menu debug Akun: tombol cloud sekarang melakukan backup/restore Google Drive (Android).
 - Validasi fitur cloud dilakukan di Android; kendala keychain/signing macOS dicatat sebagai batasan environment development.
 - UX cloud: pesan error jaringan dibuat lebih ramah pengguna (tanpa detail exception teknis).
+- Kasir (pemasukan): kartu grid produk kini memakai vertical stack responsif dengan thumbnail rounded agar hierarki visual lebih rapat.
+- Kasir (pemasukan): fine-tuning visual akhir pada kartu grid:
+  - format harga tanpa desimal (contoh `Rp 15.000`),
+  - avatar produk diperbesar proporsional (`(tileWidth * 0.15).clamp(28, 52)`),
+  - penekanan harga ditingkatkan (font lebih menonjol).
 - Restore cloud: daftar backup menandai item terbaru dengan badge "Terbaru".
 - Cloud account: aksi akun cloud kini adaptif:
   - saat belum login tampil "Hubungkan Akun Google Drive",
   - saat sudah login tampil "Ganti Akun Google Drive" dengan dialog konfirmasi sebelum disconnect dan re-login.
+- UI backup menampilkan catatan kompatibilitas restore (`.zip` termasuk foto, `.db` lama tanpa foto).
+- Backup lokal/cloud kini menggunakan file `.zip` agar foto produk ikut tersimpan.
+- Restore kini kompatibel dua format:
+  - `.zip` memulihkan database + foto produk,
+  - `.db` lama tetap didukung (database only, tanpa foto).
+- Operasional repo: ditambahkan `WORKFLOW.md` + konvensi `.env` `PORT=3010` untuk fixed-port workflow dan recovery cepat.
 
 ---
 

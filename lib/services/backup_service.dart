@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:archive/archive.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
@@ -15,11 +17,13 @@ class BackupResult {
     required this.sourcePath,
     required this.tempPath,
     required this.downloadPath,
+    required this.includeImages,
   });
 
   final String sourcePath;
   final String tempPath;
   final String? downloadPath;
+  final bool includeImages;
 }
 
 class RestoreFailure implements Exception {
@@ -36,9 +40,13 @@ class RestoreFailure implements Exception {
 class RestoreResult {
   const RestoreResult({
     required this.targetPath,
+    this.restoredImageCount = 0,
+    this.includeImagesFromBackup = false,
   });
 
   final String targetPath;
+  final int restoredImageCount;
+  final bool includeImagesFromBackup;
 }
 
 class BackupService {
@@ -47,8 +55,21 @@ class BackupService {
   static const String lastAutoBackupKey = 'last_auto_backup_timestamp';
   static const String lastBackupDataCountKey = 'last_backup_data_count';
 
+  static const String _zipEntryDbName = 'mom_fikri_cashflow_v2.db';
+  static const String _zipEntryImagesDir = 'product_images';
+  static const String _zipEntryManifest = 'manifest.json';
+  static const int _zipFormatVersion = 2;
+  static const Set<String> _imageExtensions = {
+    '.jpg',
+    '.jpeg',
+    '.png',
+    '.webp',
+    '.heic',
+  };
+
   static Future<BackupResult> backupDatabase({
     bool shareAfter = true,
+    bool includeImages = false,
   }) async {
     final dbPath = await DatabaseHelper.instance.getDatabasePath();
     final dbFile = File(dbPath);
@@ -57,11 +78,16 @@ class BackupService {
     }
 
     final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-    final fileName = 'mom_fikri_backup_$timestamp.db';
+    final fileName = 'mom_fikri_backup_$timestamp.zip';
+    final zipBytes = await _buildBackupZipBytes(
+      dbPath,
+      includeImages: includeImages,
+    );
 
     final tempDir = await getTemporaryDirectory();
     final tempPath = p.join(tempDir.path, fileName);
-    final tempFile = await dbFile.copy(tempPath);
+    final tempFile = File(tempPath);
+    await tempFile.writeAsBytes(zipBytes, flush: true);
 
     final downloadDir = await _resolveDownloadDir();
     String? downloadPath;
@@ -79,10 +105,7 @@ class BackupService {
     }
 
     if (shareAfter) {
-      await Share.shareXFiles(
-        [XFile(tempPath)],
-        text: 'Backup Mom Fiqry',
-      );
+      await Share.shareXFiles([XFile(tempPath)], text: 'Backup Mom Fiqry');
     }
 
     await _updateLastBackupMetadata();
@@ -91,6 +114,7 @@ class BackupService {
       sourcePath: dbPath,
       tempPath: tempPath,
       downloadPath: downloadPath,
+      includeImages: includeImages,
     );
   }
 
@@ -102,14 +126,19 @@ class BackupService {
     }
 
     final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-    final fileName = 'mom_fikri_autobackup_$timestamp.db';
+    final fileName = 'mom_fikri_autobackup_$timestamp.zip';
     final docsDir = await getApplicationDocumentsDirectory();
     final autoDir = Directory(p.join(docsDir.path, 'auto_backups'));
     if (!autoDir.existsSync()) {
       autoDir.createSync(recursive: true);
     }
+
+    final zipBytes = await _buildBackupZipBytes(
+      dbPath,
+      includeImages: false,
+    );
     final targetPath = p.join(autoDir.path, fileName);
-    await dbFile.copy(targetPath);
+    await File(targetPath).writeAsBytes(zipBytes, flush: true);
 
     _applyRetention(autoDir, retention);
     await _updateLastBackupMetadata();
@@ -118,15 +147,18 @@ class BackupService {
 
   static Future<int> getCurrentDataCount() async {
     final Database db = await DatabaseHelper.instance.database;
-    final txCount = Sqflite.firstIntValue(
+    final txCount =
+        Sqflite.firstIntValue(
           await db.rawQuery('SELECT COUNT(*) FROM transactions'),
         ) ??
         0;
-    final productCount = Sqflite.firstIntValue(
+    final productCount =
+        Sqflite.firstIntValue(
           await db.rawQuery('SELECT COUNT(*) FROM products'),
         ) ??
         0;
-    final deletedCount = Sqflite.firstIntValue(
+    final deletedCount =
+        Sqflite.firstIntValue(
           await db.rawQuery('SELECT COUNT(*) FROM deleted_transactions'),
         ) ??
         0;
@@ -160,11 +192,16 @@ class BackupService {
     if (retention <= 0) {
       return;
     }
-    final files = dir
-        .listSync()
-        .whereType<File>()
-        .where((file) => file.path.toLowerCase().endsWith('.db'))
-        .toList();
+    final files =
+        dir
+            .listSync()
+            .whereType<File>()
+            .where(
+              (file) =>
+                  file.path.toLowerCase().endsWith('.zip') ||
+                  file.path.toLowerCase().endsWith('.db'),
+            )
+            .toList();
     if (files.length <= retention) {
       return;
     }
@@ -212,11 +249,16 @@ class BackupService {
     if (!autoDir.existsSync()) {
       return [];
     }
-    final files = autoDir
-        .listSync()
-        .whereType<File>()
-        .where((file) => file.path.toLowerCase().endsWith('.db'))
-        .toList();
+    final files =
+        autoDir
+            .listSync()
+            .whereType<File>()
+            .where(
+              (file) =>
+                  file.path.toLowerCase().endsWith('.zip') ||
+                  file.path.toLowerCase().endsWith('.db'),
+            )
+            .toList();
     files.sort((a, b) {
       final aTime = a.lastModifiedSync();
       final bTime = b.lastModifiedSync();
@@ -230,28 +272,122 @@ class BackupService {
 
   static Future<RestoreResult> _restoreFromPath(String sourcePath) async {
     final extension = p.extension(sourcePath).toLowerCase();
-    if (extension != '.db') {
-      throw Exception('Format file harus .db');
+    if (extension != '.db' && extension != '.zip') {
+      throw Exception('Format file harus .zip atau .db');
     }
+    if (extension == '.db') {
+      final dbBytes = await _readBackupBytes(sourcePath);
+      return _restoreSnapshotFromDbBytes(dbBytes);
+    }
+    final zipBytes = await _readBackupBytes(sourcePath);
+    return _restoreSnapshotFromZipBytes(zipBytes);
+  }
 
+  static Future<List<int>> _readBackupBytes(String sourcePath) async {
+    final sourceFile = File(sourcePath);
+    if (!await sourceFile.exists()) {
+      throw Exception(
+        'File backup tidak dapat diakses. Coba salin file ke folder Download lalu pilih ulang.',
+      );
+    }
+    try {
+      return await sourceFile.readAsBytes();
+    } catch (error) {
+      throw Exception(
+        'Gagal membaca file backup dari sumber yang dipilih: $error',
+      );
+    }
+  }
+
+  static Future<RestoreResult> _restoreSnapshotFromDbBytes(
+    List<int> dbBytes,
+  ) async {
+    return _replaceLocalData(
+      dbBytes: dbBytes,
+      imageFiles: null,
+      replaceImages: false,
+      includeImagesFromBackup: false,
+    );
+  }
+
+  static Future<RestoreResult> _restoreSnapshotFromZipBytes(
+    List<int> zipBytes,
+  ) async {
+    final archive = ZipDecoder().decodeBytes(zipBytes, verify: true);
+    final manifest = _parseBackupManifest(archive);
+
+    final dbBytes = _resolveDbBytesFromArchive(archive);
+    final resolvedImageFiles = _resolveImageBytesFromArchive(archive);
+    final includeImages =
+        (manifest?['includeImages'] as bool?) ??
+        resolvedImageFiles.isNotEmpty;
+    final imageFiles = includeImages ? resolvedImageFiles : null;
+
+    return _replaceLocalData(
+      dbBytes: dbBytes,
+      imageFiles: imageFiles,
+      replaceImages: includeImages,
+      includeImagesFromBackup: includeImages,
+    );
+  }
+
+  static Future<RestoreResult> _replaceLocalData({
+    required List<int> dbBytes,
+    Map<String, List<int>>? imageFiles,
+    required bool replaceImages,
+    required bool includeImagesFromBackup,
+  }) async {
     await DatabaseHelper.instance.closeDatabase();
 
     final targetPath = await DatabaseHelper.instance.getDatabasePath();
     final targetFile = File(targetPath);
-    final tempPath = p.join(p.dirname(targetPath), 'v2_backup_temp.db');
-    final tempFile = File(tempPath);
 
-    if (await tempFile.exists()) {
-      await tempFile.delete();
+    final tempDir = await getTemporaryDirectory();
+    final rollbackDbPath = p.join(
+      tempDir.path,
+      'restore_rollback_db_${DateTime.now().millisecondsSinceEpoch}.db',
+    );
+    final rollbackDbFile = File(rollbackDbPath);
+
+    final imageDir = await _getProductImageDir();
+    final rollbackImageDir = Directory(
+      p.join(
+        tempDir.path,
+        'restore_rollback_images_${DateTime.now().millisecondsSinceEpoch}',
+      ),
+    );
+
+    final hadOriginalDb = await targetFile.exists();
+    final hadOriginalImages = replaceImages && await imageDir.exists();
+
+    if (await rollbackDbFile.exists()) {
+      await rollbackDbFile.delete();
+    }
+    if (await rollbackImageDir.exists()) {
+      await rollbackImageDir.delete(recursive: true);
     }
 
-    final hadOriginal = await targetFile.exists();
-    if (hadOriginal) {
+    if (hadOriginalDb) {
       try {
-        await targetFile.rename(tempPath);
+        await targetFile.rename(rollbackDbPath);
       } catch (error) {
         throw RestoreFailure(
-          'Gagal menyiapkan rollback. Restore dibatalkan.',
+          'Gagal menyiapkan rollback database. Restore dibatalkan.',
+          rolledBack: false,
+          cause: error,
+        );
+      }
+    }
+
+    if (hadOriginalImages) {
+      try {
+        await imageDir.rename(rollbackImageDir.path);
+      } catch (error) {
+        if (hadOriginalDb && await rollbackDbFile.exists()) {
+          await rollbackDbFile.rename(targetPath);
+        }
+        throw RestoreFailure(
+          'Gagal menyiapkan rollback folder foto. Restore dibatalkan.',
           rolledBack: false,
           cause: error,
         );
@@ -259,16 +395,44 @@ class BackupService {
     }
 
     try {
-      await File(sourcePath).copy(targetPath);
+      final targetParentDir = Directory(p.dirname(targetPath));
+      if (!await targetParentDir.exists()) {
+        await targetParentDir.create(recursive: true);
+      }
+      try {
+        await targetFile.writeAsBytes(dbBytes, flush: true);
+      } catch (error) {
+        throw RestoreFailure(
+          'Gagal menulis file database backup ke lokasi aplikasi.',
+          rolledBack: true,
+          cause: 'target=$targetPath error=$error',
+        );
+      }
+      var restoredImageCount = 0;
+      if (replaceImages) {
+        if (await imageDir.exists()) {
+          await imageDir.delete(recursive: true);
+        }
+        await imageDir.create(recursive: true);
+        if (imageFiles != null && imageFiles.isNotEmpty) {
+          for (final entry in imageFiles.entries) {
+            final safeName = p.basename(entry.key);
+            final targetImagePath = p.join(imageDir.path, safeName);
+            await File(targetImagePath).writeAsBytes(entry.value, flush: true);
+            restoredImageCount += 1;
+          }
+        }
+      }
+
       final appVersion = DatabaseHelper.instance.getDatabaseVersion();
       final verifyDb = await openDatabase(targetPath, readOnly: true);
       final versionRows = await verifyDb.rawQuery('PRAGMA user_version');
       final tableRows = await verifyDb.rawQuery(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='transactions'",
+        "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('transactions','categories','products','transaction_items')",
       );
       await verifyDb.close();
 
-      int restoredVersion = 0;
+      var restoredVersion = 0;
       if (versionRows.isNotEmpty) {
         final row = versionRows.first;
         final value = row.values.first;
@@ -283,33 +447,242 @@ class BackupService {
           rolledBack: true,
         );
       }
-      if (tableRows.isEmpty) {
+      final tableNames = <String>{};
+      for (final row in tableRows) {
+        final value = row['name'];
+        if (value is String) {
+          tableNames.add(value);
+        }
+      }
+      const requiredBaseTables = <String>{
+        'transactions',
+        'categories',
+        'products',
+      };
+      final missingBaseTables = requiredBaseTables.difference(tableNames);
+      if (missingBaseTables.isNotEmpty) {
         throw RestoreFailure(
-          'Struktur database tidak dikenali. Data lama dikembalikan.',
+          'Struktur database tidak valid. Tabel wajib tidak lengkap: ${missingBaseTables.join(', ')}.',
+          rolledBack: true,
+        );
+      }
+      // transaction_items wajib untuk backup yang memang sudah v8.
+      // Untuk backup versi lama (< v8), tabel ini akan dibuat otomatis via onUpgrade.
+      final requiresItemsTable = restoredVersion >= 8;
+      final hasItemsTable = tableNames.contains('transaction_items');
+      final missingTables =
+          requiresItemsTable && !hasItemsTable
+              ? const <String>{'transaction_items'}
+              : const <String>{};
+      if (missingTables.isNotEmpty) {
+        throw RestoreFailure(
+          'Struktur database tidak valid. Tabel wajib tidak lengkap: ${missingTables.join(', ')}.',
           rolledBack: true,
         );
       }
 
       await DatabaseHelper.instance.database;
-      if (await tempFile.exists()) {
-        await tempFile.delete();
+      if (await rollbackDbFile.exists()) {
+        await rollbackDbFile.delete();
       }
-      return RestoreResult(targetPath: targetPath);
+      if (await rollbackImageDir.exists()) {
+        await rollbackImageDir.delete(recursive: true);
+      }
+      return RestoreResult(
+        targetPath: targetPath,
+        restoredImageCount: restoredImageCount,
+        includeImagesFromBackup: includeImagesFromBackup,
+      );
     } catch (error) {
       try {
         if (await targetFile.exists()) {
           await targetFile.delete();
         }
-        if (hadOriginal && await tempFile.exists()) {
-          await tempFile.rename(targetPath);
+        if (replaceImages && await imageDir.exists()) {
+          await imageDir.delete(recursive: true);
         }
-      } catch (_) {}
+        if (hadOriginalDb && await rollbackDbFile.exists()) {
+          await rollbackDbFile.rename(targetPath);
+        }
+        if (hadOriginalImages && await rollbackImageDir.exists()) {
+          await rollbackImageDir.rename(imageDir.path);
+        }
+        await DatabaseHelper.instance.database;
+      } catch (_) {
+        // rollback best effort
+      }
+      if (error is RestoreFailure) {
+        throw RestoreFailure(
+          error.message,
+          rolledBack: true,
+          cause: error.cause ?? error,
+        );
+      }
+      final detail = _restoreErrorDetail(error);
       throw RestoreFailure(
-        'Restore gagal. Data dikembalikan ke versi sebelumnya.',
+        'Restore gagal. Data dikembalikan ke versi sebelumnya. Penyebab: $detail',
         rolledBack: true,
         cause: error,
       );
     }
+  }
+
+  static String _restoreErrorDetail(Object error) {
+    final raw = error.toString().replaceAll('\n', ' ').trim();
+    if (raw.isEmpty) {
+      return 'unknown error';
+    }
+    return raw.length > 220 ? '${raw.substring(0, 220)}...' : raw;
+  }
+
+  static Map<String, dynamic>? _parseBackupManifest(Archive archive) {
+    final manifestEntry = archive.firstWhere(
+      (entry) => _normalizeZipPath(entry.name) == _zipEntryManifest,
+      orElse: () => ArchiveFile('', 0, <int>[]),
+    );
+    // Legacy zip backup (sebelum manifest) tetap didukung.
+    if (manifestEntry.name.isEmpty || !manifestEntry.isFile) {
+      return null;
+    }
+
+    final content = manifestEntry.content;
+    if (content is! List<int>) {
+      throw RestoreFailure(
+        'Format backup tidak dikenali (manifest rusak).',
+        rolledBack: false,
+      );
+    }
+
+    Map<String, dynamic> manifest;
+    try {
+      final decoded = jsonDecode(utf8.decode(content));
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException('Manifest bukan object.');
+      }
+      manifest = decoded;
+    } catch (_) {
+      throw RestoreFailure(
+        'Format backup tidak dikenali (manifest tidak valid).',
+        rolledBack: false,
+      );
+    }
+
+    final formatVersion = manifest['formatVersion'];
+    const supportedVersions = <int>{1, _zipFormatVersion};
+    if (formatVersion is! int || !supportedVersions.contains(formatVersion)) {
+      throw RestoreFailure(
+        'Format backup tidak didukung aplikasi ini.',
+        rolledBack: false,
+      );
+    }
+    return manifest;
+  }
+
+  static Future<List<int>> _buildBackupZipBytes(
+    String dbPath, {
+    required bool includeImages,
+  }) async {
+    final archive = Archive();
+
+    final dbFile = File(dbPath);
+    final dbBytes = await dbFile.readAsBytes();
+    archive.addFile(ArchiveFile(_zipEntryDbName, dbBytes.length, dbBytes));
+
+    if (includeImages) {
+      final imageDir = await _getProductImageDir();
+      if (imageDir.existsSync()) {
+        final entries = imageDir.listSync(recursive: true);
+        for (final entry in entries) {
+          if (entry is! File) {
+            continue;
+          }
+          final relativePath = p.relative(entry.path, from: imageDir.path);
+          final zipEntryName = p.join(_zipEntryImagesDir, relativePath);
+          final bytes = await entry.readAsBytes();
+          archive.addFile(
+            ArchiveFile(_normalizeZipPath(zipEntryName), bytes.length, bytes),
+          );
+        }
+      }
+    }
+
+    final manifest = <String, dynamic>{
+      'formatVersion': _zipFormatVersion,
+      'createdAt': DateTime.now().toIso8601String(),
+      'dbEntry': _zipEntryDbName,
+      'imageDirEntry': _zipEntryImagesDir,
+      'includeImages': includeImages,
+    };
+    final manifestBytes = utf8.encode(jsonEncode(manifest));
+    archive.addFile(
+      ArchiveFile(_zipEntryManifest, manifestBytes.length, manifestBytes),
+    );
+
+    return ZipEncoder().encode(archive) ?? <int>[];
+  }
+
+  static String _normalizeZipPath(String path) {
+    return path.replaceAll('\\', '/').replaceAll(RegExp('^/+'), '');
+  }
+
+  static Future<Directory> _getProductImageDir() async {
+    final docs = await getApplicationDocumentsDirectory();
+    return Directory(p.join(docs.path, _zipEntryImagesDir));
+  }
+
+  static List<int> _resolveDbBytesFromArchive(Archive archive) {
+    ArchiveFile? dbEntry;
+    for (final entry in archive) {
+      final normalized = _normalizeZipPath(entry.name).toLowerCase();
+      if (!entry.isFile) {
+        continue;
+      }
+      if (normalized == _zipEntryDbName.toLowerCase()) {
+        dbEntry = entry;
+        break;
+      }
+      if (normalized.endsWith('.db')) {
+        dbEntry ??= entry;
+      }
+    }
+    if (dbEntry == null) {
+      throw RestoreFailure(
+        'Isi backup .zip tidak valid (database tidak ditemukan).',
+        rolledBack: false,
+      );
+    }
+    final content = dbEntry.content;
+    if (content is! List<int>) {
+      throw RestoreFailure(
+        'Isi backup .zip tidak valid (database rusak).',
+        rolledBack: false,
+      );
+    }
+    return content;
+  }
+
+  static Map<String, List<int>> _resolveImageBytesFromArchive(Archive archive) {
+    final imageFiles = <String, List<int>>{};
+    for (final entry in archive) {
+      if (!entry.isFile) {
+        continue;
+      }
+      final normalized = _normalizeZipPath(entry.name);
+      final ext = p.extension(normalized).toLowerCase();
+      if (!_imageExtensions.contains(ext)) {
+        continue;
+      }
+      final content = entry.content;
+      if (content is! List<int>) {
+        continue;
+      }
+      final fileName = p.basename(normalized);
+      if (fileName.isEmpty) {
+        continue;
+      }
+      imageFiles[fileName] = content;
+    }
+    return imageFiles;
   }
 
   static Future<Directory?> _resolveDownloadDir() async {

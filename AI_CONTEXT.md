@@ -19,12 +19,18 @@ Hard rules for mentor/reviewer AI:
 - Return implementation advice in **Codex-ready prompt** format when action is requested.
 
 ## 3) Current Project State
-- Active branch: `main`
+- Active workspace branch (current session): `codex/feat-product-photo-filesystem`
 - Recent commits:
-  - `be47fe9` chore: add bootstrap script and standardize agent workflow rules
-  - `7456ee9` chore: hide dev-only backup simulation behind `kDebugMode`
-  - `ed9d9c4` merge `codex/feat-cloud-backup` into `main`
+  - `e980e82` feat: ship zip backup with image restore support
+  - `9e9dd05` docs: add source-label and md-sync check rules
+  - `098cd71` docs: sync context and changelog for filesystem product photos
 - DB policy: **SQLite v8 locked** (no schema changes without migration approval).
+
+## 3.5) Workspace Capsule (Operational)
+- File operasional: `WORKFLOW.md` di root repo.
+- Fixed dev port: `3010` (gunakan `flutter run -d chrome --web-port 3010` untuk web dev).
+- Env convention: `.env` memuat `PORT=3010` untuk konsistensi lintas proyek.
+- Browser isolation: gunakan satu profile browser khusus project ini untuk mencegah bentrok auth/cookie.
 
 ## 3.1) Technical Context
 - Language/runtime:
@@ -37,7 +43,7 @@ Hard rules for mentor/reviewer AI:
   - `googleapis` (Drive v3)
   - `extension_google_sign_in_as_googleapis_auth`
   - Drive storage target: `appDataFolder`
-- Other key packages: `file_picker`, `path_provider`, `share_plus`, `pdf`, `printing`, `fl_chart`, `shared_preferences`
+- Other key packages: `file_picker`, `path_provider`, `share_plus`, `pdf`, `printing`, `fl_chart`, `shared_preferences`, `archive`
 
 ## 3.2) Project Map (High-Level)
 - Entry point: `lib/main.dart`
@@ -85,10 +91,11 @@ lib/
 
 ## 4) Completed Cloud Scope (Android)
 - Google Sign-In + Drive integration works on Android.
-- Cloud backup uploads local DB (`mom_fikri_cashflow_v2.db`) to Drive `appDataFolder`.
-- Filename format: `Backup_MomFiqry_YYYYMMDD_HHMMSS.db`.
-- Cloud restore downloads latest backup, safely swaps local DB:
-  - close DB → replace file → reopen DB → reload providers.
+- Cloud backup uploads package `.zip` (DB + `product_images` + manifest) to Drive `appDataFolder`.
+- Filename format: `Backup_MomFiqry_YYYYMMDD_HHMMSS.zip`.
+- Cloud restore supports two formats:
+  - `.zip` -> restore DB + product images with rollback-safe swap.
+  - `.db` (legacy) -> restore DB only for backward compatibility.
 - Cloud restore supports file picker list from `appDataFolder` (select specific backup by id).
 - Account UI shows local cloud metadata: "Terakhir Backup Cloud" (`last_cloud_backup_time`).
 - UI:

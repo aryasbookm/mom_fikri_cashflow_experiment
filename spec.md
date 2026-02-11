@@ -22,7 +22,7 @@ Prioritas (tanpa ubah DB v8):
    - Banner hanya muncul jika ada perubahan data sejak backup terakhir.
    - Catatan: auto-backup lokal saja tidak melindungi jika HP hilang; aman mulai dari reminder.
    - Jika auto-backup lokal ditambahkan: wajib toggle ON/OFF, retention 5–10 file terbaru, lokasi Download/App Documents.
-   - Cloud backup (Drive) tersedia untuk Android: upload/restore file `.db` via Google Drive `appDataFolder`.
+   - Cloud backup (Drive) tersedia untuk Android: upload/restore paket `.zip` (database + foto produk) via Google Drive `appDataFolder`, kompatibel restore `.db` lama.
    - Catatan dev: pengujian macOS dapat terkendala keychain/signing environment (Personal Team).
    - Debug owner: tombol simulasi lupa backup (mundurkan timestamp 4 hari).
    - Auto-backup lokal: berjalan saat app paused, maksimal 1x/24 jam, simpan 5 file terakhir di `auto_backups/`.
@@ -47,7 +47,7 @@ Catatan:
 - **Struk Digital:** `screenshot` + `share_plus` + `path_provider`.
 - **Export Itemized:** Excel/PDF menampilkan rincian item per transaksi.
 - **Backup/Restore:** `file_picker` + `share_plus` + `path_provider`.
-  - Android picker memakai `FileType.any` + validasi manual `.db`.
+  - Android picker memakai `FileType.any` + validasi manual `.zip` / `.db`.
   - Cloud Android memakai `google_sign_in` + `googleapis` (folder `appDataFolder`).
 
 ## 2.1 Quality Gate (Engineering Process)
@@ -95,9 +95,9 @@ Setiap fitur non-trivial dinyatakan siap merge jika lolos:
 - **Timestamp Transaksi:** simpan tanggal + jam untuk analisa jam sibuk.
 - **Riwayat:** filter waktu (hari ini/kemarin/7 hari/bulan ini/semua), summary masuk/keluar/saldo, hapus transaksi, export Excel.
 - **Audit Log:** melihat transaksi yang dihapus, restore, hapus permanen.
-- **Backup & Restore:** backup DB ke `.db` (share + download), restore dengan rollback + validasi versi/struktur.
-- **Cloud Backup Android:** upload database `.db` ke Google Drive (`appDataFolder`).
-- **Cloud Restore Android:** pilih file backup cloud dari daftar (nama, tanggal, ukuran) lalu timpa DB lokal secara aman (close DB → swap file → reopen DB).
+- **Backup & Restore:** backup `.zip` (database + foto produk) dengan share/download, restore rollback-safe + validasi versi/struktur. Restore `.db` lama tetap didukung (database only).
+- **Cloud Backup Android:** upload paket backup (`.zip`) ke Google Drive (`appDataFolder`).
+- **Cloud Restore Android:** pilih file backup cloud dari daftar (nama, tanggal, ukuran) lalu restore aman untuk `.zip` maupun `.db` lama.
 - **Cloud Visibility:** UI menampilkan metadata lokal "Terakhir Backup Cloud" dari timestamp backup cloud terakhir.
 - **Cloud UX Polish:** item backup terbaru ditandai badge "Terbaru", error jaringan ditampilkan sebagai pesan ramah pengguna, dan tersedia opsi "Ganti Akun Google Drive" (disconnect).
 - **PIN Guard:** tab Akun meminta PIN owner, sesi 5 menit.
