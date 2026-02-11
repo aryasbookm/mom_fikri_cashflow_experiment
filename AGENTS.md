@@ -18,6 +18,7 @@ Operational mechanics for implementation sessions (commands, commit flow, safety
   - `[HEADS-UP: TIMEBOX]` when debugging exceeds 3 focused loops or ~45 minutes; propose pivot/fallback.
   - `[HEADS-UP: QUALITY]` before milestone commit/merge; verify Happy Path + Edge Case + Rollback/Recovery.
   - `[HEADS-UP: DOCS]` when flow/architecture changes; list impacted docs only.
+- When replying to quoted statements from another AI/tool, prefix source labels explicitly (`User said:`, `Gemini said:`, `Codex said:`) to avoid speaker ambiguity.
 - Do not repeat setup instructions (OAuth/keystore) if `AI_CONTEXT.md` infrastructure status is already marked as `Registered`.
 
 ## Prompt Protocol (Default)
@@ -36,6 +37,8 @@ For cashflow/financial logic, `Verify` is mandatory and must include:
 ## Docs + Commit Workflow
 - Impacted-docs-only: update only docs affected by the change.
 - If a new instruction is generic (cross-project), update global standard (`/Users/aryasaputra/Projects/_standards/AGENTS.template.md`) in the same session.
+- For non-trivial changes, run a mandatory MD Sync Check on core docs (`AI_CONTEXT.md`, `PROJECT_NOTES.md`, `spec.md`, `CHANGELOG.md`, `README.md`, `AGENTS.md`) and update all impacted files before commit.
+- If a core doc is intentionally unchanged, state it explicitly in handoff/summary as "checked, no update needed".
 - Shorthand:
   - `unc` = review/update impacted core docs first, then commit.
   - `hld` = Hold / Answer Only: jawab/verifikasi saja; jangan jalankan tool, jangan edit file, jangan commit.
