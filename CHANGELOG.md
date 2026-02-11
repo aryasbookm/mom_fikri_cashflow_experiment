@@ -13,11 +13,14 @@ All notable changes to this project will be documented in this file.
 - Slow Moving Analytics: tampilkan 3–5 produk dengan penjualan terendah (30 hari terakhir) untuk insight operasional.
 - Auto-backup lokal: otomatis saat app paused, maksimal 1x/24 jam, simpan 5 file terakhir.
 - Restore dua jalur: file manual (file picker) dan auto-backup list internal.
+- Cloud Backup Android: upload database `.db` ke Google Drive `appDataFolder`.
+- Cloud Restore Android: pulihkan database dari backup cloud terbaru (`appDataFolder`).
 
 ### Changed
 - Dashboard owner: ringkasan harian statis, analitik produk foldable default terbuka.
 - Riwayat: result counter dan subtitle match saat pencarian aktif.
 - Smart Backup: reminder dan auto-backup hanya berjalan jika ada perubahan data sejak backup terakhir.
+- Menu debug Akun: tombol cloud sekarang melakukan backup/restore Google Drive (Android).
 
 ---
 

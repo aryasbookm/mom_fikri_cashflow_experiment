@@ -22,7 +22,8 @@ Prioritas (tanpa ubah DB v8):
    - Banner hanya muncul jika ada perubahan data sejak backup terakhir.
    - Catatan: auto-backup lokal saja tidak melindungi jika HP hilang; aman mulai dari reminder.
    - Jika auto-backup lokal ditambahkan: wajib toggle ON/OFF, retention 5–10 file terbaru, lokasi Download/App Documents.
-   - Cloud backup (Drive) lebih aman untuk kehilangan HP, tetapi kompleks (fase berikutnya).
+   - Cloud backup (Drive) tersedia untuk Android: upload/restore file `.db` via Google Drive `appDataFolder`.
+   - Catatan dev: pengujian macOS dapat terkendala keychain/signing environment (Personal Team).
    - Debug owner: tombol simulasi lupa backup (mundurkan timestamp 4 hari).
    - Auto-backup lokal: berjalan saat app paused, maksimal 1x/24 jam, simpan 5 file terakhir di `auto_backups/`.
    - Deteksi perubahan data memakai snapshot jumlah transaksi + produk + audit log.
@@ -47,6 +48,7 @@ Catatan:
 - **Export Itemized:** Excel/PDF menampilkan rincian item per transaksi.
 - **Backup/Restore:** `file_picker` + `share_plus` + `path_provider`.
   - Android picker memakai `FileType.any` + validasi manual `.db`.
+  - Cloud Android memakai `google_sign_in` + `googleapis` (folder `appDataFolder`).
 
 ## 3. Aktor & Hak Akses
 **Owner (Pemilik):**
@@ -88,6 +90,8 @@ Catatan:
 - **Riwayat:** filter waktu (hari ini/kemarin/7 hari/bulan ini/semua), summary masuk/keluar/saldo, hapus transaksi, export Excel.
 - **Audit Log:** melihat transaksi yang dihapus, restore, hapus permanen.
 - **Backup & Restore:** backup DB ke `.db` (share + download), restore dengan rollback + validasi versi/struktur.
+- **Cloud Backup Android:** upload database `.db` ke Google Drive (`appDataFolder`).
+- **Cloud Restore Android:** download backup terbaru lalu timpa DB lokal secara aman (close DB → swap file → reopen DB).
 - **PIN Guard:** tab Akun meminta PIN owner, sesi 5 menit.
   - UI PIN mendukung panjang PIN variabel (submit manual).
   - Dialog PIN menyediakan opsi Logout/Ganti Akun (dengan konfirmasi).

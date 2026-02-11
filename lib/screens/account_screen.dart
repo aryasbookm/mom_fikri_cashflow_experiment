@@ -28,6 +28,7 @@ class _AccountScreenState extends State<AccountScreen> {
   bool _isRestoring = false;
   bool _autoBackupEnabled = true;
   bool _isTestingCloud = false;
+  bool _isRestoringCloud = false;
 
   @override
   void initState() {
@@ -86,9 +87,10 @@ class _AccountScreenState extends State<AccountScreen> {
       if (!mounted) {
         return;
       }
-      final downloadMessage = result.downloadPath != null
-          ? 'Backup tersimpan di: ${result.downloadPath}'
-          : 'Backup selesai, tetapi gagal simpan ke folder Download.';
+      final downloadMessage =
+          result.downloadPath != null
+              ? 'Backup tersimpan di: ${result.downloadPath}'
+              : 'Backup selesai, tetapi gagal simpan ke folder Download.';
       _showSnackBar(context, downloadMessage, isError: false);
     } catch (error) {
       if (!mounted) {
@@ -210,15 +212,18 @@ class _AccountScreenState extends State<AccountScreen> {
             itemBuilder: (context, index) {
               final file = files[index];
               final modified = file.lastModifiedSync();
-              final label =
-                  DateFormat('d MMM y HH:mm', 'id_ID').format(modified);
+              final label = DateFormat(
+                'd MMM y HH:mm',
+                'id_ID',
+              ).format(modified);
               return ListTile(
                 leading: const Icon(Icons.restore),
                 title: Text('Backup $label'),
                 subtitle: Text(p.basename(file.path)),
-                onTap: () => Navigator.of(context).pop(
-                  _AutoBackupChoice(filePath: file.path),
-                ),
+                onTap:
+                    () => Navigator.of(
+                      context,
+                    ).pop(_AutoBackupChoice(filePath: file.path)),
               );
             },
           ),
@@ -237,9 +242,7 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  Future<void> _performRestore(
-    Future<RestoreResult?> Function() action,
-  ) async {
+  Future<void> _performRestore(Future<RestoreResult?> Function() action) async {
     if (_isRestoring) {
       return;
     }
@@ -255,12 +258,7 @@ class _AccountScreenState extends State<AccountScreen> {
         return;
       }
 
-      await context.read<TransactionProvider>().loadTransactions();
-      await context.read<TransactionProvider>().loadDeletedTransactions();
-      await context.read<ProductProvider>().loadProducts();
-      await context.read<CategoryProvider>().loadCategories();
-      await context.read<ProductionProvider>().loadTodayProduction();
-      context.read<TransactionProvider>().markRestored();
+      await _reloadDataAfterRestore();
 
       if (!mounted) {
         return;
@@ -288,11 +286,19 @@ class _AccountScreenState extends State<AccountScreen> {
     }
   }
 
+  Future<void> _reloadDataAfterRestore() async {
+    await context.read<TransactionProvider>().loadTransactions();
+    await context.read<TransactionProvider>().loadDeletedTransactions();
+    await context.read<ProductProvider>().loadProducts();
+    await context.read<CategoryProvider>().loadCategories();
+    await context.read<ProductionProvider>().loadTodayProduction();
+    context.read<TransactionProvider>().markRestored();
+  }
+
   Future<void> _simulateBackupReminder() async {
     final prefs = await SharedPreferences.getInstance();
-    final timestamp = DateTime.now()
-        .subtract(const Duration(days: 4))
-        .millisecondsSinceEpoch;
+    final timestamp =
+        DateTime.now().subtract(const Duration(days: 4)).millisecondsSinceEpoch;
     await prefs.setInt(BackupService.lastBackupKey, timestamp);
     if (!mounted) {
       return;
@@ -339,6 +345,49 @@ class _AccountScreenState extends State<AccountScreen> {
     }
   }
 
+  Future<void> _restoreFromCloud() async {
+    if (_isRestoringCloud) {
+      return;
+    }
+    final confirmed = await _confirmRestore();
+    if (!confirmed) {
+      return;
+    }
+    setState(() {
+      _isRestoringCloud = true;
+    });
+    try {
+      final result = await CloudDriveService().restoreLatestDatabaseBackup();
+      if (!mounted) {
+        return;
+      }
+      if (result == null) {
+        _showSnackBar(context, 'Login dibatalkan.', isError: true);
+        return;
+      }
+      await _reloadDataAfterRestore();
+      if (!mounted) {
+        return;
+      }
+      _showSnackBar(
+        context,
+        'Restore cloud berhasil (${result.fileName}).',
+        isError: false,
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      _showSnackBar(context, 'Gagal restore dari cloud: $error', isError: true);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRestoringCloud = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
@@ -374,24 +423,21 @@ class _AccountScreenState extends State<AccountScreen> {
         context.read<TransactionProvider>().clearTransactions();
         authProvider.logout();
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => const LoginScreen(),
-          ),
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
         );
       },
-      onManageUsers: isOwner
-          ? () async {
-              await context.read<UserProvider>().loadUsers();
-              if (!context.mounted) {
-                return;
+      onManageUsers:
+          isOwner
+              ? () async {
+                await context.read<UserProvider>().loadUsers();
+                if (!context.mounted) {
+                  return;
+                }
+                await Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ManageUsersScreen()),
+                );
               }
-              await Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const ManageUsersScreen(),
-                ),
-              );
-            }
-          : null,
+              : null,
       onBackup: isOwner ? _backupDatabase : null,
       isBackingUp: _isBackingUp,
       onRestore: isOwner ? _restoreDatabase : null,
@@ -400,7 +446,9 @@ class _AccountScreenState extends State<AccountScreen> {
       autoBackupEnabled: _autoBackupEnabled,
       onToggleAutoBackup: isOwner ? _setAutoBackupEnabled : null,
       onTestCloudConnection: isOwner ? _uploadCloudBackup : null,
+      onRestoreCloudBackup: isOwner ? _restoreFromCloud : null,
       isTestingCloud: _isTestingCloud,
+      isRestoringCloud: _isRestoringCloud,
     );
   }
 }

@@ -22,6 +22,8 @@ class AccountPanel extends StatelessWidget {
     this.onToggleAutoBackup,
     this.onTestCloudConnection,
     this.isTestingCloud = false,
+    this.onRestoreCloudBackup,
+    this.isRestoringCloud = false,
   });
 
   final VoidCallback onLogout;
@@ -35,6 +37,8 @@ class AccountPanel extends StatelessWidget {
   final ValueChanged<bool>? onToggleAutoBackup;
   final VoidCallback? onTestCloudConnection;
   final bool isTestingCloud;
+  final VoidCallback? onRestoreCloudBackup;
+  final bool isRestoringCloud;
 
   Future<void> _pickProfileImage(BuildContext context) async {
     final picker = ImagePicker();
@@ -56,9 +60,9 @@ class AccountPanel extends StatelessWidget {
     }
     await context.read<AuthProvider>().updateProfileImagePath(savedPath);
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Foto profil diperbarui')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Foto profil diperbarui')));
     }
   }
 
@@ -70,7 +74,8 @@ class AccountPanel extends StatelessWidget {
         targetDir.createSync(recursive: true);
       }
       final extension = p.extension(image.path);
-      final fileName = 'profile_${DateTime.now().millisecondsSinceEpoch}$extension';
+      final fileName =
+          'profile_${DateTime.now().millisecondsSinceEpoch}$extension';
       final targetPath = p.join(targetDir.path, fileName);
       final savedFile = await File(image.path).copy(targetPath);
       return savedFile.path;
@@ -103,9 +108,7 @@ class AccountPanel extends StatelessWidget {
               TextField(
                 controller: newController,
                 obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Password Baru',
-                ),
+                decoration: const InputDecoration(labelText: 'Password Baru'),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -140,9 +143,9 @@ class AccountPanel extends StatelessWidget {
     final confirmPin = confirmController.text.trim();
 
     if (newPin.isEmpty || currentPin.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Semua field wajib diisi')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Semua field wajib diisi')));
       return;
     }
 
@@ -153,9 +156,10 @@ class AccountPanel extends StatelessWidget {
       return;
     }
 
-    final success = await context
-        .read<AuthProvider>()
-        .changePassword(currentPin: currentPin, newPin: newPin);
+    final success = await context.read<AuthProvider>().changePassword(
+      currentPin: currentPin,
+      newPin: newPin,
+    );
     if (!context.mounted) {
       return;
     }
@@ -242,26 +246,28 @@ class AccountPanel extends StatelessWidget {
                     icon: Icons.cloud_upload_outlined,
                     label: isBackingUp ? 'Membuat Backup...' : 'Backup Data',
                     onTap: isBackingUp ? null : onBackup,
-                    trailing: isBackingUp
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : null,
+                    trailing:
+                        isBackingUp
+                            ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                            : null,
                   ),
                 if (onRestore != null)
                   _SettingsTile(
                     icon: Icons.settings_backup_restore,
                     label: isRestoring ? 'Memulihkan Data...' : 'Restore Data',
                     onTap: isRestoring ? null : onRestore,
-                    trailing: isRestoring
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : null,
+                    trailing:
+                        isRestoring
+                            ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                            : null,
                   ),
               ],
             ),
@@ -280,15 +286,34 @@ class AccountPanel extends StatelessWidget {
                 _SettingsTile(
                   icon: Icons.cloud_done_outlined,
                   label:
-                      isTestingCloud ? 'Backup ke Cloud...' : 'Backup ke Google Drive',
+                      isTestingCloud
+                          ? 'Backup ke Cloud...'
+                          : 'Backup ke Google Drive',
                   onTap: isTestingCloud ? null : onTestCloudConnection,
-                  trailing: isTestingCloud
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : null,
+                  trailing:
+                      isTestingCloud
+                          ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                          : null,
+                ),
+                _SettingsTile(
+                  icon: Icons.cloud_download_outlined,
+                  label:
+                      isRestoringCloud
+                          ? 'Restore dari Cloud...'
+                          : 'Restore dari Google Drive',
+                  onTap: isRestoringCloud ? null : onRestoreCloudBackup,
+                  trailing:
+                      isRestoringCloud
+                          ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                          : null,
                 ),
               ],
             ),
@@ -344,9 +369,10 @@ class _ProfileCard extends StatelessWidget {
             radius: 34,
             backgroundColor: const Color(0xFFE0E0E0),
             backgroundImage: imageProvider,
-            child: imageProvider == null
-                ? const Icon(Icons.person, size: 32, color: Colors.white70)
-                : null,
+            child:
+                imageProvider == null
+                    ? const Icon(Icons.person, size: 32, color: Colors.white70)
+                    : null,
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -361,10 +387,7 @@ class _ProfileCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  role,
-                  style: const TextStyle(color: Colors.grey),
-                ),
+                Text(role, style: const TextStyle(color: Colors.grey)),
               ],
             ),
           ),
@@ -452,11 +475,8 @@ class _SettingsTile extends StatelessWidget {
           color: disabled ? Colors.grey : Colors.black87,
         ),
       ),
-      trailing: trailing ??
-          const Icon(
-            Icons.chevron_right,
-            color: Colors.black45,
-          ),
+      trailing:
+          trailing ?? const Icon(Icons.chevron_right, color: Colors.black45),
       onTap: onTap,
       enabled: !disabled,
       dense: false,
