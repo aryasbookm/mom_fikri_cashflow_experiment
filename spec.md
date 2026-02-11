@@ -99,6 +99,7 @@ Setiap fitur non-trivial dinyatakan siap merge jika lolos:
 - **Cloud Backup Android:** upload database `.db` ke Google Drive (`appDataFolder`).
 - **Cloud Restore Android:** pilih file backup cloud dari daftar (nama, tanggal, ukuran) lalu timpa DB lokal secara aman (close DB → swap file → reopen DB).
 - **Cloud Visibility:** UI menampilkan metadata lokal "Terakhir Backup Cloud" dari timestamp backup cloud terakhir.
+- **Cloud UX Polish:** item backup terbaru ditandai badge "Terbaru", error jaringan ditampilkan sebagai pesan ramah pengguna, dan tersedia opsi "Ganti Akun Google Drive" (disconnect).
 - **PIN Guard:** tab Akun meminta PIN owner, sesi 5 menit.
   - UI PIN mendukung panjang PIN variabel (submit manual).
   - Dialog PIN menyediakan opsi Logout/Ganti Akun (dengan konfirmasi).

@@ -24,6 +24,9 @@ All notable changes to this project will be documented in this file.
 - Smart Backup: reminder dan auto-backup hanya berjalan jika ada perubahan data sejak backup terakhir.
 - Menu debug Akun: tombol cloud sekarang melakukan backup/restore Google Drive (Android).
 - Validasi fitur cloud dilakukan di Android; kendala keychain/signing macOS dicatat sebagai batasan environment development.
+- UX cloud: pesan error jaringan dibuat lebih ramah pengguna (tanpa detail exception teknis).
+- Restore cloud: daftar backup menandai item terbaru dengan badge "Terbaru".
+- Cloud account: ditambahkan opsi "Ganti Akun Google Drive" (disconnect) dari menu Akun.
 
 ---
 

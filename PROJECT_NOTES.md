@@ -101,6 +101,9 @@ Catatan:
    - Cloud restore Android: pulihkan dari backup cloud terbaru atau file cloud terpilih (via daftar)
    - UI cloud menampilkan metadata lokal: "Terakhir Backup Cloud: [tanggal/jam]"
    - Restore cloud menampilkan bottom sheet daftar backup (nama file, tanggal modifikasi, ukuran)
+   - Daftar restore cloud menandai item terbaru dengan badge "Terbaru"
+   - Pesan error jaringan cloud dibuat ramah pengguna (tanpa detail exception mentah)
+   - Opsi "Ganti Akun Google Drive" tersedia (disconnect akun cloud)
 
 9. **Dashboard Owner (Ringkas)**
    - Menampilkan Top Produk (7 hari) untuk keputusan produksi

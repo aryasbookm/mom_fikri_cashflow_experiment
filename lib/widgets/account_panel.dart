@@ -26,6 +26,8 @@ class AccountPanel extends StatelessWidget {
     this.onRestoreCloudBackup,
     this.isRestoringCloud = false,
     this.cloudBackupInfoText,
+    this.onDisconnectCloudAccount,
+    this.isDisconnectingCloud = false,
   });
 
   final VoidCallback onLogout;
@@ -42,6 +44,8 @@ class AccountPanel extends StatelessWidget {
   final VoidCallback? onRestoreCloudBackup;
   final bool isRestoringCloud;
   final String? cloudBackupInfoText;
+  final VoidCallback? onDisconnectCloudAccount;
+  final bool isDisconnectingCloud;
 
   Future<void> _pickProfileImage(BuildContext context) async {
     final picker = ImagePicker();
@@ -277,6 +281,7 @@ class AccountPanel extends StatelessWidget {
           ],
           if (onTestCloudConnection != null ||
               onRestoreCloudBackup != null ||
+              onDisconnectCloudAccount != null ||
               (kDebugMode && onDebugSimulateBackup != null)) ...[
             const SizedBox(height: 16),
             const _SectionTitle(title: 'Cloud & Debug'),
@@ -319,6 +324,24 @@ class AccountPanel extends StatelessWidget {
                     onTap: isRestoringCloud ? null : onRestoreCloudBackup,
                     trailing:
                         isRestoringCloud
+                            ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                            : null,
+                  ),
+                if (onDisconnectCloudAccount != null)
+                  _SettingsTile(
+                    icon: Icons.logout_outlined,
+                    label:
+                        isDisconnectingCloud
+                            ? 'Memutuskan Akun...'
+                            : 'Ganti Akun Google Drive',
+                    onTap:
+                        isDisconnectingCloud ? null : onDisconnectCloudAccount,
+                    trailing:
+                        isDisconnectingCloud
                             ? const SizedBox(
                               width: 18,
                               height: 18,

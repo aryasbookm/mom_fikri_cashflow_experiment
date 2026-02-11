@@ -18,6 +18,7 @@ Operational mechanics for implementation sessions (commands, commit flow, safety
   - `[HEADS-UP: TIMEBOX]` when debugging exceeds 3 focused loops or ~45 minutes; propose pivot/fallback.
   - `[HEADS-UP: QUALITY]` before milestone commit/merge; verify Happy Path + Edge Case + Rollback/Recovery.
   - `[HEADS-UP: DOCS]` when flow/architecture changes; list impacted docs only.
+- Do not repeat setup instructions (OAuth/keystore) if `AI_CONTEXT.md` infrastructure status is already marked as `Registered`.
 
 ## Docs + Commit Workflow
 - Impacted-docs-only: update only docs affected by the change.

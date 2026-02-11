@@ -75,6 +75,13 @@ lib/
   widgets/
 ```
 
+## 3.4) Infrastructure Status
+- OAuth Android Debug: **Registered** (verified 2026-02-11)
+  - SHA-1: `45:ED:8D:62:AE:D8:EF:52:F4:40:5D:80:BA:6C:47:D4:06:89:99:08`
+- OAuth Android Release: **Pending Verification**
+  - SHA-1: `6F:DD:4E:60:FB:DC:F0:78:80:5F:1C:F5:34:47:5C:2B:03:3F:93:DE`
+  - Signing config already points to release keystore (`mom_fiqry_release.jks`) in `android/app/build.gradle.kts`.
+
 ## 4) Completed Cloud Scope (Android)
 - Google Sign-In + Drive integration works on Android.
 - Cloud backup uploads local DB (`mom_fikri_cashflow_v2.db`) to Drive `appDataFolder`.

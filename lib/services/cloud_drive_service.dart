@@ -22,14 +22,45 @@ class CloudDriveService {
 
   static const _scopes = [drive.DriveApi.driveAppdataScope];
   static const lastCloudBackupTimeKey = 'last_cloud_backup_time';
+  static final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: _scopes);
+
+  static bool isNetworkError(Object error) {
+    if (error is SocketException) {
+      return true;
+    }
+    final msg = error.toString().toLowerCase();
+    return msg.contains('socketexception') ||
+        msg.contains('failed host lookup') ||
+        msg.contains('network is unreachable') ||
+        msg.contains('timed out');
+  }
+
+  static String userFriendlyMessage(
+    Object error, {
+    String fallback = 'Terjadi kendala saat terhubung ke Google Drive.',
+  }) {
+    if (isNetworkError(error)) {
+      return 'Koneksi terputus. Pastikan internetmu aktif dan coba lagi.';
+    }
+    return fallback;
+  }
+
+  Future<void> disconnectAccount() async {
+    try {
+      await _googleSignIn.disconnect();
+    } catch (_) {
+      await _googleSignIn.signOut();
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(lastCloudBackupTimeKey);
+  }
 
   Future<bool> uploadDatabaseBackup() async {
-    final signIn = GoogleSignIn(scopes: _scopes);
-    final account = await signIn.signIn();
+    final account = await _googleSignIn.signIn();
     if (account == null) {
       return false;
     }
-    final client = await signIn.authenticatedClient();
+    final client = await _googleSignIn.authenticatedClient();
     if (client == null) {
       return false;
     }
@@ -66,12 +97,11 @@ class CloudDriveService {
   }
 
   Future<List<Map<String, dynamic>>> getCloudBackupList() async {
-    final signIn = GoogleSignIn(scopes: _scopes);
-    final account = await signIn.signIn();
+    final account = await _googleSignIn.signIn();
     if (account == null) {
       return [];
     }
-    final client = await signIn.authenticatedClient();
+    final client = await _googleSignIn.authenticatedClient();
     if (client == null) {
       return [];
     }
@@ -105,12 +135,11 @@ class CloudDriveService {
   Future<CloudRestoreResult?> restoreLatestDatabaseBackup({
     String? fileId,
   }) async {
-    final signIn = GoogleSignIn(scopes: _scopes);
-    final account = await signIn.signIn();
+    final account = await _googleSignIn.signIn();
     if (account == null) {
       return null;
     }
-    final client = await signIn.authenticatedClient();
+    final client = await _googleSignIn.authenticatedClient();
     if (client == null) {
       return null;
     }

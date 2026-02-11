@@ -29,6 +29,7 @@ class _AccountScreenState extends State<AccountScreen> {
   bool _autoBackupEnabled = true;
   bool _isTestingCloud = false;
   bool _isRestoringCloud = false;
+  bool _isDisconnectingCloud = false;
   String? _lastCloudBackupTimeIso;
 
   @override
@@ -350,7 +351,10 @@ class _AccountScreenState extends State<AccountScreen> {
       }
       _showSnackBar(
         context,
-        'Gagal backup ke Google Drive: $error',
+        CloudDriveService.userFriendlyMessage(
+          error,
+          fallback: 'Gagal backup ke Google Drive.',
+        ),
         isError: true,
       );
     } finally {
@@ -401,11 +405,60 @@ class _AccountScreenState extends State<AccountScreen> {
       if (!mounted) {
         return;
       }
-      _showSnackBar(context, 'Gagal restore dari cloud: $error', isError: true);
+      _showSnackBar(
+        context,
+        CloudDriveService.userFriendlyMessage(
+          error,
+          fallback: 'Gagal restore dari cloud.',
+        ),
+        isError: true,
+      );
     } finally {
       if (mounted) {
         setState(() {
           _isRestoringCloud = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _disconnectCloudAccount() async {
+    if (_isDisconnectingCloud) {
+      return;
+    }
+    setState(() {
+      _isDisconnectingCloud = true;
+    });
+    try {
+      await CloudDriveService().disconnectAccount();
+      if (!mounted) {
+        return;
+      }
+      await _loadLastCloudBackupTime();
+      if (!mounted) {
+        return;
+      }
+      _showSnackBar(
+        context,
+        'Akun Google Drive berhasil diputus. Silakan hubungkan ulang saat diperlukan.',
+        isError: false,
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      _showSnackBar(
+        context,
+        CloudDriveService.userFriendlyMessage(
+          error,
+          fallback: 'Gagal memutus akun Google Drive.',
+        ),
+        isError: true,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDisconnectingCloud = false;
         });
       }
     }
@@ -443,7 +496,11 @@ class _AccountScreenState extends State<AccountScreen> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            '${snapshot.error}',
+                            CloudDriveService.userFriendlyMessage(
+                              snapshot.error ?? Exception('Unknown'),
+                              fallback:
+                                  'Terjadi kendala saat mengambil daftar backup cloud.',
+                            ),
                             textAlign: TextAlign.center,
                             style: const TextStyle(color: Colors.black54),
                           ),
@@ -503,7 +560,32 @@ class _AccountScreenState extends State<AccountScreen> {
                               leading: const Icon(
                                 Icons.cloud_download_outlined,
                               ),
-                              title: Text(displayName),
+                              title: Row(
+                                children: [
+                                  Expanded(child: Text(displayName)),
+                                  if (index == 0)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green.shade100,
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        'Terbaru',
+                                        style: TextStyle(
+                                          color: Colors.green,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
                               subtitle: Text(subtitle),
                               trailing: const Icon(Icons.chevron_right),
                               onTap:
@@ -620,8 +702,10 @@ class _AccountScreenState extends State<AccountScreen> {
       onToggleAutoBackup: isOwner ? _setAutoBackupEnabled : null,
       onTestCloudConnection: isOwner ? _uploadCloudBackup : null,
       onRestoreCloudBackup: isOwner ? _restoreFromCloud : null,
+      onDisconnectCloudAccount: isOwner ? _disconnectCloudAccount : null,
       isTestingCloud: _isTestingCloud,
       isRestoringCloud: _isRestoringCloud,
+      isDisconnectingCloud: _isDisconnectingCloud,
       cloudBackupInfoText: isOwner ? _cloudBackupInfoText() : null,
     );
   }
