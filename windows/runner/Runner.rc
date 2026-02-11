@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "Toko Kue Mom Fiqry (Eksperimen)" "\0"
+            VALUE "FileDescription", "Toko Kue Mom Fiqry" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "mom_fikri_cashflow_exp" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
             VALUE "OriginalFilename", "mom_fikri_cashflow_exp.exe" "\0"
-            VALUE "ProductName", "Toko Kue Mom Fiqry (Eksperimen)" "\0"
+            VALUE "ProductName", "Toko Kue Mom Fiqry" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

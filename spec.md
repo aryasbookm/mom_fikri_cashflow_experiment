@@ -1,13 +1,13 @@
 # SPESIFIKASI PROYEK: TOKO KUE MOM FIQRY
 
 ## 1. Identitas Aplikasi
-- **Nama:** Toko Kue Mom Fiqry (Eksperimen)
+- **Nama:** Toko Kue Mom Fiqry
 - **Tujuan:** Digitalisasi pencatatan keuangan & stok toko kue (menggantikan buku manual).
 - **Platform:** Android (Mobile) + pengembangan di desktop.
 - **Sifat:** Offline-First (data disimpan lokal di perangkat).
 - **Release Notes:** `CHANGELOG.md` (timeline v0.9.0 → v1.0.0-rc3)
 
-## Rencana Experimental #4 (Final)
+## Rencana Fase 4 (Final)
 Prioritas (tanpa ubah DB v8):
 1. **Global Search**
    - Search bar di Kasir, Stok, dan Riwayat.

@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased] - Experimental #4
+## [Unreleased] - Phase 4
 *Fokus: Pencarian Global, Reminder Backup, Insight Produk Lambat*
 
 ### Added
@@ -19,6 +19,8 @@ All notable changes to this project will be documented in this file.
 - Cloud Metadata UI: tampilkan "Terakhir Backup Cloud" berdasarkan timestamp lokal backup cloud terakhir.
 
 ### Changed
+- Branding aplikasi disederhanakan dari "Toko Kue Mom Fiqry (Eksperimen)" menjadi "Toko Kue Mom Fiqry" pada Android/iOS/Web/Desktop.
+- Folder kerja proyek diganti dari `mom_fikri_cashflow_experiment` menjadi `mom_fiqry_cashflow_experiment`.
 - Dashboard owner: ringkasan harian statis, analitik produk foldable default terbuka.
 - Dashboard owner empty-state: banner backup dan kartu/toggle peringatan stok disembunyikan saat aplikasi masih fresh install (belum ada data operasional).
 - Riwayat: result counter dan subtitle match saat pencarian aktif.

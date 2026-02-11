@@ -1,7 +1,7 @@
-# Project Notes — Toko Kue Mom Fiqry (Eksperimen)
+# Project Notes — Toko Kue Mom Fiqry
 
 ## Ringkasan
-- **Nama aplikasi (label & UI):** Toko Kue Mom Fiqry (Eksperimen)
+- **Nama aplikasi (label & UI):** Toko Kue Mom Fiqry
 - **Tujuan:** Cashflow + stok terintegrasi untuk UMKM toko kue.
 - **Platform:** Flutter (Android + desktop macOS untuk dev)
 - **DB:** SQLite (`sqflite`)
@@ -15,7 +15,7 @@
 - **Quality gate sebelum merge:** Happy Path + Edge Case + Rollback/Recovery.
 - **Dokumentasi:** gunakan prinsip impacted-docs-only.
 
-## Rencana Experimental #4 (Final)
+## Rencana Fase 4 (Final)
 Prioritas (tanpa ubah DB v8):
 1. **Global Search**
    - Search bar di Kasir, Stok, dan Riwayat.

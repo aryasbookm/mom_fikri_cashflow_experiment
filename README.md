@@ -41,7 +41,7 @@ Repositori ini dilengkapi dengan dokumentasi teknis dan operasional sebagai beri
 ```bash
 # 1. Clone atau download repositori ini
 # 2. Masuk ke direktori proyek
-cd mom_fikri_cashflow_experiment
+cd mom_fiqry_cashflow_experiment
 
 # 3. Instal dependensi
 flutter pub get
