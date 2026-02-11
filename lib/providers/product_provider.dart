@@ -32,6 +32,27 @@ class ProductProvider extends ChangeNotifier {
     return null;
   }
 
+  Future<ProductModel?> getProductByName(String name) async {
+    final normalized = name.trim();
+    if (normalized.isEmpty) {
+      return null;
+    }
+    final Database db = await DatabaseHelper.instance.database;
+    final result = await db.rawQuery(
+      '''
+      SELECT id, name, price, stock, min_stock, is_active
+      FROM products
+      WHERE trim(name) = trim(?) COLLATE NOCASE
+      LIMIT 1
+      ''',
+      [normalized],
+    );
+    if (result.isEmpty) {
+      return null;
+    }
+    return ProductModel.fromMap(result.first);
+  }
+
   Future<void> loadProducts() async {
     final Database db = await DatabaseHelper.instance.database;
     final result = await db.query('products', orderBy: 'name ASC');

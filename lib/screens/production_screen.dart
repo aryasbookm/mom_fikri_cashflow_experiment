@@ -377,20 +377,72 @@ class _ProductionScreenState extends State<ProductionScreen> {
       );
       return;
     }
+    final productProvider = context.read<ProductProvider>();
+    final existing = await productProvider.getProductByName(name);
 
-    final newProductId = await context.read<ProductProvider>().addProduct(
-          name,
-          price,
-          minStock: minStock,
-          isActive: isActive,
-        );
+    if (existing != null && existing.isActive) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Nama produk sudah digunakan dan sedang aktif.'),
+        ),
+      );
+      return;
+    }
+
+    var productId = 0;
     var imageSaved = true;
+    var reactivated = false;
+
+    if (existing != null && !existing.isActive && existing.id != null) {
+      final reactivate = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Produk ditemukan di arsip'),
+          content: const Text(
+            'Nama produk ini sudah ada di arsip. Aktifkan kembali dengan data baru?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Batal'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Aktifkan'),
+            ),
+          ],
+        ),
+      );
+      if (reactivate != true) {
+        return;
+      }
+      await productProvider.updateProduct(
+        id: existing.id!,
+        name: name,
+        price: price,
+        minStock: minStock,
+        isActive: true,
+      );
+      productId = existing.id!;
+      reactivated = true;
+    } else {
+      productId = await productProvider.addProduct(
+        name,
+        price,
+        minStock: minStock,
+        isActive: isActive,
+      );
+    }
+
     if (selectedImage != null) {
       imageSaved = await ProductImageService.saveProductImage(
-        productId: newProductId,
+        productId: productId,
         sourceImage: selectedImage!,
       );
-      await context.read<ProductProvider>().loadProducts();
+      await productProvider.loadProducts();
     }
     if (!mounted) {
       return;
@@ -399,9 +451,13 @@ class _ProductionScreenState extends State<ProductionScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          imageSaved
-              ? 'Produk baru ditambahkan.'
-              : 'Produk ditambahkan, tapi foto gagal disimpan.',
+          reactivated
+              ? (imageSaved
+                    ? 'Produk arsip diaktifkan kembali.'
+                    : 'Produk arsip diaktifkan, tapi foto gagal disimpan.')
+              : (imageSaved
+                    ? 'Produk baru ditambahkan.'
+                    : 'Produk ditambahkan, tapi foto gagal disimpan.'),
         ),
       ),
     );

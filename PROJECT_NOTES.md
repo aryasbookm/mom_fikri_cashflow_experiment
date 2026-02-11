@@ -78,6 +78,10 @@ Catatan:
      - hanya boleh jika `stock == 0`
      - dan produk belum pernah dipakai di `transaction_items`
      - jika tidak memenuhi syarat, arahkan user ke aksi arsip
+   - Smart Reactivation saat tambah produk:
+     - jika nama produk sama dengan produk arsip (case-insensitive), user ditawari aktivasi ulang
+     - saat aktivasi ulang, harga dan min stok dapat diperbarui mengikuti input baru
+     - jika nama sama dan produk sudah aktif, penambahan ditolak untuk mencegah duplikasi
 
 5. **Riwayat Transaksi (Owner)**
    - Filter waktu: Hari Ini, Kemarin, 7 Hari, Bulan Ini, Semua
