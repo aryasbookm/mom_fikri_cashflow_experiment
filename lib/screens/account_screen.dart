@@ -29,7 +29,8 @@ class _AccountScreenState extends State<AccountScreen> {
   bool _autoBackupEnabled = true;
   bool _isTestingCloud = false;
   bool _isRestoringCloud = false;
-  bool _isDisconnectingCloud = false;
+  bool _isCloudAccountActionInProgress = false;
+  bool _isCloudAccountConnected = false;
   String? _lastCloudBackupTimeIso;
 
   @override
@@ -37,6 +38,7 @@ class _AccountScreenState extends State<AccountScreen> {
     super.initState();
     _loadAutoBackupSetting();
     _loadLastCloudBackupTime();
+    _refreshCloudAccountStatus();
   }
 
   Future<void> _loadAutoBackupSetting() async {
@@ -70,6 +72,16 @@ class _AccountScreenState extends State<AccountScreen> {
       _lastCloudBackupTimeIso = prefs.getString(
         CloudDriveService.lastCloudBackupTimeKey,
       );
+    });
+  }
+
+  Future<void> _refreshCloudAccountStatus() async {
+    final connected = await CloudDriveService().isSignedIn();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _isCloudAccountConnected = connected;
     });
   }
 
@@ -344,6 +356,7 @@ class _AccountScreenState extends State<AccountScreen> {
       );
       if (success) {
         await _loadLastCloudBackupTime();
+        await _refreshCloudAccountStatus();
       }
     } catch (error) {
       if (!mounted) {
@@ -392,6 +405,7 @@ class _AccountScreenState extends State<AccountScreen> {
         _showSnackBar(context, 'Login dibatalkan.', isError: true);
         return;
       }
+      await _refreshCloudAccountStatus();
       await _reloadDataAfterRestore();
       if (!mounted) {
         return;
@@ -422,27 +436,85 @@ class _AccountScreenState extends State<AccountScreen> {
     }
   }
 
-  Future<void> _disconnectCloudAccount() async {
-    if (_isDisconnectingCloud) {
+  Future<void> _handleCloudAccountAction() async {
+    if (_isCloudAccountActionInProgress) {
       return;
     }
+    final service = CloudDriveService();
+    final isConnected = await service.isSignedIn();
+    if (!mounted) {
+      return;
+    }
+    if (isConnected) {
+      final confirmDisconnect = await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Ganti Akun Google Drive'),
+            content: const Text(
+              'Akun saat ini akan diputus. Lanjutkan untuk memilih akun lain?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Batal'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Lanjut'),
+              ),
+            ],
+          );
+        },
+      );
+      if (confirmDisconnect != true) {
+        return;
+      }
+    }
+
     setState(() {
-      _isDisconnectingCloud = true;
+      _isCloudAccountActionInProgress = true;
     });
     try {
-      await CloudDriveService().disconnectAccount();
+      if (isConnected) {
+        await service.disconnectAccount();
+        if (!mounted) {
+          return;
+        }
+        _showSnackBar(
+          context,
+          'Akun Google Drive diputus. Silakan pilih akun untuk login ulang.',
+          isError: false,
+        );
+        final relogin = await service.connectAccount();
+        if (!mounted) {
+          return;
+        }
+        _showSnackBar(
+          context,
+          relogin
+              ? 'Akun Google Drive berhasil diganti.'
+              : 'Pemilihan akun dibatalkan.',
+          isError: !relogin,
+        );
+      } else {
+        final connected = await service.connectAccount();
+        if (!mounted) {
+          return;
+        }
+        _showSnackBar(
+          context,
+          connected
+              ? 'Akun Google Drive berhasil dihubungkan.'
+              : 'Login dibatalkan.',
+          isError: !connected,
+        );
+      }
       if (!mounted) {
         return;
       }
       await _loadLastCloudBackupTime();
-      if (!mounted) {
-        return;
-      }
-      _showSnackBar(
-        context,
-        'Akun Google Drive berhasil diputus. Silakan hubungkan ulang saat diperlukan.',
-        isError: false,
-      );
+      await _refreshCloudAccountStatus();
     } catch (error) {
       if (!mounted) {
         return;
@@ -458,7 +530,7 @@ class _AccountScreenState extends State<AccountScreen> {
     } finally {
       if (mounted) {
         setState(() {
-          _isDisconnectingCloud = false;
+          _isCloudAccountActionInProgress = false;
         });
       }
     }
@@ -702,10 +774,11 @@ class _AccountScreenState extends State<AccountScreen> {
       onToggleAutoBackup: isOwner ? _setAutoBackupEnabled : null,
       onTestCloudConnection: isOwner ? _uploadCloudBackup : null,
       onRestoreCloudBackup: isOwner ? _restoreFromCloud : null,
-      onDisconnectCloudAccount: isOwner ? _disconnectCloudAccount : null,
+      onCloudAccountAction: isOwner ? _handleCloudAccountAction : null,
       isTestingCloud: _isTestingCloud,
       isRestoringCloud: _isRestoringCloud,
-      isDisconnectingCloud: _isDisconnectingCloud,
+      isCloudAccountActionInProgress: _isCloudAccountActionInProgress,
+      isCloudAccountConnected: _isCloudAccountConnected,
       cloudBackupInfoText: isOwner ? _cloudBackupInfoText() : null,
     );
   }

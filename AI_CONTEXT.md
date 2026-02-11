@@ -78,9 +78,10 @@ lib/
 ## 3.4) Infrastructure Status
 - OAuth Android Debug: **Registered** (verified 2026-02-11)
   - SHA-1: `45:ED:8D:62:AE:D8:EF:52:F4:40:5D:80:BA:6C:47:D4:06:89:99:08`
-- OAuth Android Release: **Pending Verification**
+- OAuth Android Release: **Registered** (verified 2026-02-11)
   - SHA-1: `6F:DD:4E:60:FB:DC:F0:78:80:5F:1C:F5:34:47:5C:2B:03:3F:93:DE`
   - Signing config already points to release keystore (`mom_fiqry_release.jks`) in `android/app/build.gradle.kts`.
+  - Note: OAuth consent screen is still in `Testing`, so login is limited to configured Test Users.
 
 ## 4) Completed Cloud Scope (Android)
 - Google Sign-In + Drive integration works on Android.
@@ -92,6 +93,9 @@ lib/
 - Account UI shows local cloud metadata: "Terakhir Backup Cloud" (`last_cloud_backup_time`).
 - UI:
   - owner sees cloud backup/restore actions.
+  - cloud account action is adaptive:
+    - not connected -> "Hubungkan Akun Google Drive"
+    - connected -> "Ganti Akun Google Drive" with confirmation before disconnect + re-login
   - `[DEV] Simulasi Lupa Backup (4 Hari)` only appears in debug mode (`kDebugMode`).
 
 ## 5) Known Limitation

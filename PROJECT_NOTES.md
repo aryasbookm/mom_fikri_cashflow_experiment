@@ -103,7 +103,9 @@ Catatan:
    - Restore cloud menampilkan bottom sheet daftar backup (nama file, tanggal modifikasi, ukuran)
    - Daftar restore cloud menandai item terbaru dengan badge "Terbaru"
    - Pesan error jaringan cloud dibuat ramah pengguna (tanpa detail exception mentah)
-   - Opsi "Ganti Akun Google Drive" tersedia (disconnect akun cloud)
+   - Aksi akun cloud adaptif:
+     - jika belum login, tombol menjadi "Hubungkan Akun Google Drive"
+     - jika sudah login, tombol menjadi "Ganti Akun Google Drive" dengan konfirmasi sebelum putus akun lalu pilih akun ulang
 
 9. **Dashboard Owner (Ringkas)**
    - Menampilkan Top Produk (7 hari) untuk keputusan produksi

@@ -26,8 +26,9 @@ class AccountPanel extends StatelessWidget {
     this.onRestoreCloudBackup,
     this.isRestoringCloud = false,
     this.cloudBackupInfoText,
-    this.onDisconnectCloudAccount,
-    this.isDisconnectingCloud = false,
+    this.onCloudAccountAction,
+    this.isCloudAccountActionInProgress = false,
+    this.isCloudAccountConnected = false,
   });
 
   final VoidCallback onLogout;
@@ -44,8 +45,9 @@ class AccountPanel extends StatelessWidget {
   final VoidCallback? onRestoreCloudBackup;
   final bool isRestoringCloud;
   final String? cloudBackupInfoText;
-  final VoidCallback? onDisconnectCloudAccount;
-  final bool isDisconnectingCloud;
+  final VoidCallback? onCloudAccountAction;
+  final bool isCloudAccountActionInProgress;
+  final bool isCloudAccountConnected;
 
   Future<void> _pickProfileImage(BuildContext context) async {
     final picker = ImagePicker();
@@ -281,7 +283,7 @@ class AccountPanel extends StatelessWidget {
           ],
           if (onTestCloudConnection != null ||
               onRestoreCloudBackup != null ||
-              onDisconnectCloudAccount != null ||
+              onCloudAccountAction != null ||
               (kDebugMode && onDebugSimulateBackup != null)) ...[
             const SizedBox(height: 16),
             const _SectionTitle(title: 'Cloud & Debug'),
@@ -331,17 +333,24 @@ class AccountPanel extends StatelessWidget {
                             )
                             : null,
                   ),
-                if (onDisconnectCloudAccount != null)
+                if (onCloudAccountAction != null)
                   _SettingsTile(
-                    icon: Icons.logout_outlined,
+                    icon:
+                        isCloudAccountConnected
+                            ? Icons.logout_outlined
+                            : Icons.login_outlined,
                     label:
-                        isDisconnectingCloud
-                            ? 'Memutuskan Akun...'
-                            : 'Ganti Akun Google Drive',
+                        isCloudAccountActionInProgress
+                            ? 'Memproses Akun...'
+                            : (isCloudAccountConnected
+                                ? 'Ganti Akun Google Drive'
+                                : 'Hubungkan Akun Google Drive'),
                     onTap:
-                        isDisconnectingCloud ? null : onDisconnectCloudAccount,
+                        isCloudAccountActionInProgress
+                            ? null
+                            : onCloudAccountAction,
                     trailing:
-                        isDisconnectingCloud
+                        isCloudAccountActionInProgress
                             ? const SizedBox(
                               width: 18,
                               height: 18,

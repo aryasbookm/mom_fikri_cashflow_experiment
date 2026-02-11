@@ -55,6 +55,19 @@ class CloudDriveService {
     await prefs.remove(lastCloudBackupTimeKey);
   }
 
+  Future<bool> connectAccount() async {
+    final account = await _googleSignIn.signIn();
+    return account != null;
+  }
+
+  Future<bool> isSignedIn() async {
+    if (_googleSignIn.currentUser != null) {
+      return true;
+    }
+    final restored = await _googleSignIn.signInSilently();
+    return restored != null;
+  }
+
   Future<bool> uploadDatabaseBackup() async {
     final account = await _googleSignIn.signIn();
     if (account == null) {
