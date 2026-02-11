@@ -74,3 +74,11 @@ When tokens run low or the session ends, create a handoff prompt that includes:
 2. **Work in Progress:** what is being worked on and what is incomplete.
 3. **Next Action Items:** 3–5 concrete next steps for the new session.
 4. **Critical Context:** sensitive constraints (e.g., DB version, schema rules, doc rules).
+
+### Cross-AI Handoff Rule (Gemini / other mentor AI)
+- Always include explicit role boundaries in the handoff:
+  - **Gemini/mentor AI:** reviewer/architect only (analysis, options, prompts).
+  - **Codex:** executes code changes, edits files, runs checks, and commits in repo.
+  - **User:** final decision maker and approver.
+- Instruct mentor AI to avoid claiming code execution or file edits.
+- Request mentor AI outputs in "Codex-ready prompt" format for implementation steps.
