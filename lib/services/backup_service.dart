@@ -143,6 +143,10 @@ class BackupService {
     return currentCount != lastCount;
   }
 
+  static Future<void> markBackupSuccess() async {
+    await _updateLastBackupMetadata();
+  }
+
   static Future<void> _updateLastBackupMetadata() async {
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now().millisecondsSinceEpoch;

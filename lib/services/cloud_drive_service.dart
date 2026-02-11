@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../database/database_helper.dart';
+import 'backup_service.dart';
 
 class CloudRestoreResult {
   const CloudRestoreResult({required this.fileId, required this.fileName});
@@ -94,6 +95,7 @@ class CloudDriveService {
             ..parents = ['appDataFolder'];
 
       await api.files.create(file, uploadMedia: media, $fields: 'id');
+      await BackupService.markBackupSuccess();
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
         lastCloudBackupTimeKey,

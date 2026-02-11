@@ -103,6 +103,7 @@ Catatan:
    - Restore cloud menampilkan bottom sheet daftar backup (nama file, tanggal modifikasi, ukuran)
    - Daftar restore cloud menandai item terbaru dengan badge "Terbaru"
    - Pesan error jaringan cloud dibuat ramah pengguna (tanpa detail exception mentah)
+   - Backup cloud sukses ikut memperbarui metadata backup global agar banner pengingat dashboard ikut reset (sinkron lokal + cloud)
    - Aksi akun cloud adaptif:
      - jika belum login, tombol menjadi "Hubungkan Akun Google Drive"
      - jika sudah login, tombol menjadi "Ganti Akun Google Drive" dengan konfirmasi sebelum putus akun lalu pilih akun ulang
