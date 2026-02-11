@@ -8,7 +8,6 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../database/database_helper.dart';
 import 'backup_service.dart';
 
 class CloudRestoreResult {
@@ -79,16 +78,19 @@ class CloudDriveService {
       return false;
     }
     try {
-      final dbPath = await DatabaseHelper.instance.getDatabasePath();
-      final dbFile = File(dbPath);
-      if (!await dbFile.exists()) {
-        throw Exception('Database tidak ditemukan: $dbPath');
+      final localBackup = await BackupService.backupDatabase(shareAfter: false);
+      final backupFile = File(localBackup.tempPath);
+      if (!await backupFile.exists()) {
+        throw Exception('File backup tidak ditemukan: ${localBackup.tempPath}');
       }
 
       final api = drive.DriveApi(client);
       final timestamp = _formatTimestamp(DateTime.now());
-      final remoteName = 'Backup_MomFiqry_$timestamp.db';
-      final media = drive.Media(dbFile.openRead(), await dbFile.length());
+      final remoteName = 'Backup_MomFiqry_$timestamp.zip';
+      final media = drive.Media(
+        backupFile.openRead(),
+        await backupFile.length(),
+      );
       final file =
           drive.File()
             ..name = remoteName
@@ -101,6 +103,13 @@ class CloudDriveService {
         lastCloudBackupTimeKey,
         DateTime.now().toIso8601String(),
       );
+      try {
+        if (await backupFile.exists()) {
+          await backupFile.delete();
+        }
+      } catch (_) {
+        // ignore cleanup failures
+      }
       return true;
     } finally {
       client.close();
@@ -123,7 +132,7 @@ class CloudDriveService {
     try {
       final api = drive.DriveApi(client);
       final list = await api.files.list(
-        q: "'appDataFolder' in parents and trashed = false and name contains 'Backup_MomFiqry_' and name contains '.db'",
+        q: "'appDataFolder' in parents and trashed = false and name contains 'Backup_MomFiqry_' and (name contains '.zip' or name contains '.db')",
         orderBy: 'modifiedTime desc',
         spaces: 'appDataFolder',
         pageSize: 50,
@@ -159,7 +168,6 @@ class CloudDriveService {
       return null;
     }
 
-    File? rollbackFile;
     File? tempRestoreFile;
     try {
       final api = drive.DriveApi(client);
@@ -167,7 +175,7 @@ class CloudDriveService {
       String? targetFileName;
       if (targetFileId == null) {
         final list = await api.files.list(
-          q: "'appDataFolder' in parents and trashed = false and name contains 'Backup_MomFiqry_' and name contains '.db'",
+          q: "'appDataFolder' in parents and trashed = false and name contains 'Backup_MomFiqry_' and (name contains '.zip' or name contains '.db')",
           orderBy: 'modifiedTime desc',
           spaces: 'appDataFolder',
           pageSize: 1,
@@ -193,6 +201,10 @@ class CloudDriveService {
         }
         targetFileName = metadata.name;
       }
+      final resolvedFileName = targetFileName;
+      if (resolvedFileName == null) {
+        throw Exception('Nama backup cloud tidak valid.');
+      }
 
       final mediaResponse = await api.files.get(
         targetFileId,
@@ -203,62 +215,28 @@ class CloudDriveService {
       }
 
       final tempDir = await getTemporaryDirectory();
-      tempRestoreFile = File(p.join(tempDir.path, 'cloud_restore_temp.db'));
+      final fileExtension = p.extension(resolvedFileName).toLowerCase();
+      final normalizedExt =
+          fileExtension == '.zip' || fileExtension == '.db'
+              ? fileExtension
+              : '.db';
+      tempRestoreFile = File(
+        p.join(tempDir.path, 'cloud_restore_temp$normalizedExt'),
+      );
       final sink = tempRestoreFile.openWrite();
       await sink.addStream(mediaResponse.stream);
       await sink.flush();
       await sink.close();
 
-      final dbPath = await DatabaseHelper.instance.getDatabasePath();
-      final dbFile = File(dbPath);
-      rollbackFile = File(
-        p.join(
-          tempDir.path,
-          'cloud_restore_rollback_${DateTime.now().millisecondsSinceEpoch}.db',
-        ),
-      );
-      if (await dbFile.exists()) {
-        await dbFile.copy(rollbackFile.path);
-      }
+      await BackupService.restoreDatabaseFromPath(tempRestoreFile.path);
 
-      await DatabaseHelper.instance.closeDatabase();
-      if (await dbFile.exists()) {
-        await dbFile.delete();
-      }
-      await tempRestoreFile.copy(dbPath);
-      await DatabaseHelper.instance.database;
-
-      if (targetFileName == null) {
-        throw Exception('Nama backup cloud tidak valid.');
-      }
-      return CloudRestoreResult(fileId: targetFileId, fileName: targetFileName);
+      return CloudRestoreResult(fileId: targetFileId, fileName: resolvedFileName);
     } catch (error) {
-      try {
-        if (rollbackFile != null && await rollbackFile.exists()) {
-          final dbPath = await DatabaseHelper.instance.getDatabasePath();
-          final dbFile = File(dbPath);
-          await DatabaseHelper.instance.closeDatabase();
-          if (await dbFile.exists()) {
-            await dbFile.delete();
-          }
-          await rollbackFile.copy(dbPath);
-          await DatabaseHelper.instance.database;
-        }
-      } catch (_) {
-        // rollback best effort only
-      }
       rethrow;
     } finally {
       try {
         if (tempRestoreFile != null && await tempRestoreFile.exists()) {
           await tempRestoreFile.delete();
-        }
-      } catch (_) {
-        // ignore cleanup failures
-      }
-      try {
-        if (rollbackFile != null && await rollbackFile.exists()) {
-          await rollbackFile.delete();
         }
       } catch (_) {
         // ignore cleanup failures

@@ -27,10 +27,16 @@ class ProductAvatar extends StatelessWidget {
       builder: (context, snapshot) {
         final file = snapshot.data;
         if (file != null) {
-          return CircleAvatar(
-            radius: radius,
-            backgroundImage: FileImage(file),
-            backgroundColor: Colors.grey.shade200,
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(_cornerRadius()),
+            child: SizedBox(
+              width: radius * 2,
+              height: radius * 2,
+              child: Image.file(
+                file,
+                fit: BoxFit.cover,
+              ),
+            ),
           );
         }
         return _fallbackAvatar();
@@ -43,9 +49,14 @@ class ProductAvatar extends StatelessWidget {
         productName.trim().isEmpty
             ? '?'
             : productName.trim().substring(0, 1).toUpperCase();
-    return CircleAvatar(
-      radius: radius,
-      backgroundColor: const Color(0xFFF3E5E5),
+    return Container(
+      width: radius * 2,
+      height: radius * 2,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF3E5E5),
+        borderRadius: BorderRadius.circular(_cornerRadius()),
+      ),
+      alignment: Alignment.center,
       child: Text(
         initial,
         style: const TextStyle(
@@ -54,5 +65,9 @@ class ProductAvatar extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  double _cornerRadius() {
+    return (radius * 0.35).clamp(8.0, 12.0);
   }
 }

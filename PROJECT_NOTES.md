@@ -95,10 +95,10 @@ Catatan:
    - Owner dapat melihat, restore, atau hapus permanen audit log
 
 8. **Backup & Restore (Robust)**
-   - Backup DB ke file `.db` (share + simpan ke Download)
+   - Backup data ke file `.zip` (berisi database + foto produk) dengan opsi share + simpan ke Download
    - Restore via file picker (Android pakai `FileType.any`) dengan rollback, validasi versi, dan validasi struktur
    - Restore memicu refresh data + reset filter laporan/riwayat
-   - Cloud backup Android: upload database `.db` ke Google Drive `appDataFolder`
+   - Cloud backup Android: upload backup `.zip` (database + foto produk) ke Google Drive `appDataFolder`
    - Cloud restore Android: pulihkan dari backup cloud terbaru atau file cloud terpilih (via daftar)
    - UI cloud menampilkan metadata lokal: "Terakhir Backup Cloud: [tanggal/jam]"
    - Restore cloud menampilkan bottom sheet daftar backup (nama file, tanggal modifikasi, ukuran)
@@ -108,7 +108,7 @@ Catatan:
    - Aksi akun cloud adaptif:
      - jika belum login, tombol menjadi "Hubungkan Akun Google Drive"
      - jika sudah login, tombol menjadi "Ganti Akun Google Drive" dengan konfirmasi sebelum putus akun lalu pilih akun ulang
-   - Catatan batasan saat ini: foto produk belum ikut backup/restore karena masih disimpan sebagai file lokal perangkat
+   - Kompatibilitas restore: file `.db` lama tetap didukung (database only, tanpa foto produk)
 
 9. **Dashboard Owner (Ringkas)**
    - Menampilkan Top Produk (7 hari) untuk keputusan produksi

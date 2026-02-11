@@ -5,8 +5,8 @@ Aplikasi **Point of Sale (POS)** dan **Manajemen Stok** berbasis Flutter yang di
 ## 📌 Fitur Utama (v1.0.0)
 - **Kasir & Transaksi:** Multi-item cart, struk digital, dan validasi stok real-time.
 - **Manajemen Stok Cerdas:** Pelacakan stok otomatis, alert stok menipis, dan audit trail.
-- **Keamanan Data:** Sistem Backup/Restore database (`.db`) dengan validasi integritas & rollback.
-- **Cloud Android:** Backup/Restore database ke Google Drive (`appDataFolder`).
+- **Keamanan Data:** Sistem Backup/Restore `.zip` (database + foto produk) dengan validasi integritas & rollback, tetap kompatibel restore `.db` lama.
+- **Cloud Android:** Backup/Restore paket backup ke Google Drive (`appDataFolder`).
 - **Keamanan Akses:** PIN Guard untuk menu sensitif (Owner) dan isolasi data Staff.
 - **Laporan & Analitik:** Dashboard performa harian, Top Produk, dan ekspor laporan (PDF/Excel).
 

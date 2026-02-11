@@ -841,87 +841,101 @@ class _ProductGrid extends StatelessWidget {
                         ),
                       ],
                     )
-                  : GridView.builder(
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                        childAspectRatio: 1.2,
-                      ),
-                      itemCount: filteredProducts.length,
-                      itemBuilder: (context, index) {
-                        final product = filteredProducts[index];
-                        final inCart = isInCart(product.id ?? -1);
-                        return InkWell(
-                          onTap: () {
-                            if (product.id == null) {
-                              return;
-                            }
-                            onSelected(
-                              product.id!,
-                              product.name,
-                              product.price,
-                              product.stock,
-                            );
-                          },
-                          borderRadius: BorderRadius.circular(12),
-                          child: Ink(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color:
-                                  inCart ? Colors.orange.shade50 : Colors.white,
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        final maxWidth = constraints.maxWidth;
+                        final crossAxisCount =
+                            maxWidth < 600 ? 2 : (maxWidth < 900 ? 3 : 4);
+                        final tileWidth =
+                            (maxWidth - ((crossAxisCount - 1) * 12)) /
+                            crossAxisCount;
+                        final avatarRadius =
+                            ((tileWidth * 0.22).clamp(24.0, 48.0)).toDouble();
+
+                        return GridView.builder(
+                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: crossAxisCount,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            childAspectRatio: 0.82,
+                          ),
+                          itemCount: filteredProducts.length,
+                          itemBuilder: (context, index) {
+                            final product = filteredProducts[index];
+                            final inCart = isInCart(product.id ?? -1);
+                            return InkWell(
+                              onTap: () {
+                                if (product.id == null) {
+                                  return;
+                                }
+                                onSelected(
+                                  product.id!,
+                                  product.name,
+                                  product.price,
+                                  product.stock,
+                                );
+                              },
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: inCart
-                                    ? Colors.deepOrange
-                                    : Colors.transparent,
-                                width: inCart ? 2 : 1,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 4),
+                              child: Ink(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color:
+                                      inCart
+                                          ? Colors.orange.shade50
+                                          : Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color:
+                                        inCart
+                                            ? Colors.deepOrange
+                                            : Colors.transparent,
+                                    width: inCart ? 2 : 1,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
                                     ProductAvatar(
                                       productId: product.id,
                                       productName: product.name,
-                                      radius: 18,
+                                      radius: avatarRadius,
                                     ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        product.name,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.w600),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      product.name,
+                                      textAlign: TextAlign.center,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
                                       ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      currency.format(product.price),
+                                      style: const TextStyle(
+                                        color: Color(0xFF8D1B3D),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Stok: ${product.stock}',
+                                      style: const TextStyle(color: Colors.grey),
                                     ),
                                   ],
                                 ),
-                                const Spacer(),
-                                Text(
-                                  currency.format(product.price),
-                                  style: const TextStyle(color: Colors.grey),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Stok: ${product.stock}',
-                                  style: const TextStyle(color: Colors.grey),
-                                ),
-                              ],
-                            ),
-                          ),
+                              ),
+                            );
+                          },
                         );
                       },
                     ),

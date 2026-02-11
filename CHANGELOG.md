@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
 - Cloud Restore Android: pulihkan database dari backup cloud terbaru (`appDataFolder`).
 - Cloud Restore Picker Android: restore dari file cloud terpilih (bukan hanya latest) via bottom sheet list.
 - Cloud Metadata UI: tampilkan "Terakhir Backup Cloud" berdasarkan timestamp lokal backup cloud terakhir.
+- Backup format v2: paket `.zip` berisi database + folder `product_images` + metadata manifest.
 
 ### Changed
 - Branding aplikasi disederhanakan dari "Toko Kue Mom Fiqry (Eksperimen)" menjadi "Toko Kue Mom Fiqry" pada Android/iOS/Web/Desktop.
@@ -30,11 +31,16 @@ All notable changes to this project will be documented in this file.
 - Menu debug Akun: tombol cloud sekarang melakukan backup/restore Google Drive (Android).
 - Validasi fitur cloud dilakukan di Android; kendala keychain/signing macOS dicatat sebagai batasan environment development.
 - UX cloud: pesan error jaringan dibuat lebih ramah pengguna (tanpa detail exception teknis).
+- Kasir (pemasukan): kartu grid produk kini memakai vertical stack responsif dengan thumbnail rounded agar hierarki visual lebih rapat.
 - Restore cloud: daftar backup menandai item terbaru dengan badge "Terbaru".
 - Cloud account: aksi akun cloud kini adaptif:
   - saat belum login tampil "Hubungkan Akun Google Drive",
   - saat sudah login tampil "Ganti Akun Google Drive" dengan dialog konfirmasi sebelum disconnect dan re-login.
-- UI backup menampilkan catatan bahwa foto produk saat ini disimpan lokal dan belum ikut backup/restore database.
+- UI backup menampilkan catatan kompatibilitas restore (`.zip` termasuk foto, `.db` lama tanpa foto).
+- Backup lokal/cloud kini menggunakan file `.zip` agar foto produk ikut tersimpan.
+- Restore kini kompatibel dua format:
+  - `.zip` memulihkan database + foto produk,
+  - `.db` lama tetap didukung (database only, tanpa foto).
 
 ---
 
