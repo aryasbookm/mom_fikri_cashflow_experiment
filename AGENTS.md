@@ -20,11 +20,25 @@ Operational mechanics for implementation sessions (commands, commit flow, safety
   - `[HEADS-UP: DOCS]` when flow/architecture changes; list impacted docs only.
 - Do not repeat setup instructions (OAuth/keystore) if `AI_CONTEXT.md` infrastructure status is already marked as `Registered`.
 
+## Prompt Protocol (Default)
+For non-trivial requests, structure instructions with:
+- `Task`: tujuan akhir yang diminta.
+- `Context`: file/fitur/status yang relevan.
+- `Do`: hal yang wajib dikerjakan.
+- `Avoid`: hal yang tidak boleh dilakukan.
+- `Verify`: cara validasi hasil (command/test/checklist).
+
+For cashflow/financial logic, `Verify` is mandatory and must include:
+- minimal one numeric sanity check (expected balance/income/expense),
+- one edge-case check (null/empty/cancel/offline as applicable),
+- one rollback/recovery note if operation is destructive (restore/delete/overwrite).
+
 ## Docs + Commit Workflow
 - Impacted-docs-only: update only docs affected by the change.
 - Shorthand:
   - `unc` = review/update impacted core docs first, then commit.
   - `hld` = Hold / Answer Only: jawab/verifikasi saja; jangan jalankan tool, jangan edit file, jangan commit.
+  - `sbp` = Search Best Practice: lakukan riset best-practice terlebih dahulu (sumber resmi/primer), lalu lanjutkan rekomendasi/eksekusi.
 - Core docs to consider on `unc`:
   - `AGENTS.md`
   - `AI_CONTEXT.md`
@@ -52,3 +66,9 @@ When ending session or context is low, provide:
 2. WIP and incomplete items.
 3. Next 3–5 concrete actions.
 4. Critical constraints (DB lock, SOP, known blockers).
+
+## Appendix: Skripsi & Financial Safety Rules
+- Precision standard: gunakan tipe data `int` untuk kalkulasi uang (satuan Rupiah), hindari `double` di logika bisnis.
+- Data integrity: setiap transaksi harus memiliki `category_id` dan `timestamp` valid sebelum disimpan.
+- Audit trail: hindari penghapusan data secara silent; tampilkan feedback UI atau log singkat saat aksi berhasil.
+- UI safety: format `NumberFormat.currency` hanya di layer UI, bukan di provider/service kalkulasi.

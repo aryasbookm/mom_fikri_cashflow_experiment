@@ -169,6 +169,18 @@ Catatan:
 - File DB: `mom_fikri_cashflow_v2.db`
 - Naikkan versi di `DatabaseHelper` jika perlu reset ulang
 
+## Checklist Persiapan Demo Sidang
+- [ ] Data sanitization: bersihkan data testing tidak relevan dari database lokal sebelum presentasi.
+- [ ] Offline readiness: pastikan aplikasi tetap bisa dibuka dan mencatat transaksi tanpa internet (local DB tetap berfungsi).
+- [ ] Cloud demo flow:
+  - [ ] Login Google Drive berhasil (akun testing).
+  - [ ] Tunjukkan metadata backup cloud terbaru dari UI.
+  - [ ] Simulasi restore: data lokal berubah sesuai file cloud yang dipilih.
+- [ ] Reporting logic:
+  - [ ] Grafik (`fl_chart`) berubah sesuai data transaksi terbaru.
+  - [ ] Export PDF berhasil dibuat dan dapat dibuka.
+- [ ] Edge case narrative: siapkan jawaban "apa yang terjadi jika proses backup/restore gagal di tengah jalan?" (rollback-safe behavior).
+
 ## Validasi Stok (kasir)
 ```dart
 final product = productProvider.getById(productId);
