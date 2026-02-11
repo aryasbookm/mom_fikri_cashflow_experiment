@@ -17,11 +17,13 @@ class BackupResult {
     required this.sourcePath,
     required this.tempPath,
     required this.downloadPath,
+    required this.includeImages,
   });
 
   final String sourcePath;
   final String tempPath;
   final String? downloadPath;
+  final bool includeImages;
 }
 
 class RestoreFailure implements Exception {
@@ -36,10 +38,15 @@ class RestoreFailure implements Exception {
 }
 
 class RestoreResult {
-  const RestoreResult({required this.targetPath, this.restoredImageCount = 0});
+  const RestoreResult({
+    required this.targetPath,
+    this.restoredImageCount = 0,
+    this.includeImagesFromBackup = false,
+  });
 
   final String targetPath;
   final int restoredImageCount;
+  final bool includeImagesFromBackup;
 }
 
 class BackupService {
@@ -60,7 +67,10 @@ class BackupService {
     '.heic',
   };
 
-  static Future<BackupResult> backupDatabase({bool shareAfter = true}) async {
+  static Future<BackupResult> backupDatabase({
+    bool shareAfter = true,
+    bool includeImages = false,
+  }) async {
     final dbPath = await DatabaseHelper.instance.getDatabasePath();
     final dbFile = File(dbPath);
     if (!dbFile.existsSync()) {
@@ -69,7 +79,10 @@ class BackupService {
 
     final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
     final fileName = 'mom_fikri_backup_$timestamp.zip';
-    final zipBytes = await _buildBackupZipBytes(dbPath);
+    final zipBytes = await _buildBackupZipBytes(
+      dbPath,
+      includeImages: includeImages,
+    );
 
     final tempDir = await getTemporaryDirectory();
     final tempPath = p.join(tempDir.path, fileName);
@@ -101,6 +114,7 @@ class BackupService {
       sourcePath: dbPath,
       tempPath: tempPath,
       downloadPath: downloadPath,
+      includeImages: includeImages,
     );
   }
 
@@ -119,7 +133,10 @@ class BackupService {
       autoDir.createSync(recursive: true);
     }
 
-    final zipBytes = await _buildBackupZipBytes(dbPath);
+    final zipBytes = await _buildBackupZipBytes(
+      dbPath,
+      includeImages: false,
+    );
     final targetPath = p.join(autoDir.path, fileName);
     await File(targetPath).writeAsBytes(zipBytes, flush: true);
 
@@ -288,6 +305,8 @@ class BackupService {
     return _replaceLocalData(
       dbBytes: dbBytes,
       imageFiles: null,
+      replaceImages: false,
+      includeImagesFromBackup: false,
     );
   }
 
@@ -295,20 +314,28 @@ class BackupService {
     List<int> zipBytes,
   ) async {
     final archive = ZipDecoder().decodeBytes(zipBytes, verify: true);
-    _validateBackupManifest(archive);
+    final manifest = _parseBackupManifest(archive);
 
     final dbBytes = _resolveDbBytesFromArchive(archive);
-    final imageFiles = _resolveImageBytesFromArchive(archive);
+    final resolvedImageFiles = _resolveImageBytesFromArchive(archive);
+    final includeImages =
+        (manifest?['includeImages'] as bool?) ??
+        resolvedImageFiles.isNotEmpty;
+    final imageFiles = includeImages ? resolvedImageFiles : null;
 
     return _replaceLocalData(
       dbBytes: dbBytes,
       imageFiles: imageFiles,
+      replaceImages: includeImages,
+      includeImagesFromBackup: includeImages,
     );
   }
 
   static Future<RestoreResult> _replaceLocalData({
     required List<int> dbBytes,
     Map<String, List<int>>? imageFiles,
+    required bool replaceImages,
+    required bool includeImagesFromBackup,
   }) async {
     await DatabaseHelper.instance.closeDatabase();
 
@@ -331,7 +358,7 @@ class BackupService {
     );
 
     final hadOriginalDb = await targetFile.exists();
-    final hadOriginalImages = await imageDir.exists();
+    final hadOriginalImages = replaceImages && await imageDir.exists();
 
     if (await rollbackDbFile.exists()) {
       await rollbackDbFile.delete();
@@ -382,13 +409,18 @@ class BackupService {
         );
       }
       var restoredImageCount = 0;
-      if (imageFiles != null && imageFiles.isNotEmpty) {
+      if (replaceImages) {
+        if (await imageDir.exists()) {
+          await imageDir.delete(recursive: true);
+        }
         await imageDir.create(recursive: true);
-        for (final entry in imageFiles.entries) {
-          final safeName = p.basename(entry.key);
-          final targetImagePath = p.join(imageDir.path, safeName);
-          await File(targetImagePath).writeAsBytes(entry.value, flush: true);
-          restoredImageCount += 1;
+        if (imageFiles != null && imageFiles.isNotEmpty) {
+          for (final entry in imageFiles.entries) {
+            final safeName = p.basename(entry.key);
+            final targetImagePath = p.join(imageDir.path, safeName);
+            await File(targetImagePath).writeAsBytes(entry.value, flush: true);
+            restoredImageCount += 1;
+          }
         }
       }
 
@@ -459,13 +491,14 @@ class BackupService {
       return RestoreResult(
         targetPath: targetPath,
         restoredImageCount: restoredImageCount,
+        includeImagesFromBackup: includeImagesFromBackup,
       );
     } catch (error) {
       try {
         if (await targetFile.exists()) {
           await targetFile.delete();
         }
-        if (await imageDir.exists()) {
+        if (replaceImages && await imageDir.exists()) {
           await imageDir.delete(recursive: true);
         }
         if (hadOriginalDb && await rollbackDbFile.exists()) {
@@ -502,14 +535,14 @@ class BackupService {
     return raw.length > 220 ? '${raw.substring(0, 220)}...' : raw;
   }
 
-  static void _validateBackupManifest(Archive archive) {
+  static Map<String, dynamic>? _parseBackupManifest(Archive archive) {
     final manifestEntry = archive.firstWhere(
       (entry) => _normalizeZipPath(entry.name) == _zipEntryManifest,
       orElse: () => ArchiveFile('', 0, <int>[]),
     );
     // Legacy zip backup (sebelum manifest) tetap didukung.
     if (manifestEntry.name.isEmpty || !manifestEntry.isFile) {
-      return;
+      return null;
     }
 
     final content = manifestEntry.content;
@@ -542,28 +575,34 @@ class BackupService {
         rolledBack: false,
       );
     }
+    return manifest;
   }
 
-  static Future<List<int>> _buildBackupZipBytes(String dbPath) async {
+  static Future<List<int>> _buildBackupZipBytes(
+    String dbPath, {
+    required bool includeImages,
+  }) async {
     final archive = Archive();
 
     final dbFile = File(dbPath);
     final dbBytes = await dbFile.readAsBytes();
     archive.addFile(ArchiveFile(_zipEntryDbName, dbBytes.length, dbBytes));
 
-    final imageDir = await _getProductImageDir();
-    if (imageDir.existsSync()) {
-      final entries = imageDir.listSync(recursive: true);
-      for (final entry in entries) {
-        if (entry is! File) {
-          continue;
+    if (includeImages) {
+      final imageDir = await _getProductImageDir();
+      if (imageDir.existsSync()) {
+        final entries = imageDir.listSync(recursive: true);
+        for (final entry in entries) {
+          if (entry is! File) {
+            continue;
+          }
+          final relativePath = p.relative(entry.path, from: imageDir.path);
+          final zipEntryName = p.join(_zipEntryImagesDir, relativePath);
+          final bytes = await entry.readAsBytes();
+          archive.addFile(
+            ArchiveFile(_normalizeZipPath(zipEntryName), bytes.length, bytes),
+          );
         }
-        final relativePath = p.relative(entry.path, from: imageDir.path);
-        final zipEntryName = p.join(_zipEntryImagesDir, relativePath);
-        final bytes = await entry.readAsBytes();
-        archive.addFile(
-          ArchiveFile(_normalizeZipPath(zipEntryName), bytes.length, bytes),
-        );
       }
     }
 
@@ -572,6 +611,7 @@ class BackupService {
       'createdAt': DateTime.now().toIso8601String(),
       'dbEntry': _zipEntryDbName,
       'imageDirEntry': _zipEntryImagesDir,
+      'includeImages': includeImages,
     };
     final manifestBytes = utf8.encode(jsonEncode(manifest));
     archive.addFile(

@@ -106,12 +106,19 @@ class _AccountScreenState extends State<AccountScreen> {
     if (_isBackingUp) {
       return;
     }
+    final includeImages = await _showBackupModeDialog();
+    if (includeImages == null) {
+      return;
+    }
     setState(() {
       _isBackingUp = true;
     });
 
     try {
-      final result = await BackupService.backupDatabase(shareAfter: true);
+      final result = await BackupService.backupDatabase(
+        shareAfter: true,
+        includeImages: includeImages,
+      );
       if (!mounted) {
         return;
       }
@@ -119,7 +126,15 @@ class _AccountScreenState extends State<AccountScreen> {
           result.downloadPath != null
               ? 'Backup tersimpan di: ${result.downloadPath}'
               : 'Backup selesai, tetapi gagal simpan ke folder Download.';
-      _showSnackBar(context, downloadMessage, isError: false);
+      final modeLabel =
+          result.includeImages
+              ? 'Mode: Lengkap (dengan foto produk).'
+              : 'Mode: Data saja (tanpa foto produk).';
+      _showSnackBar(
+        context,
+        '$downloadMessage\n$modeLabel',
+        isError: false,
+      );
     } catch (error) {
       if (!mounted) {
         return;
@@ -132,6 +147,58 @@ class _AccountScreenState extends State<AccountScreen> {
         });
       }
     }
+  }
+
+  Future<bool?> _showBackupModeDialog() async {
+    var includeImages = false;
+    return showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Pilih Mode Backup'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: includeImages,
+                    onChanged: (value) {
+                      setState(() {
+                        includeImages = value ?? false;
+                      });
+                    },
+                    title: const Text('Sertakan Foto Produk'),
+                    subtitle: Text(
+                      includeImages
+                          ? 'Backup Lengkap (lebih besar, cocok migrasi).'
+                          : 'Backup Cepat (data saja, lebih kecil).',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Catatan: restore data-only akan mempertahankan foto lokal, namun foto mungkin tidak sinkron dengan data backup.',
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Batal'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(includeImages),
+                  child: const Text('Lanjut Backup'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _restoreDatabase() async {
@@ -321,11 +388,11 @@ class _AccountScreenState extends State<AccountScreen> {
       if (!mounted) {
         return;
       }
-      _showSnackBar(
-        context,
-        'Data berhasil dipulihkan. Jika data belum berubah, silakan buka kembali aplikasi.',
-        isError: false,
-      );
+      final restoreMessage =
+          restored.includeImagesFromBackup
+              ? 'Data dan foto berhasil dipulihkan.'
+              : 'Data dipulihkan. Foto lokal dipertahankan (tidak disinkronisasi).';
+      _showSnackBar(context, restoreMessage, isError: false);
     } catch (error) {
       if (!mounted) {
         return;

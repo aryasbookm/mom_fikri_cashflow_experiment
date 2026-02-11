@@ -78,7 +78,10 @@ class CloudDriveService {
       return false;
     }
     try {
-      final localBackup = await BackupService.backupDatabase(shareAfter: false);
+      final localBackup = await BackupService.backupDatabase(
+        shareAfter: false,
+        includeImages: true,
+      );
       final backupFile = File(localBackup.tempPath);
       if (!await backupFile.exists()) {
         throw Exception('File backup tidak ditemukan: ${localBackup.tempPath}');
