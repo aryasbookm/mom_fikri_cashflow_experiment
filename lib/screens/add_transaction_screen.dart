@@ -380,6 +380,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isTypeLocked = widget.initialType != null;
     final dateLabel = DateFormat('dd MMM yyyy', 'id_ID').format(_selectedDate);
     final currency = NumberFormat.currency(
       locale: 'id_ID',
@@ -392,54 +393,58 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tambah Transaksi'),
+        title: Text(
+          _type == 'IN' ? 'Catat Pemasukan' : 'Catat Pengeluaran',
+        ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: RadioListTile<String>(
-                    title: const Text('Pemasukan'),
-                    value: 'IN',
-                    groupValue: _type,
-                    onChanged: (value) {
-                      if (value == null) {
-                        return;
-                      }
-                      setState(() {
-                        _type = value;
-                        _selectedCategoryId = null;
-                        _manualIncomeInput = false;
-                        _customCategoryController.clear();
-                        _resetProductSelection();
-                      });
-                    },
+            if (!isTypeLocked) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: RadioListTile<String>(
+                      title: const Text('Pemasukan'),
+                      value: 'IN',
+                      groupValue: _type,
+                      onChanged: (value) {
+                        if (value == null) {
+                          return;
+                        }
+                        setState(() {
+                          _type = value;
+                          _selectedCategoryId = null;
+                          _manualIncomeInput = false;
+                          _customCategoryController.clear();
+                          _resetProductSelection();
+                        });
+                      },
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: RadioListTile<String>(
-                    title: const Text('Pengeluaran'),
-                    value: 'OUT',
-                    groupValue: _type,
-                    onChanged: (value) {
-                      if (value == null) {
-                        return;
-                      }
-                      setState(() {
-                        _type = value;
-                        _selectedCategoryId = null;
-                        _customCategoryController.clear();
-                        _resetProductSelection();
-                      });
-                    },
+                  Expanded(
+                    child: RadioListTile<String>(
+                      title: const Text('Pengeluaran'),
+                      value: 'OUT',
+                      groupValue: _type,
+                      onChanged: (value) {
+                        if (value == null) {
+                          return;
+                        }
+                        setState(() {
+                          _type = value;
+                          _selectedCategoryId = null;
+                          _customCategoryController.clear();
+                          _resetProductSelection();
+                        });
+                      },
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
+                ],
+              ),
+              const SizedBox(height: 16),
+            ],
             Consumer<CategoryProvider>(
               builder: (context, provider, _) {
                 final categories = _type == 'IN'
@@ -849,39 +854,47 @@ class _ProductGrid extends StatelessWidget {
                       builder: (context, constraints) {
                         final maxWidth = constraints.maxWidth;
                         final crossAxisCount =
-                            maxWidth < 600 ? 2 : (maxWidth < 900 ? 3 : 4);
+                            maxWidth < 700 ? 2 : (maxWidth < 1100 ? 3 : 4);
+                        final childAspectRatio =
+                            maxWidth < 700 ? 0.95 : (maxWidth < 1100 ? 1.25 : 1.4);
                         final tileWidth =
                             (maxWidth - ((crossAxisCount - 1) * 12)) /
                             crossAxisCount;
                         final avatarRadius =
-                            ((tileWidth * 0.15).clamp(28.0, 52.0)).toDouble();
+                            ((tileWidth * 0.14).clamp(24.0, 44.0)).toDouble();
 
                         return GridView.builder(
                           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: crossAxisCount,
                             crossAxisSpacing: 12,
                             mainAxisSpacing: 12,
-                            childAspectRatio: 0.82,
+                            childAspectRatio: childAspectRatio,
                           ),
                           itemCount: filteredProducts.length,
                           itemBuilder: (context, index) {
                             final product = filteredProducts[index];
                             final inCart = isInCart(product.id ?? -1);
+                            final addButtonSize =
+                                ((tileWidth * 0.18).clamp(30.0, 36.0))
+                                    .toDouble();
+
+                            void addProduct() {
+                              if (product.id == null) {
+                                return;
+                              }
+                              onSelected(
+                                product.id!,
+                                product.name,
+                                product.price,
+                                product.stock,
+                              );
+                            }
+
                             return InkWell(
-                              onTap: () {
-                                if (product.id == null) {
-                                  return;
-                                }
-                                onSelected(
-                                  product.id!,
-                                  product.name,
-                                  product.price,
-                                  product.stock,
-                                );
-                              },
+                              onTap: addProduct,
                               borderRadius: BorderRadius.circular(12),
                               child: Ink(
-                                padding: const EdgeInsets.all(12),
+                                padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
                                   color:
                                       inCart
@@ -904,37 +917,67 @@ class _ProductGrid extends StatelessWidget {
                                   ],
                                 ),
                                 child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  mainAxisAlignment: MainAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    ProductAvatar(
-                                      productId: product.id,
-                                      productName: product.name,
-                                      radius: avatarRadius,
+                                    Stack(
+                                      clipBehavior: Clip.none,
+                                      children: [
+                                        ProductAvatar(
+                                          productId: product.id,
+                                          productName: product.name,
+                                          radius: avatarRadius,
+                                        ),
+                                        Positioned(
+                                          right: -6,
+                                          bottom: -6,
+                                          child: Material(
+                                            color: Colors.white,
+                                            shape: const CircleBorder(),
+                                            elevation: 3,
+                                            child: InkWell(
+                                              onTap: addProduct,
+                                              customBorder:
+                                                  const CircleBorder(),
+                                              child: SizedBox(
+                                                width: addButtonSize,
+                                                height: addButtonSize,
+                                                child: const Icon(
+                                                  Icons.add,
+                                                  color: Color(0xFF1B8F3A),
+                                                  size: 20,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(height: 8),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      currency.format(product.price),
+                                      style: const TextStyle(
+                                        color: Color(0xFF8D1B3D),
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 15,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
                                     Text(
                                       product.name,
-                                      textAlign: TextAlign.center,
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      currency.format(product.price),
-                                      style: const TextStyle(
-                                        color: Color(0xFF8D1B3D),
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
+                                    const SizedBox(height: 2),
                                     Text(
                                       'Stok: ${product.stock}',
-                                      style: const TextStyle(color: Colors.grey),
+                                      style: const TextStyle(
+                                        color: Colors.grey,
+                                        fontSize: 13,
+                                      ),
                                     ),
                                   ],
                                 ),

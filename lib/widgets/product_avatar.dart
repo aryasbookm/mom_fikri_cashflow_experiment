@@ -27,6 +27,7 @@ class ProductAvatar extends StatelessWidget {
       builder: (context, snapshot) {
         final file = snapshot.data;
         if (file != null) {
+          final imageVersion = file.lastModifiedSync().millisecondsSinceEpoch;
           return ClipRRect(
             borderRadius: BorderRadius.circular(_cornerRadius()),
             child: SizedBox(
@@ -34,6 +35,7 @@ class ProductAvatar extends StatelessWidget {
               height: radius * 2,
               child: Image.file(
                 file,
+                key: ValueKey('${file.path}::$imageVersion'),
                 fit: BoxFit.cover,
               ),
             ),

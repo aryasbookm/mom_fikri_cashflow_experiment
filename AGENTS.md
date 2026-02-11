@@ -74,6 +74,15 @@ For cashflow/financial logic, `Verify` is mandatory and must include:
 - Never loop repeatedly on the same blocked command without changing approach.
 - If user action is required, provide one exact command and explain expected output briefly.
 
+## Runtime Bug Protocol (Mandatory)
+- Evidence-first diagnosis: for runtime/file/restore bugs, capture and relay the concrete error (exception + path + operation stage) before concluding root cause.
+- No single-platform assumption: do not label issue as platform-specific until at least one cross-platform check is attempted or user evidence confirms it.
+- Two-failed-fixes pivot rule: if two consecutive fixes in the same bug area fail, stop incremental patching and pivot approach (e.g., path-based IO -> byte-based IO).
+- End-to-end success criteria for restore/backup:
+  - data restore success,
+  - image/file restore count verified (or explicit warning),
+  - UI outcome verified (no silent fallback/default state when assets should exist).
+
 ## Safety
 - DB v8 is locked unless explicit migration approval exists.
 - Backup/restore changes require rollback-safe behavior and validation.

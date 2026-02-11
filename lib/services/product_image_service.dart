@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/painting.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -41,10 +42,12 @@ class ProductImageService {
   }) async {
     try {
       final target = await _getImageFile(productId);
+      await FileImage(target).evict();
       if (target.existsSync()) {
         await target.delete();
       }
       await File(sourceImage.path).copy(target.path);
+      await FileImage(target).evict();
       return true;
     } catch (_) {
       return false;
@@ -54,10 +57,12 @@ class ProductImageService {
   static Future<bool> deleteProductImage(int productId) async {
     try {
       final target = await _getImageFile(productId);
+      await FileImage(target).evict();
       if (!target.existsSync()) {
         return true;
       }
       await target.delete();
+      await FileImage(target).evict();
       return true;
     } catch (_) {
       return false;

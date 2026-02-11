@@ -36,9 +36,10 @@ class RestoreFailure implements Exception {
 }
 
 class RestoreResult {
-  const RestoreResult({required this.targetPath});
+  const RestoreResult({required this.targetPath, this.restoredImageCount = 0});
 
   final String targetPath;
+  final int restoredImageCount;
 }
 
 class BackupService {
@@ -51,6 +52,13 @@ class BackupService {
   static const String _zipEntryImagesDir = 'product_images';
   static const String _zipEntryManifest = 'manifest.json';
   static const int _zipFormatVersion = 2;
+  static const Set<String> _imageExtensions = {
+    '.jpg',
+    '.jpeg',
+    '.png',
+    '.webp',
+    '.heic',
+  };
 
   static Future<BackupResult> backupDatabase({bool shareAfter = true}) async {
     final dbPath = await DatabaseHelper.instance.getDatabasePath();
@@ -247,97 +255,60 @@ class BackupService {
 
   static Future<RestoreResult> _restoreFromPath(String sourcePath) async {
     final extension = p.extension(sourcePath).toLowerCase();
+    if (extension != '.db' && extension != '.zip') {
+      throw Exception('Format file harus .zip atau .db');
+    }
     if (extension == '.db') {
-      return _restoreSnapshotFromDb(sourcePath);
+      final dbBytes = await _readBackupBytes(sourcePath);
+      return _restoreSnapshotFromDbBytes(dbBytes);
     }
-    if (extension == '.zip') {
-      return _restoreSnapshotFromZip(sourcePath);
-    }
-    throw Exception('Format file harus .zip atau .db');
+    final zipBytes = await _readBackupBytes(sourcePath);
+    return _restoreSnapshotFromZipBytes(zipBytes);
   }
 
-  static Future<RestoreResult> _restoreSnapshotFromDb(
-    String dbSourcePath,
-  ) async {
-    final sourceFile = File(dbSourcePath);
+  static Future<List<int>> _readBackupBytes(String sourcePath) async {
+    final sourceFile = File(sourcePath);
     if (!await sourceFile.exists()) {
-      throw Exception('File backup tidak ditemukan.');
+      throw Exception(
+        'File backup tidak dapat diakses. Coba salin file ke folder Download lalu pilih ulang.',
+      );
     }
+    try {
+      return await sourceFile.readAsBytes();
+    } catch (error) {
+      throw Exception(
+        'Gagal membaca file backup dari sumber yang dipilih: $error',
+      );
+    }
+  }
+
+  static Future<RestoreResult> _restoreSnapshotFromDbBytes(
+    List<int> dbBytes,
+  ) async {
     return _replaceLocalData(
-      dbSourcePath: dbSourcePath,
-      imageSourceDirPath: null,
+      dbBytes: dbBytes,
+      imageFiles: null,
     );
   }
 
-  static Future<RestoreResult> _restoreSnapshotFromZip(
-    String zipSourcePath,
+  static Future<RestoreResult> _restoreSnapshotFromZipBytes(
+    List<int> zipBytes,
   ) async {
-    final zipFile = File(zipSourcePath);
-    if (!await zipFile.exists()) {
-      throw Exception('File backup tidak ditemukan.');
-    }
+    final archive = ZipDecoder().decodeBytes(zipBytes, verify: true);
+    _validateBackupManifest(archive);
 
-    final tempRoot = await getTemporaryDirectory();
-    final extractDir = Directory(
-      p.join(
-        tempRoot.path,
-        'restore_zip_${DateTime.now().millisecondsSinceEpoch}',
-      ),
+    final dbBytes = _resolveDbBytesFromArchive(archive);
+    final imageFiles = _resolveImageBytesFromArchive(archive);
+
+    return _replaceLocalData(
+      dbBytes: dbBytes,
+      imageFiles: imageFiles,
     );
-    if (extractDir.existsSync()) {
-      await extractDir.delete(recursive: true);
-    }
-    await extractDir.create(recursive: true);
-
-    try {
-      final archive = ZipDecoder().decodeBytes(
-        await zipFile.readAsBytes(),
-        verify: true,
-      );
-      await _extractArchiveSafely(archive, extractDir.path);
-
-      String dbSourcePath = p.join(extractDir.path, _zipEntryDbName);
-      if (!File(dbSourcePath).existsSync()) {
-        final fallbackDb = extractDir
-            .listSync(recursive: true)
-            .whereType<File>()
-            .firstWhere(
-              (file) => file.path.toLowerCase().endsWith('.db'),
-              orElse: () => File(''),
-            );
-        if (fallbackDb.path.isEmpty) {
-          throw RestoreFailure(
-            'Isi backup .zip tidak valid (database tidak ditemukan).',
-            rolledBack: false,
-          );
-        }
-        dbSourcePath = fallbackDb.path;
-      }
-
-      String? imageSourceDirPath;
-      final imageDir = Directory(p.join(extractDir.path, _zipEntryImagesDir));
-      if (imageDir.existsSync()) {
-        imageSourceDirPath = imageDir.path;
-      }
-
-      return _replaceLocalData(
-        dbSourcePath: dbSourcePath,
-        imageSourceDirPath: imageSourceDirPath,
-      );
-    } finally {
-      try {
-        if (extractDir.existsSync()) {
-          await extractDir.delete(recursive: true);
-        }
-      } catch (_) {
-        // ignore cleanup failures
-      }
-    }
   }
 
   static Future<RestoreResult> _replaceLocalData({
-    required String dbSourcePath,
-    String? imageSourceDirPath,
+    required List<int> dbBytes,
+    Map<String, List<int>>? imageFiles,
   }) async {
     await DatabaseHelper.instance.closeDatabase();
 
@@ -397,16 +368,35 @@ class BackupService {
     }
 
     try {
-      await File(dbSourcePath).copy(targetPath);
-      if (imageSourceDirPath != null) {
-        await _copyDirectory(Directory(imageSourceDirPath), imageDir);
+      final targetParentDir = Directory(p.dirname(targetPath));
+      if (!await targetParentDir.exists()) {
+        await targetParentDir.create(recursive: true);
+      }
+      try {
+        await targetFile.writeAsBytes(dbBytes, flush: true);
+      } catch (error) {
+        throw RestoreFailure(
+          'Gagal menulis file database backup ke lokasi aplikasi.',
+          rolledBack: true,
+          cause: 'target=$targetPath error=$error',
+        );
+      }
+      var restoredImageCount = 0;
+      if (imageFiles != null && imageFiles.isNotEmpty) {
+        await imageDir.create(recursive: true);
+        for (final entry in imageFiles.entries) {
+          final safeName = p.basename(entry.key);
+          final targetImagePath = p.join(imageDir.path, safeName);
+          await File(targetImagePath).writeAsBytes(entry.value, flush: true);
+          restoredImageCount += 1;
+        }
       }
 
       final appVersion = DatabaseHelper.instance.getDatabaseVersion();
       final verifyDb = await openDatabase(targetPath, readOnly: true);
       final versionRows = await verifyDb.rawQuery('PRAGMA user_version');
       final tableRows = await verifyDb.rawQuery(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name='transactions'",
+        "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('transactions','categories','products','transaction_items')",
       );
       await verifyDb.close();
 
@@ -425,9 +415,36 @@ class BackupService {
           rolledBack: true,
         );
       }
-      if (tableRows.isEmpty) {
+      final tableNames = <String>{};
+      for (final row in tableRows) {
+        final value = row['name'];
+        if (value is String) {
+          tableNames.add(value);
+        }
+      }
+      const requiredBaseTables = <String>{
+        'transactions',
+        'categories',
+        'products',
+      };
+      final missingBaseTables = requiredBaseTables.difference(tableNames);
+      if (missingBaseTables.isNotEmpty) {
         throw RestoreFailure(
-          'Struktur database tidak dikenali. Data lama dikembalikan.',
+          'Struktur database tidak valid. Tabel wajib tidak lengkap: ${missingBaseTables.join(', ')}.',
+          rolledBack: true,
+        );
+      }
+      // transaction_items wajib untuk backup yang memang sudah v8.
+      // Untuk backup versi lama (< v8), tabel ini akan dibuat otomatis via onUpgrade.
+      final requiresItemsTable = restoredVersion >= 8;
+      final hasItemsTable = tableNames.contains('transaction_items');
+      final missingTables =
+          requiresItemsTable && !hasItemsTable
+              ? const <String>{'transaction_items'}
+              : const <String>{};
+      if (missingTables.isNotEmpty) {
+        throw RestoreFailure(
+          'Struktur database tidak valid. Tabel wajib tidak lengkap: ${missingTables.join(', ')}.',
           rolledBack: true,
         );
       }
@@ -439,7 +456,10 @@ class BackupService {
       if (await rollbackImageDir.exists()) {
         await rollbackImageDir.delete(recursive: true);
       }
-      return RestoreResult(targetPath: targetPath);
+      return RestoreResult(
+        targetPath: targetPath,
+        restoredImageCount: restoredImageCount,
+      );
     } catch (error) {
       try {
         if (await targetFile.exists()) {
@@ -458,10 +478,68 @@ class BackupService {
       } catch (_) {
         // rollback best effort
       }
+      if (error is RestoreFailure) {
+        throw RestoreFailure(
+          error.message,
+          rolledBack: true,
+          cause: error.cause ?? error,
+        );
+      }
+      final detail = _restoreErrorDetail(error);
       throw RestoreFailure(
-        'Restore gagal. Data dikembalikan ke versi sebelumnya.',
+        'Restore gagal. Data dikembalikan ke versi sebelumnya. Penyebab: $detail',
         rolledBack: true,
         cause: error,
+      );
+    }
+  }
+
+  static String _restoreErrorDetail(Object error) {
+    final raw = error.toString().replaceAll('\n', ' ').trim();
+    if (raw.isEmpty) {
+      return 'unknown error';
+    }
+    return raw.length > 220 ? '${raw.substring(0, 220)}...' : raw;
+  }
+
+  static void _validateBackupManifest(Archive archive) {
+    final manifestEntry = archive.firstWhere(
+      (entry) => _normalizeZipPath(entry.name) == _zipEntryManifest,
+      orElse: () => ArchiveFile('', 0, <int>[]),
+    );
+    // Legacy zip backup (sebelum manifest) tetap didukung.
+    if (manifestEntry.name.isEmpty || !manifestEntry.isFile) {
+      return;
+    }
+
+    final content = manifestEntry.content;
+    if (content is! List<int>) {
+      throw RestoreFailure(
+        'Format backup tidak dikenali (manifest rusak).',
+        rolledBack: false,
+      );
+    }
+
+    Map<String, dynamic> manifest;
+    try {
+      final decoded = jsonDecode(utf8.decode(content));
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException('Manifest bukan object.');
+      }
+      manifest = decoded;
+    } catch (_) {
+      throw RestoreFailure(
+        'Format backup tidak dikenali (manifest tidak valid).',
+        rolledBack: false,
+      );
+    }
+
+    final formatVersion = manifest['formatVersion'];
+    const supportedVersions = <int>{1, _zipFormatVersion};
+    if (formatVersion is! int || !supportedVersions.contains(formatVersion)) {
+      throw RestoreFailure(
+        'Format backup tidak didukung aplikasi ini.',
+        rolledBack: false,
       );
     }
   }
@@ -503,33 +581,6 @@ class BackupService {
     return ZipEncoder().encode(archive) ?? <int>[];
   }
 
-  static Future<void> _extractArchiveSafely(
-    Archive archive,
-    String outputDirPath,
-  ) async {
-    for (final entry in archive) {
-      final normalizedName = _normalizeZipPath(entry.name);
-      if (normalizedName.isEmpty) {
-        continue;
-      }
-      final outputPath = p.normalize(p.join(outputDirPath, normalizedName));
-      if (!p.isWithin(outputDirPath, outputPath)) {
-        throw RestoreFailure('Isi backup .zip tidak valid.', rolledBack: false);
-      }
-      if (!entry.isFile) {
-        await Directory(outputPath).create(recursive: true);
-        continue;
-      }
-      await File(outputPath).create(recursive: true);
-      final data = entry.content;
-      if (data is List<int>) {
-        await File(outputPath).writeAsBytes(data, flush: true);
-        continue;
-      }
-      throw RestoreFailure('Isi backup .zip tidak valid.', rolledBack: false);
-    }
-  }
-
   static String _normalizeZipPath(String path) {
     return path.replaceAll('\\', '/').replaceAll(RegExp('^/+'), '');
   }
@@ -539,21 +590,59 @@ class BackupService {
     return Directory(p.join(docs.path, _zipEntryImagesDir));
   }
 
-  static Future<void> _copyDirectory(Directory from, Directory to) async {
-    if (!from.existsSync()) {
-      return;
-    }
-    await to.create(recursive: true);
-    for (final entity in from.listSync(recursive: true)) {
-      final relativePath = p.relative(entity.path, from: from.path);
-      final targetPath = p.join(to.path, relativePath);
-      if (entity is Directory) {
-        await Directory(targetPath).create(recursive: true);
-      } else if (entity is File) {
-        await File(targetPath).create(recursive: true);
-        await entity.copy(targetPath);
+  static List<int> _resolveDbBytesFromArchive(Archive archive) {
+    ArchiveFile? dbEntry;
+    for (final entry in archive) {
+      final normalized = _normalizeZipPath(entry.name).toLowerCase();
+      if (!entry.isFile) {
+        continue;
+      }
+      if (normalized == _zipEntryDbName.toLowerCase()) {
+        dbEntry = entry;
+        break;
+      }
+      if (normalized.endsWith('.db')) {
+        dbEntry ??= entry;
       }
     }
+    if (dbEntry == null) {
+      throw RestoreFailure(
+        'Isi backup .zip tidak valid (database tidak ditemukan).',
+        rolledBack: false,
+      );
+    }
+    final content = dbEntry.content;
+    if (content is! List<int>) {
+      throw RestoreFailure(
+        'Isi backup .zip tidak valid (database rusak).',
+        rolledBack: false,
+      );
+    }
+    return content;
+  }
+
+  static Map<String, List<int>> _resolveImageBytesFromArchive(Archive archive) {
+    final imageFiles = <String, List<int>>{};
+    for (final entry in archive) {
+      if (!entry.isFile) {
+        continue;
+      }
+      final normalized = _normalizeZipPath(entry.name);
+      final ext = p.extension(normalized).toLowerCase();
+      if (!_imageExtensions.contains(ext)) {
+        continue;
+      }
+      final content = entry.content;
+      if (content is! List<int>) {
+        continue;
+      }
+      final fileName = p.basename(normalized);
+      if (fileName.isEmpty) {
+        continue;
+      }
+      imageFiles[fileName] = content;
+    }
+    return imageFiles;
   }
 
   static Future<Directory?> _resolveDownloadDir() async {

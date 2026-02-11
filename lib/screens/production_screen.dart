@@ -91,8 +91,9 @@ class _ProductionScreenState extends State<ProductionScreen> {
     try {
       return await ImagePicker().pickImage(
         source: source,
-        imageQuality: 80,
-        maxWidth: 1600,
+        imageQuality: 75,
+        maxWidth: 1024,
+        maxHeight: 1024,
       );
     } catch (_) {
       if (!mounted) {
@@ -307,10 +308,12 @@ class _ProductionScreenState extends State<ProductionScreen> {
         productId: newProductId,
         sourceImage: selectedImage!,
       );
+      await context.read<ProductProvider>().loadProducts();
     }
     if (!mounted) {
       return;
     }
+    setState(() {});
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -527,12 +530,15 @@ class _ProductionScreenState extends State<ProductionScreen> {
           productId: product.id!,
           sourceImage: selectedImage!,
         );
+        await context.read<ProductProvider>().loadProducts();
       } else if (removeCurrentImage) {
         imageSaved = await ProductImageService.deleteProductImage(product.id!);
+        await context.read<ProductProvider>().loadProducts();
       }
       if (!mounted) {
         return;
       }
+      setState(() {});
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(

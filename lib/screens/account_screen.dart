@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
@@ -182,15 +183,17 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  Future<bool> _confirmRestore() async {
+  Future<bool> _confirmRestore({bool isLegacyDb = false}) async {
+    final message =
+        isLegacyDb
+            ? 'Peringatan: Restore file database lama (.db) akan mengganti data saat ini dan menghapus semua foto produk lokal karena file .db tidak menyimpan data foto. Lanjutkan?'
+            : 'Peringatan: Data saat ini akan dihapus dan diganti dengan data backup. Lanjutkan?';
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text('Konfirmasi Restore'),
-          content: const Text(
-            'Peringatan: Data saat ini akan dihapus dan diganti dengan data backup. Lanjutkan?',
-          ),
+          content: Text(message),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -208,11 +211,39 @@ class _AccountScreenState extends State<AccountScreen> {
   }
 
   Future<void> _restoreManual() async {
-    final confirmed = await _confirmRestore();
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.any,
+      withData: false,
+      allowMultiple: false,
+    );
+    if (result == null || result.files.isEmpty) {
+      return;
+    }
+    final sourcePath = result.files.single.path;
+    if (sourcePath == null || sourcePath.isEmpty) {
+      if (!mounted) {
+        return;
+      }
+      _showSnackBar(context, 'File backup tidak valid.', isError: true);
+      return;
+    }
+
+    final extension = p.extension(sourcePath).toLowerCase();
+    if (extension != '.zip' && extension != '.db') {
+      if (!mounted) {
+        return;
+      }
+      _showSnackBar(context, 'Format file harus .zip atau .db', isError: true);
+      return;
+    }
+
+    final confirmed = await _confirmRestore(isLegacyDb: extension == '.db');
     if (!confirmed) {
       return;
     }
-    await _performRestore(() => BackupService.restoreDatabase());
+    await _performRestore(
+      () => BackupService.restoreDatabaseFromPath(sourcePath),
+    );
   }
 
   Future<void> _restoreAutoBackup() async {
