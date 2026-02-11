@@ -21,6 +21,7 @@ All notable changes to this project will be documented in this file.
 - Riwayat: result counter dan subtitle match saat pencarian aktif.
 - Smart Backup: reminder dan auto-backup hanya berjalan jika ada perubahan data sejak backup terakhir.
 - Menu debug Akun: tombol cloud sekarang melakukan backup/restore Google Drive (Android).
+- Validasi fitur cloud dilakukan di Android; kendala keychain/signing macOS dicatat sebagai batasan environment development.
 
 ---
 

@@ -13,10 +13,22 @@ This file defines working rules and expectations for AI agents collaborating on 
 - When changing transaction timestamps, update filters and exports consistently.
 - Backup/restore changes must be tested against rollback + schema/structure validation.
 - Android file picker uses `FileType.any`; validate `.db` manually in app logic.
-- Before each commit, update `AGENTS.md`, `PROJECT_NOTES.md`, `spec.md`, `CHANGELOG.md`, and `README.md` as needed to reflect the latest progress and keep them in sync.
+- Before each commit, review `AGENTS.md`, `PROJECT_NOTES.md`, `spec.md`, `CHANGELOG.md`, and `README.md` and update only the files impacted by the change (avoid noisy doc-only edits for trivial refactors/typos).
 - Dashboard experiments should happen on a `codex/` feature branch until approved.
 - Shorthand: `unc` = Update docs first (`AGENTS.md`, `PROJECT_NOTES.md`, `spec.md`, `CHANGELOG.md`, `README.md` as needed) **then** commit. Jadi cukup bilang “jalankan `unc`” tanpa menambahkan “update docs +” lagi.
 - Release notes live in `CHANGELOG.md` (timeline v0.9.0 → v1.0.0-rc3).
+- Default engineering mode:
+  - Apply best-practice defaults automatically for UX, reliability, security, and data safety (no need to wait for user to type "best practice").
+  - For high-risk or uncertain decisions, verify against official/primary references first.
+- Blocker handling (timebox):
+  - Timebox platform-specific blockers to max 45–60 minutes or 3 focused attempts.
+  - If still blocked, declare blocker clearly, propose lowest-risk alternative path, and continue progress (do not stall the sprint).
+  - Record unresolved platform issues as known limitations with context and workaround.
+- Definition of Done per feature slice:
+  - Code implemented.
+  - Minimal validation/testing completed on target platform.
+  - Relevant docs synced (only impacted docs).
+  - Commit completed with focused message.
 - Commit practice:
   - Commit after each coherent, testable change or feature slice.
   - Commit before switching to a different task/feature.
