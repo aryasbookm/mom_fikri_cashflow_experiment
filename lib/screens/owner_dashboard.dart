@@ -258,6 +258,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
             .fold<int>(0, (sum, product) => sum + product.stock);
         final lowStock = productProvider.products
             .where((product) => product.isActive)
+            .where((product) => product.minStock > 0)
             .where((product) => product.stock <= product.minStock)
             .toList();
 

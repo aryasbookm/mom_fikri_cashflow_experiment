@@ -21,7 +21,7 @@ class ProductModel {
       name: map['name'] as String,
       price: map['price'] as int,
       stock: map['stock'] as int? ?? 0,
-      minStock: map['min_stock'] as int? ?? 5,
+      minStock: map['min_stock'] as int? ?? 0,
       isActive: (map['is_active'] as int? ?? 1) == 1,
     );
   }

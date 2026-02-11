@@ -150,7 +150,7 @@ class _ProductionScreenState extends State<ProductionScreen> {
   Future<void> _addProduct() async {
     final nameController = TextEditingController();
     final priceController = TextEditingController();
-    final minStockController = TextEditingController(text: '5');
+    final minStockController = TextEditingController(text: '0');
     bool isActive = true;
     XFile? selectedImage;
     final result = await showDialog<bool>(
@@ -288,7 +288,7 @@ class _ProductionScreenState extends State<ProductionScreen> {
 
     final name = nameController.text.trim();
     final price = int.tryParse(priceController.text.trim()) ?? 0;
-    final minStock = int.tryParse(minStockController.text.trim()) ?? 5;
+    final minStock = int.tryParse(minStockController.text.trim()) ?? 0;
     if (name.isEmpty || price <= 0 || minStock < 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Nama dan harga wajib diisi.')),
@@ -491,7 +491,7 @@ class _ProductionScreenState extends State<ProductionScreen> {
 
     final name = nameController.text.trim();
     final price = int.tryParse(priceController.text.trim()) ?? 0;
-    final minStock = int.tryParse(minStockController.text.trim()) ?? 5;
+    final minStock = int.tryParse(minStockController.text.trim()) ?? 0;
     if (name.isEmpty || price <= 0 || minStock < 0) {
       if (!mounted) {
         return;

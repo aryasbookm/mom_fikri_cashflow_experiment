@@ -39,7 +39,7 @@ class ProductProvider extends ChangeNotifier {
   Future<int> addProduct(
     String name,
     int price, {
-    int minStock = 5,
+    int minStock = 0,
     bool isActive = true,
   }) async {
     final Database db = await DatabaseHelper.instance.database;

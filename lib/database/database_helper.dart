@@ -114,7 +114,7 @@ class DatabaseHelper {
         name TEXT NOT NULL UNIQUE,
         price INTEGER NOT NULL,
         stock INTEGER NOT NULL DEFAULT 0,
-        min_stock INTEGER NOT NULL DEFAULT 5,
+        min_stock INTEGER NOT NULL DEFAULT 0,
         is_active INTEGER NOT NULL DEFAULT 1
       )
     ''');
@@ -216,7 +216,7 @@ class DatabaseHelper {
         'name': product['name'],
         'price': product['price'],
         'min_stock': 5,
-        'is_active': 1,
+        'is_active': 0,
       });
     }
   }
@@ -263,7 +263,7 @@ class DatabaseHelper {
     }
     if (oldVersion < 6) {
       await db.execute(
-        'ALTER TABLE products ADD COLUMN min_stock INTEGER NOT NULL DEFAULT 5',
+        'ALTER TABLE products ADD COLUMN min_stock INTEGER NOT NULL DEFAULT 0',
       );
     }
     if (oldVersion < 7) {

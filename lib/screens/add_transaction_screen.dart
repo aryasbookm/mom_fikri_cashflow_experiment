@@ -856,12 +856,14 @@ class _ProductGrid extends StatelessWidget {
                         final crossAxisCount =
                             maxWidth < 700 ? 2 : (maxWidth < 1100 ? 3 : 4);
                         final childAspectRatio =
-                            maxWidth < 700 ? 0.95 : (maxWidth < 1100 ? 1.25 : 1.4);
+                            maxWidth < 700 ? 1.18 : (maxWidth < 1100 ? 1.3 : 1.4);
                         final tileWidth =
                             (maxWidth - ((crossAxisCount - 1) * 12)) /
                             crossAxisCount;
-                        final avatarRadius =
-                            ((tileWidth * 0.14).clamp(24.0, 44.0)).toDouble();
+                        final avatarRadius = (maxWidth < 700
+                                ? (tileWidth * 0.17).clamp(30.0, 50.0)
+                                : (tileWidth * 0.14).clamp(26.0, 44.0))
+                            .toDouble();
 
                         return GridView.builder(
                           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -917,8 +919,8 @@ class _ProductGrid extends StatelessWidget {
                                   ],
                                 ),
                                 child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.start,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
                                     Stack(
                                       clipBehavior: Clip.none,
@@ -956,6 +958,7 @@ class _ProductGrid extends StatelessWidget {
                                     const SizedBox(height: 6),
                                     Text(
                                       currency.format(product.price),
+                                      textAlign: TextAlign.center,
                                       style: const TextStyle(
                                         color: Color(0xFF8D1B3D),
                                         fontWeight: FontWeight.w700,
@@ -967,6 +970,7 @@ class _ProductGrid extends StatelessWidget {
                                       product.name,
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
                                       style: const TextStyle(
                                         fontWeight: FontWeight.w700,
                                       ),
@@ -974,6 +978,7 @@ class _ProductGrid extends StatelessWidget {
                                     const SizedBox(height: 2),
                                     Text(
                                       'Stok: ${product.stock}',
+                                      textAlign: TextAlign.center,
                                       style: const TextStyle(
                                         color: Colors.grey,
                                         fontSize: 13,
