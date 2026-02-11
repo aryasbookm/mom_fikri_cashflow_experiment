@@ -15,6 +15,8 @@ All notable changes to this project will be documented in this file.
 - Restore dua jalur: file manual (file picker) dan auto-backup list internal.
 - Cloud Backup Android: upload database `.db` ke Google Drive `appDataFolder`.
 - Cloud Restore Android: pulihkan database dari backup cloud terbaru (`appDataFolder`).
+- Cloud Restore Picker Android: restore dari file cloud terpilih (bukan hanya latest) via bottom sheet list.
+- Cloud Metadata UI: tampilkan "Terakhir Backup Cloud" berdasarkan timestamp lokal backup cloud terakhir.
 
 ### Changed
 - Dashboard owner: ringkasan harian statis, analitik produk foldable default terbuka.

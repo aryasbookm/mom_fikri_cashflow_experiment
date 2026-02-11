@@ -97,7 +97,8 @@ Setiap fitur non-trivial dinyatakan siap merge jika lolos:
 - **Audit Log:** melihat transaksi yang dihapus, restore, hapus permanen.
 - **Backup & Restore:** backup DB ke `.db` (share + download), restore dengan rollback + validasi versi/struktur.
 - **Cloud Backup Android:** upload database `.db` ke Google Drive (`appDataFolder`).
-- **Cloud Restore Android:** download backup terbaru lalu timpa DB lokal secara aman (close DB → swap file → reopen DB).
+- **Cloud Restore Android:** pilih file backup cloud dari daftar (nama, tanggal, ukuran) lalu timpa DB lokal secara aman (close DB → swap file → reopen DB).
+- **Cloud Visibility:** UI menampilkan metadata lokal "Terakhir Backup Cloud" dari timestamp backup cloud terakhir.
 - **PIN Guard:** tab Akun meminta PIN owner, sesi 5 menit.
   - UI PIN mendukung panjang PIN variabel (submit manual).
   - Dialog PIN menyediakan opsi Logout/Ganti Akun (dengan konfirmasi).

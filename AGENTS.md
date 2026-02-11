@@ -12,10 +12,18 @@ Operational mechanics for implementation sessions (commands, commit flow, safety
 - After commits, use wording:
   - `Kalau sudah siap, silakan jalankan git push secara manual di terminal.`
 
+## Communication Standards
+- Use proactive heads-up labels before proceeding on risky or non-trivial work:
+  - `[HEADS-UP: PLAN]` before implementing a complex/new feature; propose plan first.
+  - `[HEADS-UP: TIMEBOX]` when debugging exceeds 3 focused loops or ~45 minutes; propose pivot/fallback.
+  - `[HEADS-UP: QUALITY]` before milestone commit/merge; verify Happy Path + Edge Case + Rollback/Recovery.
+  - `[HEADS-UP: DOCS]` when flow/architecture changes; list impacted docs only.
+
 ## Docs + Commit Workflow
 - Impacted-docs-only: update only docs affected by the change.
 - Shorthand:
   - `unc` = review/update impacted core docs first, then commit.
+  - `hld` = Hold / Answer Only: jawab/verifikasi saja; jangan jalankan tool, jangan edit file, jangan commit.
 - Core docs to consider on `unc`:
   - `AGENTS.md`
   - `AI_CONTEXT.md`

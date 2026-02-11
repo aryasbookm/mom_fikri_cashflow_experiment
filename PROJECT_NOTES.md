@@ -98,7 +98,9 @@ Catatan:
    - Restore via file picker (Android pakai `FileType.any`) dengan rollback, validasi versi, dan validasi struktur
    - Restore memicu refresh data + reset filter laporan/riwayat
    - Cloud backup Android: upload database `.db` ke Google Drive `appDataFolder`
-   - Cloud restore Android: pulihkan dari backup cloud terbaru
+   - Cloud restore Android: pulihkan dari backup cloud terbaru atau file cloud terpilih (via daftar)
+   - UI cloud menampilkan metadata lokal: "Terakhir Backup Cloud: [tanggal/jam]"
+   - Restore cloud menampilkan bottom sheet daftar backup (nama file, tanggal modifikasi, ukuran)
 
 9. **Dashboard Owner (Ringkas)**
    - Menampilkan Top Produk (7 hari) untuk keputusan produksi

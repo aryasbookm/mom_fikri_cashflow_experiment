@@ -25,6 +25,7 @@ class AccountPanel extends StatelessWidget {
     this.isTestingCloud = false,
     this.onRestoreCloudBackup,
     this.isRestoringCloud = false,
+    this.cloudBackupInfoText,
   });
 
   final VoidCallback onLogout;
@@ -40,6 +41,7 @@ class AccountPanel extends StatelessWidget {
   final bool isTestingCloud;
   final VoidCallback? onRestoreCloudBackup;
   final bool isRestoringCloud;
+  final String? cloudBackupInfoText;
 
   Future<void> _pickProfileImage(BuildContext context) async {
     final picker = ImagePicker();
@@ -296,6 +298,16 @@ class AccountPanel extends StatelessWidget {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                             : null,
+                  ),
+                if (cloudBackupInfoText != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: Text(
+                      cloudBackupInfoText!,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: Colors.black54),
+                    ),
                   ),
                 if (onRestoreCloudBackup != null)
                   _SettingsTile(

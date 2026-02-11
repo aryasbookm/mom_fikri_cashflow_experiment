@@ -1,10 +1,12 @@
 import 'dart:io';
 
 import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sign_in_as_googleapis_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../database/database_helper.dart';
 
@@ -19,6 +21,7 @@ class CloudDriveService {
   CloudDriveService();
 
   static const _scopes = [drive.DriveApi.driveAppdataScope];
+  static const lastCloudBackupTimeKey = 'last_cloud_backup_time';
 
   Future<bool> uploadDatabaseBackup() async {
     final signIn = GoogleSignIn(scopes: _scopes);
@@ -47,6 +50,11 @@ class CloudDriveService {
             ..parents = ['appDataFolder'];
 
       await api.files.create(file, uploadMedia: media, $fields: 'id');
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        lastCloudBackupTimeKey,
+        DateTime.now().toIso8601String(),
+      );
       return true;
     } finally {
       client.close();
@@ -57,7 +65,46 @@ class CloudDriveService {
     return uploadDatabaseBackup();
   }
 
-  Future<CloudRestoreResult?> restoreLatestDatabaseBackup() async {
+  Future<List<Map<String, dynamic>>> getCloudBackupList() async {
+    final signIn = GoogleSignIn(scopes: _scopes);
+    final account = await signIn.signIn();
+    if (account == null) {
+      return [];
+    }
+    final client = await signIn.authenticatedClient();
+    if (client == null) {
+      return [];
+    }
+    try {
+      final api = drive.DriveApi(client);
+      final list = await api.files.list(
+        q: "'appDataFolder' in parents and trashed = false and name contains 'Backup_MomFiqry_' and name contains '.db'",
+        orderBy: 'modifiedTime desc',
+        spaces: 'appDataFolder',
+        pageSize: 50,
+        $fields: 'files(id,name,modifiedTime,size)',
+      );
+      final files = list.files ?? const <drive.File>[];
+      debugPrint('Cloud backup list fetched: ${files.length} files');
+      return files
+          .where((file) => file.id != null && file.name != null)
+          .map(
+            (file) => <String, dynamic>{
+              'id': file.id!,
+              'name': file.name!,
+              'modifiedTime': file.modifiedTime?.toIso8601String(),
+              'size': file.size,
+            },
+          )
+          .toList();
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<CloudRestoreResult?> restoreLatestDatabaseBackup({
+    String? fileId,
+  }) async {
     final signIn = GoogleSignIn(scopes: _scopes);
     final account = await signIn.signIn();
     if (account == null) {
@@ -72,27 +119,39 @@ class CloudDriveService {
     File? tempRestoreFile;
     try {
       final api = drive.DriveApi(client);
-      final list = await api.files.list(
-        q: "'appDataFolder' in parents and trashed = false and name contains 'Backup_MomFiqry_' and name contains '.db'",
-        orderBy: 'createdTime desc',
-        spaces: 'appDataFolder',
-        pageSize: 1,
-        $fields: 'files(id,name,createdTime)',
-      );
-
-      final files = list.files ?? const [];
-      if (files.isEmpty) {
-        throw Exception('Backup cloud tidak ditemukan.');
+      String? targetFileId = fileId;
+      String? targetFileName;
+      if (targetFileId == null) {
+        final list = await api.files.list(
+          q: "'appDataFolder' in parents and trashed = false and name contains 'Backup_MomFiqry_' and name contains '.db'",
+          orderBy: 'modifiedTime desc',
+          spaces: 'appDataFolder',
+          pageSize: 1,
+          $fields: 'files(id,name,modifiedTime)',
+        );
+        final files = list.files ?? const [];
+        if (files.isEmpty) {
+          throw Exception('Backup cloud tidak ditemukan.');
+        }
+        final latest = files.first;
+        targetFileId = latest.id;
+        targetFileName = latest.name;
       }
-      final latest = files.first;
-      final fileId = latest.id;
-      final fileName = latest.name;
-      if (fileId == null || fileName == null) {
-        throw Exception('Metadata backup cloud tidak valid.');
+
+      if (targetFileId == null) {
+        throw Exception('ID backup cloud tidak valid.');
+      }
+      if (targetFileName == null) {
+        final metadata =
+            await api.files.get(targetFileId, $fields: 'id,name') as drive.File;
+        if (metadata.name == null) {
+          throw Exception('Metadata backup cloud tidak valid.');
+        }
+        targetFileName = metadata.name;
       }
 
       final mediaResponse = await api.files.get(
-        fileId,
+        targetFileId,
         downloadOptions: drive.DownloadOptions.fullMedia,
       );
       if (mediaResponse is! drive.Media) {
@@ -125,7 +184,10 @@ class CloudDriveService {
       await tempRestoreFile.copy(dbPath);
       await DatabaseHelper.instance.database;
 
-      return CloudRestoreResult(fileId: fileId, fileName: fileName);
+      if (targetFileName == null) {
+        throw Exception('Nama backup cloud tidak valid.');
+      }
+      return CloudRestoreResult(fileId: targetFileId, fileName: targetFileName);
     } catch (error) {
       try {
         if (rollbackFile != null && await rollbackFile.exists()) {

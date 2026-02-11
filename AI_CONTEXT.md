@@ -81,6 +81,8 @@ lib/
 - Filename format: `Backup_MomFiqry_YYYYMMDD_HHMMSS.db`.
 - Cloud restore downloads latest backup, safely swaps local DB:
   - close DB → replace file → reopen DB → reload providers.
+- Cloud restore supports file picker list from `appDataFolder` (select specific backup by id).
+- Account UI shows local cloud metadata: "Terakhir Backup Cloud" (`last_cloud_backup_time`).
 - UI:
   - owner sees cloud backup/restore actions.
   - `[DEV] Simulasi Lupa Backup (4 Hari)` only appears in debug mode (`kDebugMode`).
@@ -97,6 +99,16 @@ lib/
   - `spec.md`
   - `CHANGELOG.md`
   - `README.md`
+
+## 6.1) Session Modes & Shorthand (Quick Reference)
+- Purpose: provide fast, shared control signals for all agents in-session.
+- Active shorthand:
+  - `unc` = update impacted core docs first, then commit.
+  - `hld` = hold mode (answer/verify only; no tool run, no file edits, no commit).
+- Communication modes:
+  - `hld` should be treated as a hard stop for execution actions.
+  - Normal mode resumes when user gives explicit execution instruction.
+- Source of operational detail: `AGENTS.md` (this section is summary only).
 
 ## 7) Working SOP
 - Best practice is default (no need to wait for keyword).

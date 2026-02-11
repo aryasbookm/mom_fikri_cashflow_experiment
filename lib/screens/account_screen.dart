@@ -29,11 +29,13 @@ class _AccountScreenState extends State<AccountScreen> {
   bool _autoBackupEnabled = true;
   bool _isTestingCloud = false;
   bool _isRestoringCloud = false;
+  String? _lastCloudBackupTimeIso;
 
   @override
   void initState() {
     super.initState();
     _loadAutoBackupSetting();
+    _loadLastCloudBackupTime();
   }
 
   Future<void> _loadAutoBackupSetting() async {
@@ -55,6 +57,18 @@ class _AccountScreenState extends State<AccountScreen> {
     }
     setState(() {
       _autoBackupEnabled = value;
+    });
+  }
+
+  Future<void> _loadLastCloudBackupTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _lastCloudBackupTimeIso = prefs.getString(
+        CloudDriveService.lastCloudBackupTimeKey,
+      );
     });
   }
 
@@ -327,6 +341,9 @@ class _AccountScreenState extends State<AccountScreen> {
         success ? 'Backup ke Google Drive berhasil.' : 'Login dibatalkan.',
         isError: !success,
       );
+      if (success) {
+        await _loadLastCloudBackupTime();
+      }
     } catch (error) {
       if (!mounted) {
         return;
@@ -349,6 +366,10 @@ class _AccountScreenState extends State<AccountScreen> {
     if (_isRestoringCloud) {
       return;
     }
+    final selected = await _showCloudRestorePicker();
+    if (selected == null) {
+      return;
+    }
     final confirmed = await _confirmRestore();
     if (!confirmed) {
       return;
@@ -357,7 +378,9 @@ class _AccountScreenState extends State<AccountScreen> {
       _isRestoringCloud = true;
     });
     try {
-      final result = await CloudDriveService().restoreLatestDatabaseBackup();
+      final result = await CloudDriveService().restoreLatestDatabaseBackup(
+        fileId: selected.fileId,
+      );
       if (!mounted) {
         return;
       }
@@ -386,6 +409,156 @@ class _AccountScreenState extends State<AccountScreen> {
         });
       }
     }
+  }
+
+  Future<_CloudBackupChoice?> _showCloudRestorePicker() async {
+    late Future<List<Map<String, dynamic>>> backupsFuture;
+    backupsFuture = CloudDriveService().getCloudBackupList();
+    return showModalBottomSheet<_CloudBackupChoice>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return SafeArea(
+              child: FutureBuilder<List<Map<String, dynamic>>>(
+                future: backupsFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+
+                  if (snapshot.hasError) {
+                    return Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Gagal mengambil daftar backup cloud.',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '${snapshot.error}',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.black54),
+                          ),
+                          const SizedBox(height: 12),
+                          ElevatedButton(
+                            onPressed: () {
+                              setModalState(() {
+                                backupsFuture =
+                                    CloudDriveService().getCloudBackupList();
+                              });
+                            },
+                            child: const Text('Coba Lagi'),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  final items = snapshot.data ?? const [];
+                  if (items.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text(
+                        'Tidak ada backup cloud ditemukan.',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    );
+                  }
+
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const ListTile(
+                        title: Text(
+                          'Pilih Backup Cloud',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      Flexible(
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: items.length,
+                          itemBuilder: (context, index) {
+                            final item = items[index];
+                            final id = item['id'] as String;
+                            final rawName = item['name'] as String;
+                            final displayName = rawName.replaceAll(
+                              'Backup_MomFiqry_',
+                              '',
+                            );
+                            final modifiedTime =
+                                item['modifiedTime'] as String?;
+                            final size = item['size'];
+                            final subtitle =
+                                '${_formatCloudDate(modifiedTime)} • ${_formatCloudSize(size)}';
+                            return ListTile(
+                              leading: const Icon(
+                                Icons.cloud_download_outlined,
+                              ),
+                              title: Text(displayName),
+                              subtitle: Text(subtitle),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap:
+                                  () => Navigator.of(context).pop(
+                                    _CloudBackupChoice(
+                                      fileId: id,
+                                      fileName: rawName,
+                                    ),
+                                  ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  String _formatCloudDate(String? iso) {
+    if (iso == null || iso.isEmpty) {
+      return '-';
+    }
+    final parsed = DateTime.tryParse(iso);
+    if (parsed == null) {
+      return '-';
+    }
+    return DateFormat('d MMM yyyy HH:mm', 'id_ID').format(parsed.toLocal());
+  }
+
+  String _formatCloudSize(dynamic rawSize) {
+    final bytes = int.tryParse('$rawSize');
+    if (bytes == null || bytes <= 0) {
+      return 'Ukuran -';
+    }
+    if (bytes < 1024) {
+      return '$bytes B';
+    }
+    if (bytes < 1024 * 1024) {
+      return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    }
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
+  }
+
+  String _cloudBackupInfoText() {
+    if (_lastCloudBackupTimeIso == null || _lastCloudBackupTimeIso!.isEmpty) {
+      return 'Terakhir Backup Cloud: Belum ada backup';
+    }
+    final formatted = _formatCloudDate(_lastCloudBackupTimeIso);
+    return 'Terakhir Backup Cloud: $formatted';
   }
 
   @override
@@ -449,6 +622,7 @@ class _AccountScreenState extends State<AccountScreen> {
       onRestoreCloudBackup: isOwner ? _restoreFromCloud : null,
       isTestingCloud: _isTestingCloud,
       isRestoringCloud: _isRestoringCloud,
+      cloudBackupInfoText: isOwner ? _cloudBackupInfoText() : null,
     );
   }
 }
@@ -459,4 +633,11 @@ class _AutoBackupChoice {
   const _AutoBackupChoice({required this.filePath});
 
   final String filePath;
+}
+
+class _CloudBackupChoice {
+  const _CloudBackupChoice({required this.fileId, required this.fileName});
+
+  final String fileId;
+  final String fileName;
 }
