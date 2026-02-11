@@ -149,6 +149,7 @@ Catatan:
 - Login: gradient maroon + card modern
 - Produk grid diurutkan: stok > 0 di atas, lalu alfabetis
 - Owner dashboard: combo card saldo + mini pemasukan/pengeluaran
+- Owner dashboard fresh install: banner backup dan widget/toggle peringatan stok tidak ditampilkan sampai ada data operasional (transaksi/produksi/stok nyata).
 - Target harian opsional (progress + confetti) di header dashboard
 - Transaksi sekarang menyimpan timestamp lengkap (tanggal + jam)
 - Akun: tampilan grouped sections (Pengaturan, Administrasi, Data & Keamanan)

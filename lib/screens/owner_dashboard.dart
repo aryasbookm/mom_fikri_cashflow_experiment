@@ -250,8 +250,10 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
         final todayExpense = todayTx
             .where((tx) => tx.type == 'OUT')
             .fold<int>(0, (sum, tx) => sum + tx.amount);
-        final hasData = provider.transactions.isNotEmpty ||
-            productProvider.products.isNotEmpty;
+        final hasOperationalData =
+            provider.transactions.isNotEmpty ||
+            productionProvider.todayItems.isNotEmpty ||
+            productProvider.products.any((product) => product.stock > 0);
         final totalStock = productProvider.products
             .fold<int>(0, (sum, product) => sum + product.stock);
         final lowStock = productProvider.products
@@ -273,7 +275,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (_showBackupAlert && hasData)
+                  if (_showBackupAlert && hasOperationalData)
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -326,7 +328,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                         ],
                       ),
                     ),
-                  if (_showBackupAlert) const SizedBox(height: 12),
+                  if (_showBackupAlert && hasOperationalData)
+                    const SizedBox(height: 12),
                   if (_isLoadingTarget)
                     const SizedBox(height: 12)
                   else if (_dailyTarget <= 0)
@@ -354,13 +357,15 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                       onClear: _clearDailyTarget,
                     ),
                   const SizedBox(height: 8),
-                  _StockAlertToggle(
-                    value: _showStockAlert,
-                    onChanged: _setShowStockAlert,
-                  ),
-                  if (lowStock.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    if (_showStockAlert) _LowStockCard(products: lowStock),
+                  if (hasOperationalData) ...[
+                    _StockAlertToggle(
+                      value: _showStockAlert,
+                      onChanged: _setShowStockAlert,
+                    ),
+                    if (lowStock.isNotEmpty && _showStockAlert) ...[
+                      const SizedBox(height: 12),
+                      _LowStockCard(products: lowStock),
+                    ],
                   ],
                   const SizedBox(height: 12),
                   const Text(

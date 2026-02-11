@@ -20,6 +20,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 - Dashboard owner: ringkasan harian statis, analitik produk foldable default terbuka.
+- Dashboard owner empty-state: banner backup dan kartu/toggle peringatan stok disembunyikan saat aplikasi masih fresh install (belum ada data operasional).
 - Riwayat: result counter dan subtitle match saat pencarian aktif.
 - Smart Backup: reminder dan auto-backup hanya berjalan jika ada perubahan data sejak backup terakhir.
 - Menu debug Akun: tombol cloud sekarang melakukan backup/restore Google Drive (Android).
