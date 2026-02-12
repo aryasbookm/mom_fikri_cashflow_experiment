@@ -288,12 +288,10 @@ class AccountPanel extends StatelessWidget {
                             )
                             : null,
                   ),
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: Text(
-                    'Catatan: auto-backup lokal dipicu saat app ditutup (dengan jeda minimum 5 menit). Backup manual mendukung mode Data Saja atau Lengkap + Foto. Restore data-only akan mempertahankan foto lokal (tidak disinkronisasi).',
-                    style: TextStyle(color: Colors.black54, fontSize: 12),
-                  ),
+                const _InfoExpansionTile(
+                  title: 'Info & Catatan Penting',
+                  content:
+                      'Auto-backup lokal dipicu saat app ditutup (dengan jeda minimum 5 menit). Backup manual mendukung mode Data Saja atau Lengkap + Foto. Restore data-only akan mempertahankan foto lokal (tidak disinkronisasi).',
                 ),
               ],
             ),
@@ -306,6 +304,13 @@ class AccountPanel extends StatelessWidget {
             const _SectionTitle(title: 'Backup Cloud'),
             _SectionCard(
               children: [
+                if (onToggleAutoCloudBackup != null)
+                  _SwitchTile(
+                    icon: Icons.cloud_sync_outlined,
+                    label: 'Auto-Backup Cloud (Harian)',
+                    value: autoCloudBackupEnabled,
+                    onChanged: onToggleAutoCloudBackup!,
+                  ),
                 if (onTestCloudConnection != null)
                   _SettingsTile(
                     icon: Icons.cloud_done_outlined,
@@ -324,19 +329,10 @@ class AccountPanel extends StatelessWidget {
                             : null,
                   ),
                 if (onToggleAutoCloudBackup != null)
-                  _SwitchTile(
-                    icon: Icons.cloud_sync_outlined,
-                    label: 'Auto-Backup Cloud (Harian)',
-                    value: autoCloudBackupEnabled,
-                    onChanged: onToggleAutoCloudBackup!,
-                  ),
-                if (onToggleAutoCloudBackup != null)
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-                    child: Text(
-                      'Mode otomatis selalu Data Saja (tanpa foto) untuk hemat kuota.',
-                      style: TextStyle(color: Colors.black54, fontSize: 12),
-                    ),
+                  const _InfoExpansionTile(
+                    title: 'Info & Catatan Penting',
+                    content:
+                        'Mode otomatis cloud selalu Data Saja (tanpa foto) untuk hemat kuota.',
                   ),
                 if (cloudBackupInfoText != null)
                   Padding(
@@ -601,6 +597,40 @@ class _SwitchTile extends StatelessWidget {
       ),
       value: value,
       onChanged: (value) => onChanged(value),
+    );
+  }
+}
+
+class _InfoExpansionTile extends StatelessWidget {
+  const _InfoExpansionTile({required this.title, required this.content});
+
+  final String title;
+  final String content;
+
+  @override
+  Widget build(BuildContext context) {
+    return ExpansionTile(
+      tilePadding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+      childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      leading: const Icon(Icons.info_outline, color: Color(0xFF8D1B3D)),
+      title: Text(
+        title,
+        style: const TextStyle(
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+      ),
+      iconColor: Colors.black54,
+      collapsedIconColor: Colors.black45,
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            content,
+            style: const TextStyle(color: Colors.black54, fontSize: 12),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -190,6 +190,8 @@ Catatan:
   - Backup Cloud
   - Pengaturan Google Drive
   - Style: ListTile + card sections (lebih rapat & terstruktur)
+  - Urutan aksi backup diseragamkan: Auto-Backup -> Cadangkan -> Pulihkan (lokal & cloud).
+  - Catatan backup dipindah ke panel foldable "Info & Catatan Penting" agar layar lebih bersih.
 
 ## Build & Icon
 - Icon: `assets/icon_toko.png`

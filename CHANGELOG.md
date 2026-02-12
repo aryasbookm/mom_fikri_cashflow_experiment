@@ -59,6 +59,9 @@ All notable changes to this project will be documented in this file.
   - jika backup `includeImages=true`, restore mengganti database + folder foto produk,
   - jika backup `includeImages=false`, restore hanya mengganti database dan mempertahankan foto lokal.
 - Seed produk awal kini default **arsip** (`is_active=0`) dengan `min_stock=5`; produk arsip auto-aktif saat stok bertambah.
+- UI Akun backup:
+  - urutan item lokal/cloud diseragamkan menjadi **Auto-Backup -> Cadangkan -> Pulihkan**,
+  - catatan backup panjang dibuat foldable lewat panel **Info & Catatan Penting** (default tertutup).
 
 ---
 
