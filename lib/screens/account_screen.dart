@@ -30,6 +30,7 @@ class _AccountScreenState extends State<AccountScreen> {
   bool _autoBackupEnabled = true;
   bool _isTestingCloud = false;
   bool _isRestoringCloud = false;
+  bool _autoCloudBackupEnabled = false;
   bool _isCloudAccountActionInProgress = false;
   bool _isCloudAccountConnected = false;
   String? _lastCloudBackupTimeIso;
@@ -38,6 +39,7 @@ class _AccountScreenState extends State<AccountScreen> {
   void initState() {
     super.initState();
     _loadAutoBackupSetting();
+    _loadAutoCloudBackupSetting();
     _loadLastCloudBackupTime();
     _refreshCloudAccountStatus();
   }
@@ -61,6 +63,28 @@ class _AccountScreenState extends State<AccountScreen> {
     }
     setState(() {
       _autoBackupEnabled = value;
+    });
+  }
+
+  Future<void> _loadAutoCloudBackupSetting() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _autoCloudBackupEnabled =
+          prefs.getBool(CloudDriveService.autoCloudBackupEnabledKey) ?? false;
+    });
+  }
+
+  Future<void> _setAutoCloudBackupEnabled(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(CloudDriveService.autoCloudBackupEnabledKey, value);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _autoCloudBackupEnabled = value;
     });
   }
 
@@ -938,6 +962,8 @@ class _AccountScreenState extends State<AccountScreen> {
       onToggleAutoBackup: isOwner ? _setAutoBackupEnabled : null,
       onTestCloudConnection: isOwner ? _uploadCloudBackup : null,
       onRestoreCloudBackup: isOwner ? _restoreFromCloud : null,
+      autoCloudBackupEnabled: _autoCloudBackupEnabled,
+      onToggleAutoCloudBackup: isOwner ? _setAutoCloudBackupEnabled : null,
       onCloudAccountAction: isOwner ? _handleCloudAccountAction : null,
       isTestingCloud: _isTestingCloud,
       isRestoringCloud: _isRestoringCloud,

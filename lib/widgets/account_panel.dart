@@ -25,6 +25,8 @@ class AccountPanel extends StatelessWidget {
     this.isTestingCloud = false,
     this.onRestoreCloudBackup,
     this.isRestoringCloud = false,
+    this.autoCloudBackupEnabled = false,
+    this.onToggleAutoCloudBackup,
     this.cloudBackupInfoText,
     this.onCloudAccountAction,
     this.isCloudAccountActionInProgress = false,
@@ -44,6 +46,8 @@ class AccountPanel extends StatelessWidget {
   final bool isTestingCloud;
   final VoidCallback? onRestoreCloudBackup;
   final bool isRestoringCloud;
+  final bool autoCloudBackupEnabled;
+  final ValueChanged<bool>? onToggleAutoCloudBackup;
   final String? cloudBackupInfoText;
   final VoidCallback? onCloudAccountAction;
   final bool isCloudAccountActionInProgress;
@@ -312,6 +316,21 @@ class AccountPanel extends StatelessWidget {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                             : null,
+                  ),
+                if (onToggleAutoCloudBackup != null)
+                  _SwitchTile(
+                    icon: Icons.cloud_sync_outlined,
+                    label: 'Auto-Backup Cloud (Harian)',
+                    value: autoCloudBackupEnabled,
+                    onChanged: onToggleAutoCloudBackup!,
+                  ),
+                if (onToggleAutoCloudBackup != null)
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: Text(
+                      'Mode otomatis selalu Data Saja (tanpa foto) untuk hemat kuota.',
+                      style: TextStyle(color: Colors.black54, fontSize: 12),
+                    ),
                   ),
                 if (cloudBackupInfoText != null)
                   Padding(

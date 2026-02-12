@@ -25,6 +25,9 @@ class CloudDriveService {
   static const String _backupQuery =
       "'appDataFolder' in parents and trashed = false and name contains 'Backup_MomFiqry_' and (name contains '.zip' or name contains '.db')";
   static const lastCloudBackupTimeKey = 'last_cloud_backup_time';
+  static const autoCloudBackupEnabledKey = 'auto_cloud_backup_enabled';
+  static const lastAutoCloudBackupKey = 'last_auto_cloud_backup_timestamp';
+  static const lastCloudBackupDataCountKey = 'last_cloud_backup_data_count';
   static final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: _scopes);
 
   static bool isNetworkError(Object error) {
@@ -71,8 +74,14 @@ class CloudDriveService {
     return restored != null;
   }
 
-  Future<bool> uploadDatabaseBackup({bool includeImages = false}) async {
-    final account = await _googleSignIn.signIn();
+  Future<bool> uploadDatabaseBackup({
+    bool includeImages = false,
+    bool interactiveSignIn = true,
+  }) async {
+    final account =
+        interactiveSignIn
+            ? await _googleSignIn.signIn()
+            : await _googleSignIn.signInSilently();
     if (account == null) {
       return false;
     }
@@ -114,6 +123,12 @@ class CloudDriveService {
         lastCloudBackupTimeKey,
         DateTime.now().toIso8601String(),
       );
+      await prefs.setInt(
+        lastAutoCloudBackupKey,
+        DateTime.now().millisecondsSinceEpoch,
+      );
+      final currentCount = await BackupService.getCurrentDataCount();
+      await prefs.setInt(lastCloudBackupDataCountKey, currentCount);
       try {
         if (await backupFile.exists()) {
           await backupFile.delete();
@@ -124,6 +139,41 @@ class CloudDriveService {
       return true;
     } finally {
       client.close();
+    }
+  }
+
+  Future<bool> performAutoCloudBackup() async {
+    final prefs = await SharedPreferences.getInstance();
+    final enabled = prefs.getBool(autoCloudBackupEnabledKey) ?? false;
+    if (!enabled) {
+      return false;
+    }
+    final signedIn = await isSignedIn();
+    if (!signedIn) {
+      return false;
+    }
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final lastAuto = prefs.getInt(lastAutoCloudBackupKey);
+    if (lastAuto != null) {
+      final diff = now - lastAuto;
+      if (diff < const Duration(hours: 24).inMilliseconds) {
+        return false;
+      }
+    }
+    final currentCount = await BackupService.getCurrentDataCount();
+    final lastCloudCount = prefs.getInt(lastCloudBackupDataCountKey);
+    final hasChanges =
+        lastCloudCount == null ? currentCount > 0 : currentCount != lastCloudCount;
+    if (!hasChanges) {
+      return false;
+    }
+    try {
+      return await uploadDatabaseBackup(
+        includeImages: false,
+        interactiveSignIn: false,
+      );
+    } catch (_) {
+      return false;
     }
   }
 

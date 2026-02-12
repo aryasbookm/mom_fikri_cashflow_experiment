@@ -114,6 +114,12 @@ Catatan:
    - Cloud backup mode hybrid:
      - default: data-only (tanpa foto) untuk backup rutin,
      - opsi manual: full backup (dengan foto) untuk migrasi perangkat.
+   - Auto-Backup Cloud (opsional):
+     - toggle manual di menu Akun (default OFF),
+     - berjalan maksimal 1x/24 jam,
+     - hanya untuk owner yang sudah login Google Drive,
+     - hanya mode data-only (`includeImages=false`),
+     - hanya jalan jika ada perubahan data sejak backup cloud terakhir.
    - Retensi cloud: simpan maksimal **10** file backup terbaru; file cloud tertua dipruning otomatis setelah upload sukses.
    - Cloud restore Android: pulihkan dari backup cloud terbaru atau file cloud terpilih (via daftar)
    - UI cloud menampilkan metadata lokal: "Terakhir Backup Cloud: [tanggal/jam]"

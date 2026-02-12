@@ -10,6 +10,7 @@ import '../providers/product_provider.dart';
 import '../providers/production_provider.dart';
 import '../providers/transaction_provider.dart';
 import '../services/backup_service.dart';
+import '../services/cloud_drive_service.dart';
 import 'add_transaction_screen.dart';
 import 'history_screen.dart';
 
@@ -46,6 +47,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
         ConfettiController(duration: const Duration(seconds: 2));
     _loadDailyTarget();
     _loadBackupReminder();
+    _runAutoCloudBackup();
   }
 
   @override
@@ -85,6 +87,14 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     setState(() {
       _showBackupAlert = isOverdue;
     });
+  }
+
+  Future<void> _runAutoCloudBackup() async {
+    try {
+      await CloudDriveService().performAutoCloudBackup();
+    } catch (_) {
+      // best-effort background task
+    }
   }
 
   Future<void> _backupDatabase() async {
