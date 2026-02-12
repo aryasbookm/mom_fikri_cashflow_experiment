@@ -111,6 +111,10 @@ Catatan:
    - Restore via file picker (Android pakai `FileType.any`) dengan rollback, validasi versi, dan validasi struktur
    - Restore memicu refresh data + reset filter laporan/riwayat
    - Cloud backup Android: upload backup `.zip` (database + foto produk) ke Google Drive `appDataFolder`
+   - Cloud backup mode hybrid:
+     - default: data-only (tanpa foto) untuk backup rutin,
+     - opsi manual: full backup (dengan foto) untuk migrasi perangkat.
+   - Retensi cloud: simpan maksimal **10** file backup terbaru; file cloud tertua dipruning otomatis setelah upload sukses.
    - Cloud restore Android: pulihkan dari backup cloud terbaru atau file cloud terpilih (via daftar)
    - UI cloud menampilkan metadata lokal: "Terakhir Backup Cloud: [tanggal/jam]"
    - Restore cloud menampilkan bottom sheet daftar backup (nama file, tanggal modifikasi, ukuran)

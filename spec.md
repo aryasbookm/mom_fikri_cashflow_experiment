@@ -104,6 +104,8 @@ Setiap fitur non-trivial dinyatakan siap merge jika lolos:
 - **Audit Log:** melihat transaksi yang dihapus, restore, hapus permanen.
 - **Backup & Restore:** backup `.zip` (database + foto produk) dengan share/download, restore rollback-safe + validasi versi/struktur. Restore `.db` lama tetap didukung (database only).
 - **Cloud Backup Android:** upload paket backup (`.zip`) ke Google Drive (`appDataFolder`).
+  - Default cloud backup menggunakan mode data-only; mode full (dengan foto produk) tersedia sebagai opsi manual.
+  - Retensi cloud dibatasi 10 file terbaru dengan auto-prune file terlama.
 - **Cloud Restore Android:** pilih file backup cloud dari daftar (nama, tanggal, ukuran) lalu restore aman untuk `.zip` maupun `.db` lama.
 - **Cloud Visibility:** UI menampilkan metadata lokal "Terakhir Backup Cloud" dari timestamp backup cloud terakhir.
 - **Cloud UX Polish:** item backup terbaru ditandai badge "Terbaru", error jaringan ditampilkan sebagai pesan ramah pengguna, dan tersedia opsi "Ganti Akun Google Drive" (disconnect).

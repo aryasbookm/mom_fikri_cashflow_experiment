@@ -21,6 +21,9 @@ class CloudDriveService {
   CloudDriveService();
 
   static const _scopes = [drive.DriveApi.driveAppdataScope];
+  static const int _maxCloudBackups = 10;
+  static const String _backupQuery =
+      "'appDataFolder' in parents and trashed = false and name contains 'Backup_MomFiqry_' and (name contains '.zip' or name contains '.db')";
   static const lastCloudBackupTimeKey = 'last_cloud_backup_time';
   static final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: _scopes);
 
@@ -68,7 +71,7 @@ class CloudDriveService {
     return restored != null;
   }
 
-  Future<bool> uploadDatabaseBackup() async {
+  Future<bool> uploadDatabaseBackup({bool includeImages = false}) async {
     final account = await _googleSignIn.signIn();
     if (account == null) {
       return false;
@@ -80,7 +83,7 @@ class CloudDriveService {
     try {
       final localBackup = await BackupService.backupDatabase(
         shareAfter: false,
-        includeImages: true,
+        includeImages: includeImages,
       );
       final backupFile = File(localBackup.tempPath);
       if (!await backupFile.exists()) {
@@ -100,6 +103,11 @@ class CloudDriveService {
             ..parents = ['appDataFolder'];
 
       await api.files.create(file, uploadMedia: media, $fields: 'id');
+      try {
+        await _pruneOldBackups(api);
+      } catch (error) {
+        debugPrint('Cloud prune skipped due to error: $error');
+      }
       await BackupService.markBackupSuccess();
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
@@ -135,7 +143,7 @@ class CloudDriveService {
     try {
       final api = drive.DriveApi(client);
       final list = await api.files.list(
-        q: "'appDataFolder' in parents and trashed = false and name contains 'Backup_MomFiqry_' and (name contains '.zip' or name contains '.db')",
+        q: _backupQuery,
         orderBy: 'modifiedTime desc',
         spaces: 'appDataFolder',
         pageSize: 50,
@@ -178,7 +186,7 @@ class CloudDriveService {
       String? targetFileName;
       if (targetFileId == null) {
         final list = await api.files.list(
-          q: "'appDataFolder' in parents and trashed = false and name contains 'Backup_MomFiqry_' and (name contains '.zip' or name contains '.db')",
+          q: _backupQuery,
           orderBy: 'modifiedTime desc',
           spaces: 'appDataFolder',
           pageSize: 1,
@@ -256,5 +264,39 @@ class CloudDriveService {
     final min = value.minute.toString().padLeft(2, '0');
     final s = value.second.toString().padLeft(2, '0');
     return '$y$m${d}_$h$min$s';
+  }
+
+  Future<void> _pruneOldBackups(drive.DriveApi api) async {
+    var pageToken = '';
+    final all = <drive.File>[];
+    do {
+      final list = await api.files.list(
+        q: _backupQuery,
+        orderBy: 'modifiedTime desc',
+        spaces: 'appDataFolder',
+        pageSize: 100,
+        pageToken: pageToken.isEmpty ? null : pageToken,
+        $fields: 'nextPageToken, files(id,name,modifiedTime)',
+      );
+      final files = list.files ?? const <drive.File>[];
+      all.addAll(files.where((f) => f.id != null));
+      pageToken = list.nextPageToken ?? '';
+    } while (pageToken.isNotEmpty);
+
+    if (all.length <= _maxCloudBackups) {
+      return;
+    }
+    final staleFiles = all.sublist(_maxCloudBackups);
+    for (final file in staleFiles) {
+      final id = file.id;
+      if (id == null) {
+        continue;
+      }
+      try {
+        await api.files.delete(id);
+      } catch (error) {
+        debugPrint('Failed to prune cloud backup $id: $error');
+      }
+    }
   }
 }

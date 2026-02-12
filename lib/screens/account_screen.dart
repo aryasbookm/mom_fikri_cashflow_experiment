@@ -439,17 +439,27 @@ class _AccountScreenState extends State<AccountScreen> {
     if (_isTestingCloud) {
       return;
     }
+    final includeImages = await _showCloudBackupModeDialog();
+    if (includeImages == null) {
+      return;
+    }
     setState(() {
       _isTestingCloud = true;
     });
     try {
-      final success = await CloudDriveService().uploadDatabaseBackup();
+      final success = await CloudDriveService().uploadDatabaseBackup(
+        includeImages: includeImages,
+      );
       if (!mounted) {
         return;
       }
       _showSnackBar(
         context,
-        success ? 'Backup ke Google Drive berhasil.' : 'Login dibatalkan.',
+        success
+            ? (includeImages
+                ? 'Backup cloud lengkap (dengan foto) berhasil.'
+                : 'Backup cloud data-only berhasil.')
+            : 'Login dibatalkan.',
         isError: !success,
       );
       if (success) {
@@ -475,6 +485,62 @@ class _AccountScreenState extends State<AccountScreen> {
         });
       }
     }
+  }
+
+  Future<bool?> _showCloudBackupModeDialog() async {
+    var includeImages = false;
+    return showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              title: const Text('Mode Backup Cloud'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: includeImages,
+                    onChanged: (value) {
+                      setModalState(() {
+                        includeImages = value ?? false;
+                      });
+                    },
+                    title: Text(
+                      includeImages
+                          ? 'Backup lengkap (DB + foto produk)'
+                          : 'Backup cepat (data saja)',
+                    ),
+                    subtitle: Text(
+                      includeImages
+                          ? 'Ukuran lebih besar, cocok untuk migrasi perangkat.'
+                          : 'Disarankan untuk backup rutin cloud.',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Cloud menyimpan maksimal 10 backup terbaru; file lama dihapus otomatis.',
+                    style: TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Batal'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(includeImages),
+                  child: const Text('Backup'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _restoreFromCloud() async {
