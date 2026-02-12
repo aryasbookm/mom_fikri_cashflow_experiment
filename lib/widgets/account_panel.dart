@@ -244,20 +244,23 @@ class AccountPanel extends StatelessWidget {
           ],
           if (onBackup != null || onRestore != null) ...[
             const SizedBox(height: 16),
-            const _SectionTitle(title: 'Data & Keamanan'),
+            const _SectionTitle(title: 'Backup Lokal'),
             _SectionCard(
               children: [
                 if (onToggleAutoBackup != null)
                   _SwitchTile(
                     icon: Icons.backup_outlined,
-                    label: 'Auto-backup Lokal',
+                    label: 'Auto-Backup Lokal (Harian)',
                     value: autoBackupEnabled,
                     onChanged: onToggleAutoBackup!,
                   ),
                 if (onBackup != null)
                   _SettingsTile(
                     icon: Icons.cloud_upload_outlined,
-                    label: isBackingUp ? 'Membuat Backup...' : 'Backup Data',
+                    label:
+                        isBackingUp
+                            ? 'Mencadangkan Lokal...'
+                            : 'Cadangkan ke Lokal Sekarang',
                     onTap: isBackingUp ? null : onBackup,
                     trailing:
                         isBackingUp
@@ -271,7 +274,10 @@ class AccountPanel extends StatelessWidget {
                 if (onRestore != null)
                   _SettingsTile(
                     icon: Icons.settings_backup_restore,
-                    label: isRestoring ? 'Memulihkan Data...' : 'Restore Data',
+                    label:
+                        isRestoring
+                            ? 'Memulihkan Lokal...'
+                            : 'Pulihkan dari Backup Lokal',
                     onTap: isRestoring ? null : onRestore,
                     trailing:
                         isRestoring
@@ -294,10 +300,10 @@ class AccountPanel extends StatelessWidget {
           ],
           if (onTestCloudConnection != null ||
               onRestoreCloudBackup != null ||
-              onCloudAccountAction != null ||
-              (kDebugMode && onDebugSimulateBackup != null)) ...[
+              onToggleAutoCloudBackup != null ||
+              cloudBackupInfoText != null) ...[
             const SizedBox(height: 16),
-            const _SectionTitle(title: 'Cloud & Debug'),
+            const _SectionTitle(title: 'Backup Cloud'),
             _SectionCard(
               children: [
                 if (onTestCloudConnection != null)
@@ -305,8 +311,8 @@ class AccountPanel extends StatelessWidget {
                     icon: Icons.cloud_done_outlined,
                     label:
                         isTestingCloud
-                            ? 'Backup ke Cloud...'
-                            : 'Backup ke Google Drive',
+                            ? 'Mencadangkan Cloud...'
+                            : 'Cadangkan ke Cloud Sekarang',
                     onTap: isTestingCloud ? null : onTestCloudConnection,
                     trailing:
                         isTestingCloud
@@ -347,8 +353,8 @@ class AccountPanel extends StatelessWidget {
                     icon: Icons.cloud_download_outlined,
                     label:
                         isRestoringCloud
-                            ? 'Restore dari Cloud...'
-                            : 'Restore dari Google Drive',
+                            ? 'Memulihkan Cloud...'
+                            : 'Pulihkan dari Google Drive',
                     onTap: isRestoringCloud ? null : onRestoreCloudBackup,
                     trailing:
                         isRestoringCloud
@@ -359,6 +365,15 @@ class AccountPanel extends StatelessWidget {
                             )
                             : null,
                   ),
+              ],
+            ),
+          ],
+          if (onCloudAccountAction != null ||
+              (kDebugMode && onDebugSimulateBackup != null)) ...[
+            const SizedBox(height: 16),
+            const _SectionTitle(title: 'Pengaturan Google Drive'),
+            _SectionCard(
+              children: [
                 if (onCloudAccountAction != null)
                   _SettingsTile(
                     icon:
