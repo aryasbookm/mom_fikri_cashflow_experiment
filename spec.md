@@ -86,6 +86,7 @@ Setiap fitur non-trivial dinyatakan siap merge jika lolos:
 
 ## 5. Modul Utama
 - **Kasir (Pemasukan):** grid produk + input jumlah, validasi stok, ringkasan sebelum simpan.
+  - Keranjang bersifat foldable (default tertutup) dengan sticky summary bar (`jumlah produk + total`) agar area pilih produk tetap luas.
 - **Pengeluaran:** input manual, kategori dinamis.
 - **Produksi & Stok:** produksi menambah stok, penjualan & waste mengurangi stok.
 - **Produksi & Stok:** produksi menambah stok, penjualan & waste mengurangi stok.

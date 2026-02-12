@@ -32,6 +32,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   DateTime _selectedDate = DateTime.now();
   bool _manualIncomeInput = false;
   bool _isLoading = false;
+  bool _isCartExpanded = false;
   final List<_CartItem> _cartItems = [];
   String _productSearchQuery = '';
 
@@ -113,6 +114,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     _descriptionController.clear();
     _productSearchController.clear();
     _productSearchQuery = '';
+    _isCartExpanded = false;
   }
 
   int _cartTotal() {
@@ -232,6 +234,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           _cartItems.isEmpty ? '' : _cartTotal().toString();
       _descriptionController.text =
           _cartItems.isEmpty ? '' : 'Penjualan ${_cartItems.length} item';
+      if (_cartItems.isEmpty) {
+        _isCartExpanded = false;
+      }
     });
   }
 
@@ -387,9 +392,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       symbol: 'Rp ',
       decimalDigits: 0,
     );
-    final showSummaryCard = _type == 'IN' &&
-        !_manualIncomeInput &&
-        _cartItems.isNotEmpty;
+    final showCartSection =
+        _type == 'IN' && !_manualIncomeInput && _cartItems.isNotEmpty;
+    final cartTotal = _cartTotal();
 
     return Scaffold(
       appBar: AppBar(
@@ -545,81 +550,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                             },
                           ),
                         ),
-                        if (_cartItems.isNotEmpty) ...[
-                          const SizedBox(height: 12),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Keranjang',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                SizedBox(
-                                  height: 140,
-                                  child: ListView.separated(
-                                    itemCount: _cartItems.length,
-                                    separatorBuilder: (_, __) =>
-                                        const Divider(height: 12),
-                                    itemBuilder: (context, index) {
-                                      final item = _cartItems[index];
-                                      final product =
-                                          context.read<ProductProvider>()
-                                              .getById(item.productId);
-                                      final stock = product?.stock ?? 0;
-                                      return Row(
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              '${item.name} • ${item.quantity} pcs',
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ),
-                                          Text(
-                                            currency.format(
-                                              item.price * item.quantity,
-                                            ),
-                                            style: const TextStyle(
-                                                color: Colors.grey),
-                                          ),
-                                          IconButton(
-                                            icon: const Icon(Icons.edit,
-                                                size: 18),
-                                            onPressed: () =>
-                                                _editCartItem(item, stock),
-                                          ),
-                                          IconButton(
-                                            icon: const Icon(Icons.close,
-                                                size: 18),
-                                            onPressed: () =>
-                                                _removeCartItem(item),
-                                          ),
-                                        ],
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
                       ],
                     )
                   : ListView(
@@ -658,45 +588,118 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       ],
                     ),
             ),
-            if (showSummaryCard)
+            if (showCartSection && _isCartExpanded)
               Container(
                 margin: const EdgeInsets.only(top: 12),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.green.shade50,
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.green.shade200),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _descriptionController.text.trim(),
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            currency.format(
-                              int.tryParse(_amountController.text.trim()) ?? 0,
-                            ),
-                            style: const TextStyle(color: Colors.grey),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () {
-                        setState(() {
-                          _resetProductSelection();
-                        });
-                      },
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
                     ),
                   ],
+                ),
+                child: SizedBox(
+                  height: 160,
+                  child: ListView.separated(
+                    itemCount: _cartItems.length,
+                    separatorBuilder: (_, __) => const Divider(height: 12),
+                    itemBuilder: (context, index) {
+                      final item = _cartItems[index];
+                      final product =
+                          context.read<ProductProvider>().getById(item.productId);
+                      final stock = product?.stock ?? 0;
+                      return Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${item.name} • ${item.quantity} pcs',
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          Text(
+                            currency.format(item.price * item.quantity),
+                            style: const TextStyle(color: Colors.grey),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.edit, size: 18),
+                            onPressed: () => _editCartItem(item, stock),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close, size: 18),
+                            onPressed: () => _removeCartItem(item),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ),
+            if (showCartSection)
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade200),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.06),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () {
+                    setState(() {
+                      _isCartExpanded = !_isCartExpanded;
+                    });
+                  },
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.shopping_cart_outlined),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '${_cartItems.length} Produk',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        Text(
+                          currency.format(cartTotal),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF8D1B3D),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          _isCartExpanded
+                              ? Icons.keyboard_arrow_down
+                              : Icons.keyboard_arrow_up,
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          tooltip: 'Kosongkan keranjang',
+                          onPressed: () {
+                            setState(() {
+                              _resetProductSelection();
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             const SizedBox(height: 16),
