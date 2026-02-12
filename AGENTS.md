@@ -1,3 +1,7 @@
+> **Tentang:** Aturan operasional AI eksekutor untuk menjaga konsistensi implementasi dan workflow repo.
+> **Audiens:** AI coding agent dan developer yang menjalankan sesi implementasi.
+> **Konteks:** Dibaca sebelum eksekusi perubahan, commit, dan handoff sesi.
+
 # AGENTS.md — Operational Workflow (Codex-Focused)
 
 ⚠️ FOR PROJECT CONTEXT & ARCHITECTURE, READ `AI_CONTEXT.md` FIRST.

@@ -1,3 +1,7 @@
+> **Tentang:** Spesifikasi teknis sistem: arsitektur, modul, alur, dan aturan data.
+> **Audiens:** Developer, reviewer teknis, penguji skripsi.
+> **Konteks:** Referensi teknis utama saat implementasi, pengujian, dan audit fitur.
+
 # SPESIFIKASI PROYEK: TOKO KUE MOM FIQRY
 
 ## 1. Identitas Aplikasi

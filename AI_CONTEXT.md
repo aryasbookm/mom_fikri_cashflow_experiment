@@ -1,3 +1,7 @@
+> **Tentang:** Memori konteks proyek lintas sesi: status sistem, batasan, dan peta teknis inti.
+> **Audiens:** AI agent, developer, reviewer teknis.
+> **Konteks:** Dibaca sebelum sesi kerja untuk mencegah asumsi usang dan menjaga keputusan tetap konsisten.
+
 # AI_CONTEXT.md
 
 > ⚠️ ALL AI AGENTS MUST READ THIS FILE BEFORE STARTING A SESSION.

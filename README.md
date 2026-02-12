@@ -1,3 +1,7 @@
+> **Tentang:** Pintu gerbang proyek: ringkasan produk, fitur, dan peta dokumentasi.
+> **Audiens:** Penguji, developer, kolaborator.
+> **Konteks:** Dibaca pertama kali saat onboarding atau review proyek.
+
 # Mom Fiqry Cashflow
 
 Aplikasi **Point of Sale (POS)** dan **Manajemen Stok** berbasis Flutter yang dikembangkan untuk membantu operasional "Toko Kue Mom Fiqry". Proyek ini merupakan bagian dari penelitian Skripsi.

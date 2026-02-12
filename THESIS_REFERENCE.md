@@ -1,3 +1,7 @@
+> **Tentang:** Rangkuman teknis siap pakai untuk Bab 3/4 skripsi (arsitektur, keputusan, milestone).
+> **Audiens:** Penulis skripsi, dosen penguji, reviewer akademik.
+> **Konteks:** Dipakai saat penyusunan naskah, persiapan sidang, dan jawaban teknis saat demo.
+
 # THESIS_REFERENCE — Toko Kue Mom Fiqry
 
 ## 1. Posisi Proyek (untuk Bab 1/3)

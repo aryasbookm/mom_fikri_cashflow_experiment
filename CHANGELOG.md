@@ -1,3 +1,7 @@
+> **Tentang:** Riwayat perubahan versi dan fitur proyek secara kronologis.
+> **Audiens:** Developer, penguji, reviewer rilis.
+> **Konteks:** Dipakai untuk tracking evolusi fitur, regression check, dan bukti progres skripsi.
+
 # Changelog
 
 All notable changes to this project will be documented in this file.

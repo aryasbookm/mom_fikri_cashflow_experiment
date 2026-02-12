@@ -1,3 +1,7 @@
+> **Tentang:** Catatan teknis aktif: status fitur, keputusan desain, dan checklist operasional.
+> **Audiens:** Developer, AI agent, reviewer teknis.
+> **Konteks:** Dipakai saat pengembangan harian, handoff, dan validasi sebelum merge.
+
 # Project Notes — Toko Kue Mom Fiqry
 
 ## Ringkasan
@@ -31,7 +35,7 @@ Prioritas (tanpa ubah DB v8):
    - Banner hanya muncul jika ada perubahan data sejak backup terakhir.
    - Catatan: auto-backup lokal saja tidak melindungi jika HP hilang; aman mulai dari reminder.
    - Jika auto-backup lokal ditambahkan: wajib toggle ON/OFF, retention 5–10 file terbaru, lokasi Download/App Documents.
-   - Cloud backup (Drive) sudah tersedia untuk Android: upload/restore file `.db` via Google Drive `appDataFolder`.
+   - Cloud backup (Drive) sudah tersedia untuk Android: upload/restore file `.zip` (hybrid) via Google Drive `appDataFolder` dan kompatibel restore `.db` legacy.
    - Catatan dev: pengujian macOS dapat terkendala keychain/signing environment (Personal Team).
    - Debug owner: tombol simulasi lupa backup (mundurkan timestamp 4 hari).
    - Auto-backup lokal: berjalan saat app paused/tutup sesi, jeda minimum 5 menit, simpan 5 file terakhir di `auto_backups/`.

@@ -1,3 +1,7 @@
+> **Tentang:** Panduan operasional singkat untuk pengguna akhir aplikasi (1 halaman).
+> **Audiens:** Owner/staff toko dan penguji yang menilai usability.
+> **Konteks:** Dipakai sebagai panduan cepat penggunaan harian dan lampiran skripsi.
+
 # Panduan User 1 Halaman — Toko Kue Mom Fiqry
 
 ## Tujuan
