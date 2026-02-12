@@ -67,7 +67,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     if (lastRun != null) {
       final elapsed = now
           .difference(DateTime.fromMillisecondsSinceEpoch(lastRun));
-      if (elapsed < const Duration(hours: 24)) {
+      if (elapsed < const Duration(minutes: 5)) {
         return;
       }
     }

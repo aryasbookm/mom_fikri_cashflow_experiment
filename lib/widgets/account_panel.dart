@@ -250,7 +250,7 @@ class AccountPanel extends StatelessWidget {
                 if (onToggleAutoBackup != null)
                   _SwitchTile(
                     icon: Icons.backup_outlined,
-                    label: 'Auto-Backup Lokal (Saat App Ditutup)',
+                    label: 'Auto-Backup Lokal (Setiap Sesi)',
                     value: autoBackupEnabled,
                     onChanged: onToggleAutoBackup!,
                   ),
@@ -291,7 +291,7 @@ class AccountPanel extends StatelessWidget {
                 const Padding(
                   padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
                   child: Text(
-                    'Catatan: auto-backup lokal dipicu saat app ditutup (maks 1x/24 jam). Backup manual mendukung mode Data Saja atau Lengkap + Foto. Restore data-only akan mempertahankan foto lokal (tidak disinkronisasi).',
+                    'Catatan: auto-backup lokal dipicu saat app ditutup (dengan jeda minimum 5 menit). Backup manual mendukung mode Data Saja atau Lengkap + Foto. Restore data-only akan mempertahankan foto lokal (tidak disinkronisasi).',
                     style: TextStyle(color: Colors.black54, fontSize: 12),
                   ),
                 ),

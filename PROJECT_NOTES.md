@@ -34,7 +34,7 @@ Prioritas (tanpa ubah DB v8):
    - Cloud backup (Drive) sudah tersedia untuk Android: upload/restore file `.db` via Google Drive `appDataFolder`.
    - Catatan dev: pengujian macOS dapat terkendala keychain/signing environment (Personal Team).
    - Debug owner: tombol simulasi lupa backup (mundurkan timestamp 4 hari).
-   - Auto-backup lokal: berjalan saat app paused, maksimal 1x/24 jam, simpan 5 file terakhir di `auto_backups/`.
+   - Auto-backup lokal: berjalan saat app paused/tutup sesi, jeda minimum 5 menit, simpan 5 file terakhir di `auto_backups/`.
    - Deteksi perubahan data memakai snapshot jumlah transaksi + produk + audit log.
    - Restore: dua jalur (manual file picker + auto-backup list internal).
 3. **Slow Moving Analytics**
