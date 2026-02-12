@@ -181,7 +181,10 @@ Catatan:
   - thumbnail produk rounded,
   - harga tanpa desimal agar cepat dibaca,
   - ukuran avatar responsif agar kartu terasa lebih terisi.
-- Akun: tampilan grouped sections (Pengaturan, Administrasi, Data & Keamanan)
+- Akun: tampilan grouped sections:
+  - Backup Lokal
+  - Backup Cloud
+  - Pengaturan Google Drive
   - Style: ListTile + card sections (lebih rapat & terstruktur)
 
 ## Build & Icon

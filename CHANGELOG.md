@@ -12,14 +12,16 @@ All notable changes to this project will be documented in this file.
 - Smart Backup Reminder + catatan rencana auto-backup lokal (toggle + retention) dan cloud backup fase berikutnya.
 - Debug owner: tombol simulasi lupa backup (mundurkan timestamp 4 hari).
 - Slow Moving Analytics: tampilkan 3–5 produk dengan penjualan terendah (30 hari terakhir) untuk insight operasional.
-- Auto-backup lokal: otomatis saat app paused, maksimal 1x/24 jam, simpan 5 file terakhir.
+- Auto-backup lokal: otomatis saat app paused dengan throttle 5 menit + guard perubahan data, simpan 5 file terakhir.
 - Restore dua jalur: file manual (file picker) dan auto-backup list internal.
-- Cloud Backup Android: upload database `.db` ke Google Drive `appDataFolder`.
+- Cloud Backup Android: upload backup `.zip` ke Google Drive `appDataFolder`.
 - Cloud Restore Android: pulihkan database dari backup cloud terbaru (`appDataFolder`).
 - Cloud Restore Picker Android: restore dari file cloud terpilih (bukan hanya latest) via bottom sheet list.
 - Cloud Metadata UI: tampilkan "Terakhir Backup Cloud" berdasarkan timestamp lokal backup cloud terakhir.
 - Backup format v2: paket `.zip` berisi database + folder `product_images` + metadata manifest.
 - Hybrid backup mode (manual): pilih **Data Only** (DB saja) atau **Full** (DB + foto produk), dengan flag `includeImages` di `manifest.json`.
+- Auto-Backup Cloud (opsional): owner-only, default OFF, data-only, maksimal 1x/24 jam, dan hanya saat ada perubahan data.
+- Akun: section backup kini konsisten menjadi **Backup Lokal / Backup Cloud / Pengaturan Google Drive**.
 - Produksi: filter daftar stok **Aktif / Arsip / Semua** (default: Aktif).
 - Guarded delete produk: hapus permanen hanya diizinkan jika stok `0` dan belum punya riwayat di `transaction_items`.
 
@@ -67,7 +69,7 @@ All notable changes to this project will be documented in this file.
 - Top Produk (7 hari) di dashboard owner.
 
 ### Changed
-- UI menu Akun dirombak menjadi grouped sections (Profil, Administrasi, Data & Keamanan).
+- UI menu Akun dirombak menjadi grouped sections terstruktur.
 - Android file picker untuk restore memakai `FileType.any` + validasi manual `.db`.
 
 ### Fixed
