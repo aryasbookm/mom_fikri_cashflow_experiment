@@ -37,8 +37,14 @@ For cashflow/financial logic, `Verify` is mandatory and must include:
 ## Docs + Commit Workflow
 - Impacted-docs-only: update only docs affected by the change.
 - If a new instruction is generic (cross-project), update global standard (`/Users/aryasaputra/Projects/_standards/AGENTS.template.md`) in the same session.
-- For non-trivial changes, run a mandatory MD Sync Check on core docs (`AI_CONTEXT.md`, `PROJECT_NOTES.md`, `spec.md`, `CHANGELOG.md`, `README.md`, `AGENTS.md`) and update all impacted files before commit.
-- If a core doc is intentionally unchanged, state it explicitly in handoff/summary as "checked, no update needed".
+- Use Tiered Doc Sync (pragmatic, not full-scan by default):
+  - Tier 1 (mandatory on non-trivial `unc`): `PROJECT_NOTES.md`, `spec.md`, `CHANGELOG.md`.
+  - Tier 2 (contextual): `AI_CONTEXT.md`, `TESTING_*.md` when context/testing flow changes.
+  - Tier 3 (milestone/release): `README.md`, `THESIS_REFERENCE.md`, `WORKFLOW.md`.
+- For each checked doc, record status in handoff/summary:
+  - `updated`, or
+  - `checked, no update needed`.
+- Full `.md` sweep is only required for pre-release, major handoff, or explicit user request.
 - Project Capsule baseline (repo ini):
   - maintain `WORKFLOW.md` di root repo,
   - gunakan fixed dev port per project (saat ini `3010`),

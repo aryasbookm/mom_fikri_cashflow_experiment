@@ -2,7 +2,7 @@
 
 > ⚠️ ALL AI AGENTS MUST READ THIS FILE BEFORE STARTING A SESSION.
 
-Last updated: 2026-02-11  
+Last updated: 2026-02-12  
 Project: **Mom Fiqry Cashflow**
 
 ## 1) Purpose
@@ -19,11 +19,11 @@ Hard rules for mentor/reviewer AI:
 - Return implementation advice in **Codex-ready prompt** format when action is requested.
 
 ## 3) Current Project State
-- Active workspace branch (current session): `codex/feat-product-photo-filesystem`
+- Active workspace branch (current session): `main`
 - Recent commits:
-  - `e980e82` feat: ship zip backup with image restore support
-  - `9e9dd05` docs: add source-label and md-sync check rules
-  - `098cd71` docs: sync context and changelog for filesystem product photos
+  - `e4f0fe7` docs: final sync notes changelog and thesis reference
+  - `cfdcfd5` feat: switch local auto-backup to 5-minute session throttle
+  - `b3f14ec` refactor: align account backup sections and labels
 - DB policy: **SQLite v8 locked** (no schema changes without migration approval).
 
 ## 3.5) Workspace Capsule (Operational)
@@ -91,12 +91,17 @@ lib/
 
 ## 4) Completed Cloud Scope (Android)
 - Google Sign-In + Drive integration works on Android.
-- Cloud backup uploads package `.zip` (DB + `product_images` + manifest) to Drive `appDataFolder`.
+- Cloud backup uploads package `.zip` to Drive `appDataFolder`.
+- Hybrid backup mode:
+  - data-only (`includeImages=false`) for routine backup,
+  - full (`includeImages=true`) for migration (includes `product_images`).
 - Filename format: `Backup_MomFiqry_YYYYMMDD_HHMMSS.zip`.
 - Cloud restore supports two formats:
   - `.zip` -> restore DB + product images with rollback-safe swap.
   - `.db` (legacy) -> restore DB only for backward compatibility.
 - Cloud restore supports file picker list from `appDataFolder` (select specific backup by id).
+- Cloud retention uses auto-prune (keep latest 10 backups).
+- Auto-cloud backup is optional (default OFF), owner-only, data-only, max 1x/24h, and only when data changed.
 - Account UI shows local cloud metadata: "Terakhir Backup Cloud" (`last_cloud_backup_time`).
 - UI:
   - owner sees cloud backup/restore actions.
@@ -108,6 +113,16 @@ lib/
 ## 5) Known Limitation
 - macOS Google Sign-In path can fail with keychain/signing environment issues (Personal Team context).
 - This is treated as a platform/dev-environment limitation; Android flow is validated end-to-end.
+- Data-only restore across different devices can cause image mismatch (local images preserved, not synchronized).
+
+## 5.1) Local Safety Features
+- Guarded delete produk:
+  - permanent delete only if stock is `0` and product has no `transaction_items` reference.
+  - otherwise user must use archive flow.
+- Local auto-backup:
+  - trigger on app `paused`,
+  - throttle 5 minutes + data-changed guard,
+  - retention 5 latest files.
 
 ## 6) Documentation Policy
 - Use impacted-docs-only updates (avoid noisy doc edits for trivial refactors).
