@@ -62,6 +62,7 @@ All notable changes to this project will be documented in this file.
 - UI Akun backup:
   - urutan item lokal/cloud diseragamkan menjadi **Auto-Backup -> Cadangkan -> Pulihkan**,
   - catatan backup panjang dibuat foldable lewat panel **Info & Catatan Penting** (default tertutup).
+- Kasir (catat pemasukan): saat produk yang sama dipilih ulang, input jumlah kini memperbarui qty item di cart (replace), bukan menambah qty lama.
 
 ---
 

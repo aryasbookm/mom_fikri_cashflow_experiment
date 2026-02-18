@@ -44,8 +44,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      Provider.of<CategoryProvider>(context, listen: false)
-          .setCurrentRole(authProvider.currentUser?.role);
+      Provider.of<CategoryProvider>(
+        context,
+        listen: false,
+      ).setCurrentRole(authProvider.currentUser?.role);
       Provider.of<CategoryProvider>(context, listen: false).loadCategories();
       Provider.of<ProductProvider>(context, listen: false).loadProducts();
     });
@@ -60,9 +62,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     super.dispose();
   }
 
-  Future<int?> _showQuantityDialog() async {
+  Future<int?> _showQuantityDialog({int? initialQty}) async {
     FocusScope.of(context).unfocus();
-    final controller = TextEditingController();
+    final controller = TextEditingController(
+      text: initialQty != null ? '$initialQty' : '',
+    );
     final result = await showDialog<int>(
       context: context,
       builder: (context) {
@@ -130,27 +134,29 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     required int price,
     required int stock,
   }) async {
-    final qty = await _showQuantityDialog();
+    final existingIndex = _cartItems.indexWhere(
+      (item) => item.productId == productId,
+    );
+    final currentQty =
+        existingIndex != -1 ? _cartItems[existingIndex].quantity : null;
+    final qty = await _showQuantityDialog(initialQty: currentQty);
     if (!mounted) {
       return;
     }
     if (qty == null || qty <= 0) {
       return;
     }
-    final existingIndex =
-        _cartItems.indexWhere((item) => item.productId == productId);
     if (existingIndex != -1) {
-      final currentQty = _cartItems[existingIndex].quantity;
-      final nextQty = currentQty + qty;
-      if (nextQty > stock) {
+      if (qty > stock) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Stok tidak cukup! Sisa: $stock')),
         );
         return;
       }
       setState(() {
-        _cartItems[existingIndex] =
-            _cartItems[existingIndex].copyWith(quantity: nextQty);
+        _cartItems[existingIndex] = _cartItems[existingIndex].copyWith(
+          quantity: qty,
+        );
       });
     } else {
       if (qty > stock) {
@@ -171,8 +177,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       });
     }
     _amountController.text = _cartTotal().toString();
-    _descriptionController.text =
-        'Penjualan ${_cartItems.length} item';
+    _descriptionController.text = 'Penjualan ${_cartItems.length} item';
   }
 
   Future<void> _editCartItem(_CartItem item, int stock) async {
@@ -210,20 +215,20 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Stok tidak cukup! Sisa: $stock')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Stok tidak cukup! Sisa: $stock')));
       return;
     }
     setState(() {
-      final index =
-          _cartItems.indexWhere((entry) => entry.productId == item.productId);
+      final index = _cartItems.indexWhere(
+        (entry) => entry.productId == item.productId,
+      );
       if (index != -1) {
         _cartItems[index] = _cartItems[index].copyWith(quantity: newQty);
       }
       _amountController.text = _cartTotal().toString();
-      _descriptionController.text =
-          'Penjualan ${_cartItems.length} item';
+      _descriptionController.text = 'Penjualan ${_cartItems.length} item';
     });
   }
 
@@ -255,9 +260,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       setState(() {
         _isLoading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lengkapi data transaksi.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Lengkapi data transaksi.')));
       return;
     }
 
@@ -268,9 +273,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       setState(() {
         _isLoading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('User belum login.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('User belum login.')));
       return;
     }
 
@@ -338,33 +343,35 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       type: _type,
       amount: amount,
       categoryId: categoryId,
-      description: _descriptionController.text.trim().isEmpty
-          ? null
-          : _descriptionController.text.trim(),
+      description:
+          _descriptionController.text.trim().isEmpty
+              ? null
+              : _descriptionController.text.trim(),
       date: txDateTime.toIso8601String(),
       userId: userId,
     );
 
     if (_type == 'IN' && !_manualIncomeInput) {
-      final items = _cartItems.map((item) {
-        return TransactionItemModel(
-          transactionId: 0,
-          productId: item.productId,
-          productName: item.name,
-          unitPrice: item.price,
-          quantity: item.quantity,
-          total: item.price * item.quantity,
-        );
-      }).toList();
+      final items =
+          _cartItems.map((item) {
+            return TransactionItemModel(
+              transactionId: 0,
+              productId: item.productId,
+              productName: item.name,
+              unitPrice: item.price,
+              quantity: item.quantity,
+              total: item.price * item.quantity,
+            );
+          }).toList();
       await context.read<TransactionProvider>().addTransactionWithItems(
-            transaction: transaction,
-            items: items,
-          );
+        transaction: transaction,
+        items: items,
+      );
       for (final item in _cartItems) {
         await context.read<ProductProvider>().updateStock(
-              item.productId,
-              -item.quantity,
-            );
+          item.productId,
+          -item.quantity,
+        );
       }
     } else {
       await context.read<TransactionProvider>().addTransaction(transaction);
@@ -398,9 +405,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          _type == 'IN' ? 'Catat Pemasukan' : 'Catat Pengeluaran',
-        ),
+        title: Text(_type == 'IN' ? 'Catat Pemasukan' : 'Catat Pengeluaran'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -452,9 +457,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             ],
             Consumer<CategoryProvider>(
               builder: (context, provider, _) {
-                final categories = _type == 'IN'
-                    ? provider.incomeCategories
-                    : provider.expenseCategories;
+                final categories =
+                    _type == 'IN'
+                        ? provider.incomeCategories
+                        : provider.expenseCategories;
 
                 if (_selectedCategoryId == null && categories.isNotEmpty) {
                   _selectedCategoryId = categories.first.id;
@@ -509,84 +515,89 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             ),
             const SizedBox(height: 16),
             Expanded(
-              child: _type == 'IN' && !_manualIncomeInput
-                  ? Column(
-                      children: [
-                        Expanded(
-                          child: _ProductGrid(
-                            currency: currency,
-                            onManualTap: () {
-                              setState(() {
-                                _manualIncomeInput = true;
-                                _resetProductSelection();
-                              });
-                            },
-                            searchController: _productSearchController,
-                            searchQuery: _productSearchQuery,
-                            onSearchChanged: (value) {
-                              setState(() {
-                                _productSearchQuery = value;
-                              });
-                            },
-                            onClearSearch: () {
-                              setState(() {
-                                _productSearchController.clear();
-                                _productSearchQuery = '';
-                              });
-                            },
-                            onSelected:
-                                (productId, productName, price, stock) async {
-                              await _addToCart(
-                                productId: productId,
-                                name: productName,
-                                price: price,
-                                stock: stock,
-                              );
-                            },
-                            isInCart: (productId) {
-                              return _cartItems.any(
-                                (item) => item.productId == productId,
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    )
-                  : ListView(
-                      children: [
-                        TextField(
-                          controller: _amountController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Jumlah',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: _descriptionController,
-                          decoration: const InputDecoration(
-                            labelText: 'Keterangan (Opsional)',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                        if (_type == 'IN') ...[
-                          const SizedBox(height: 8),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: TextButton(
-                              onPressed: () {
+              child:
+                  _type == 'IN' && !_manualIncomeInput
+                      ? Column(
+                        children: [
+                          Expanded(
+                            child: _ProductGrid(
+                              currency: currency,
+                              onManualTap: () {
                                 setState(() {
-                                  _manualIncomeInput = false;
+                                  _manualIncomeInput = true;
                                   _resetProductSelection();
                                 });
                               },
-                              child: const Text('Pilih Produk'),
+                              searchController: _productSearchController,
+                              searchQuery: _productSearchQuery,
+                              onSearchChanged: (value) {
+                                setState(() {
+                                  _productSearchQuery = value;
+                                });
+                              },
+                              onClearSearch: () {
+                                setState(() {
+                                  _productSearchController.clear();
+                                  _productSearchQuery = '';
+                                });
+                              },
+                              onSelected: (
+                                productId,
+                                productName,
+                                price,
+                                stock,
+                              ) async {
+                                await _addToCart(
+                                  productId: productId,
+                                  name: productName,
+                                  price: price,
+                                  stock: stock,
+                                );
+                              },
+                              isInCart: (productId) {
+                                return _cartItems.any(
+                                  (item) => item.productId == productId,
+                                );
+                              },
                             ),
                           ),
                         ],
-                      ],
-                    ),
+                      )
+                      : ListView(
+                        children: [
+                          TextField(
+                            controller: _amountController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Jumlah',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: _descriptionController,
+                            decoration: const InputDecoration(
+                              labelText: 'Keterangan (Opsional)',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          if (_type == 'IN') ...[
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: TextButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _manualIncomeInput = false;
+                                    _resetProductSelection();
+                                  });
+                                },
+                                child: const Text('Pilih Produk'),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
             ),
             if (showCartSection && _isCartExpanded)
               Container(
@@ -610,16 +621,18 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     separatorBuilder: (_, __) => const Divider(height: 12),
                     itemBuilder: (context, index) {
                       final item = _cartItems[index];
-                      final product =
-                          context.read<ProductProvider>().getById(item.productId);
+                      final product = context.read<ProductProvider>().getById(
+                        item.productId,
+                      );
                       final stock = product?.stock ?? 0;
                       return Row(
                         children: [
                           Expanded(
                             child: Text(
                               '${item.name} • ${item.quantity} pcs',
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                           Text(
@@ -663,8 +676,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     });
                   },
                   child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                     child: Row(
                       children: [
                         const Icon(Icons.shopping_cart_outlined),
@@ -705,9 +720,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             const SizedBox(height: 16),
             Row(
               children: [
-                Expanded(
-                  child: Text('Tanggal: $dateLabel'),
-                ),
+                Expanded(child: Text('Tanggal: $dateLabel')),
                 TextButton(
                   onPressed: _pickDate,
                   child: const Text('Pilih Tanggal'),
@@ -719,13 +732,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: _isLoading ? null : _saveTransaction,
-                child: _isLoading
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Simpan'),
+                child:
+                    _isLoading
+                        ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                        : const Text('Simpan'),
               ),
             ),
           ],
@@ -761,7 +775,9 @@ class _ProductGrid extends StatelessWidget {
     return Consumer<ProductProvider>(
       builder: (context, provider, _) {
         final visibleProducts =
-            provider.activeProducts.where((product) => product.stock > 0).toList();
+            provider.activeProducts
+                .where((product) => product.stock > 0)
+                .toList();
         if (visibleProducts.isEmpty) {
           return Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -791,12 +807,14 @@ class _ProductGrid extends StatelessWidget {
           return a.name.toLowerCase().compareTo(b.name.toLowerCase());
         });
         final query = searchQuery.trim().toLowerCase();
-        final filteredProducts = query.isEmpty
-            ? sortedProducts
-            : sortedProducts
-                .where((product) =>
-                    product.name.toLowerCase().contains(query))
-                .toList();
+        final filteredProducts =
+            query.isEmpty
+                ? sortedProducts
+                : sortedProducts
+                    .where(
+                      (product) => product.name.toLowerCase().contains(query),
+                    )
+                    .toList();
 
         return Column(
           children: [
@@ -821,12 +839,13 @@ class _ProductGrid extends StatelessWidget {
               decoration: InputDecoration(
                 hintText: 'Cari produk...',
                 prefixIcon: const Icon(Icons.search),
-                suffixIcon: searchQuery.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: onClearSearch,
-                      ),
+                suffixIcon:
+                    searchQuery.isEmpty
+                        ? null
+                        : IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: onClearSearch,
+                        ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -835,166 +854,177 @@ class _ProductGrid extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Expanded(
-              child: filteredProducts.isEmpty
-                  ? Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.search_off,
-                            size: 48, color: Colors.grey),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Produk tidak ditemukan',
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                        const SizedBox(height: 8),
-                        TextButton(
-                          onPressed: onClearSearch,
-                          child: const Text('Reset Pencarian'),
-                        ),
-                      ],
-                    )
-                  : LayoutBuilder(
-                      builder: (context, constraints) {
-                        final maxWidth = constraints.maxWidth;
-                        final crossAxisCount =
-                            maxWidth < 700 ? 2 : (maxWidth < 1100 ? 3 : 4);
-                        final childAspectRatio =
-                            maxWidth < 700 ? 1.18 : (maxWidth < 1100 ? 1.3 : 1.4);
-                        final tileWidth =
-                            (maxWidth - ((crossAxisCount - 1) * 12)) /
-                            crossAxisCount;
-                        final avatarRadius = (maxWidth < 700
-                                ? (tileWidth * 0.17).clamp(30.0, 50.0)
-                                : (tileWidth * 0.14).clamp(26.0, 44.0))
-                            .toDouble();
-
-                        return GridView.builder(
-                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: crossAxisCount,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                            childAspectRatio: childAspectRatio,
+              child:
+                  filteredProducts.isEmpty
+                      ? Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.search_off,
+                            size: 48,
+                            color: Colors.grey,
                           ),
-                          itemCount: filteredProducts.length,
-                          itemBuilder: (context, index) {
-                            final product = filteredProducts[index];
-                            final inCart = isInCart(product.id ?? -1);
-                            final addButtonSize =
-                                ((tileWidth * 0.18).clamp(30.0, 36.0))
-                                    .toDouble();
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Produk tidak ditemukan',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                          const SizedBox(height: 8),
+                          TextButton(
+                            onPressed: onClearSearch,
+                            child: const Text('Reset Pencarian'),
+                          ),
+                        ],
+                      )
+                      : LayoutBuilder(
+                        builder: (context, constraints) {
+                          final maxWidth = constraints.maxWidth;
+                          final crossAxisCount =
+                              maxWidth < 700 ? 2 : (maxWidth < 1100 ? 3 : 4);
+                          final childAspectRatio =
+                              maxWidth < 700
+                                  ? 1.18
+                                  : (maxWidth < 1100 ? 1.3 : 1.4);
+                          final tileWidth =
+                              (maxWidth - ((crossAxisCount - 1) * 12)) /
+                              crossAxisCount;
+                          final avatarRadius =
+                              (maxWidth < 700
+                                      ? (tileWidth * 0.17).clamp(30.0, 50.0)
+                                      : (tileWidth * 0.14).clamp(26.0, 44.0))
+                                  .toDouble();
 
-                            void addProduct() {
-                              if (product.id == null) {
-                                return;
+                          return GridView.builder(
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: crossAxisCount,
+                                  crossAxisSpacing: 12,
+                                  mainAxisSpacing: 12,
+                                  childAspectRatio: childAspectRatio,
+                                ),
+                            itemCount: filteredProducts.length,
+                            itemBuilder: (context, index) {
+                              final product = filteredProducts[index];
+                              final inCart = isInCart(product.id ?? -1);
+                              final addButtonSize =
+                                  ((tileWidth * 0.18).clamp(
+                                    30.0,
+                                    36.0,
+                                  )).toDouble();
+
+                              void addProduct() {
+                                if (product.id == null) {
+                                  return;
+                                }
+                                onSelected(
+                                  product.id!,
+                                  product.name,
+                                  product.price,
+                                  product.stock,
+                                );
                               }
-                              onSelected(
-                                product.id!,
-                                product.name,
-                                product.price,
-                                product.stock,
-                              );
-                            }
 
-                            return InkWell(
-                              onTap: addProduct,
-                              borderRadius: BorderRadius.circular(12),
-                              child: Ink(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color:
-                                      inCart
-                                          ? Colors.orange.shade50
-                                          : Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
+                              return InkWell(
+                                onTap: addProduct,
+                                borderRadius: BorderRadius.circular(12),
+                                child: Ink(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
                                     color:
                                         inCart
-                                            ? Colors.deepOrange
-                                            : Colors.transparent,
-                                    width: inCart ? 2 : 1,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.05),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 4),
+                                            ? Colors.orange.shade50
+                                            : Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color:
+                                          inCart
+                                              ? Colors.deepOrange
+                                              : Colors.transparent,
+                                      width: inCart ? 2 : 1,
                                     ),
-                                  ],
-                                ),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Stack(
-                                      clipBehavior: Clip.none,
-                                      children: [
-                                        ProductAvatar(
-                                          productId: product.id,
-                                          productName: product.name,
-                                          radius: avatarRadius,
-                                        ),
-                                        Positioned(
-                                          right: -6,
-                                          bottom: -6,
-                                          child: Material(
-                                            color: Colors.white,
-                                            shape: const CircleBorder(),
-                                            elevation: 3,
-                                            child: InkWell(
-                                              onTap: addProduct,
-                                              customBorder:
-                                                  const CircleBorder(),
-                                              child: SizedBox(
-                                                width: addButtonSize,
-                                                height: addButtonSize,
-                                                child: const Icon(
-                                                  Icons.add,
-                                                  color: Color(0xFF1B8F3A),
-                                                  size: 20,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.05),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
+                                    children: [
+                                      Stack(
+                                        clipBehavior: Clip.none,
+                                        children: [
+                                          ProductAvatar(
+                                            productId: product.id,
+                                            productName: product.name,
+                                            radius: avatarRadius,
+                                          ),
+                                          Positioned(
+                                            right: -6,
+                                            bottom: -6,
+                                            child: Material(
+                                              color: Colors.white,
+                                              shape: const CircleBorder(),
+                                              elevation: 3,
+                                              child: InkWell(
+                                                onTap: addProduct,
+                                                customBorder:
+                                                    const CircleBorder(),
+                                                child: SizedBox(
+                                                  width: addButtonSize,
+                                                  height: addButtonSize,
+                                                  child: const Icon(
+                                                    Icons.add,
+                                                    color: Color(0xFF1B8F3A),
+                                                    size: 20,
+                                                  ),
                                                 ),
                                               ),
                                             ),
                                           ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        currency.format(product.price),
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          color: Color(0xFF8D1B3D),
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 15,
                                         ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      currency.format(product.price),
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        color: Color(0xFF8D1B3D),
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 15,
                                       ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      product.name,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        product.name,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'Stok: ${product.stock}',
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        color: Colors.grey,
-                                        fontSize: 13,
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Stok: ${product.stock}',
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          color: Colors.grey,
+                                          fontSize: 13,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
+                              );
+                            },
+                          );
+                        },
+                      ),
             ),
           ],
         );
