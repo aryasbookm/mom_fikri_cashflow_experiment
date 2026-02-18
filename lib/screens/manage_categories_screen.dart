@@ -52,6 +52,9 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
     if (save != true) {
       return;
     }
+    if (!mounted) {
+      return;
+    }
 
     final result = await context.read<CategoryProvider>().renameCategory(
       category: category,
@@ -63,6 +66,68 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(result.message)));
+  }
+
+  Future<void> _addCategory() async {
+    final controller = TextEditingController();
+    final created = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(
+            _typeFilter == 'IN'
+                ? 'Tambah Kategori Pemasukan'
+                : 'Tambah Kategori Pengeluaran',
+          ),
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              labelText: 'Nama kategori',
+              border: OutlineInputBorder(),
+            ),
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => Navigator.of(context).pop(true),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Batal'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Simpan'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (created != true) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+
+    try {
+      await context.read<CategoryProvider>().addCategory(
+        controller.text,
+        _typeFilter,
+      );
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Kategori berhasil ditambahkan.')),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
   }
 
   Future<void> _deleteCategory(CategoryModel category) async {
@@ -90,6 +155,9 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
     if (confirmed != true) {
       return;
     }
+    if (!mounted) {
+      return;
+    }
 
     final result = await context.read<CategoryProvider>().deleteCategory(
       category,
@@ -106,6 +174,11 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Kelola Kategori')),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _addCategory,
+        icon: const Icon(Icons.add),
+        label: const Text('Tambah Kategori'),
+      ),
       body: Consumer<CategoryProvider>(
         builder: (context, provider, _) {
           final categories =
@@ -150,7 +223,7 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Kategori sistem dan kategori yang sudah dipakai transaksi tidak dapat dihapus.',
+                    'Sistem: tidak bisa diubah/hapus. Dipakai transaksi: tidak bisa dihapus.',
                     style: TextStyle(color: Colors.grey, fontSize: 12),
                   ),
                 ),
@@ -173,12 +246,32 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
                             final protected = provider.isProtectedCategory(
                               category,
                             );
+                            final isUsed =
+                                category.id != null &&
+                                (provider.categoryUsage[category.id!] ?? false);
+                            final canRename = !protected;
+                            final canDelete = !protected && !isUsed;
                             return ListTile(
+                              leading: Icon(
+                                protected
+                                    ? Icons.lock_outline
+                                    : isUsed
+                                    ? Icons.info_outline
+                                    : Icons.label_outline,
+                                color:
+                                    protected
+                                        ? Colors.grey.shade700
+                                        : isUsed
+                                        ? Colors.orange.shade700
+                                        : Colors.green.shade700,
+                              ),
                               title: Text(category.name),
                               subtitle: Text(
                                 protected
-                                    ? 'Kategori sistem'
-                                    : 'Kategori custom',
+                                    ? 'Kategori sistem: tidak bisa diubah/hapus'
+                                    : isUsed
+                                    ? 'Kategori custom: dipakai transaksi, tidak bisa dihapus'
+                                    : 'Kategori custom: bisa diubah/hapus',
                               ),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -188,22 +281,30 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
                                       Icons.edit,
                                       color: Color(0xFF1565C0),
                                     ),
-                                    tooltip: 'Ubah nama',
+                                    tooltip:
+                                        canRename
+                                            ? 'Ubah nama'
+                                            : 'Kategori sistem tidak bisa diubah',
                                     onPressed:
-                                        protected
-                                            ? null
-                                            : () => _renameCategory(category),
+                                        canRename
+                                            ? () => _renameCategory(category)
+                                            : null,
                                   ),
                                   IconButton(
                                     icon: const Icon(
                                       Icons.delete_outline,
                                       color: Colors.red,
                                     ),
-                                    tooltip: 'Hapus',
+                                    tooltip:
+                                        canDelete
+                                            ? 'Hapus'
+                                            : protected
+                                            ? 'Kategori sistem tidak bisa dihapus'
+                                            : 'Kategori sudah dipakai transaksi',
                                     onPressed:
-                                        protected
-                                            ? null
-                                            : () => _deleteCategory(category),
+                                        canDelete
+                                            ? () => _deleteCategory(category)
+                                            : null,
                                   ),
                                 ],
                               ),

@@ -1,6 +1,7 @@
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../constants/default_categories.dart';
 import '../utils/password_hasher.dart';
 
 class DatabaseHelper {
@@ -156,25 +157,12 @@ class DatabaseHelper {
       'profile_image_path': null,
     });
 
-    await db.insert('categories', {
-      'name': 'Penjualan Kue',
-      'type': 'IN',
-    });
-
-    await db.insert('categories', {
-      'name': 'Bahan Baku',
-      'type': 'OUT',
-    });
-
-    await db.insert('categories', {
-      'name': 'Operasional',
-      'type': 'OUT',
-    });
-
-    await db.insert('categories', {
-      'name': 'Gaji',
-      'type': 'OUT',
-    });
+    for (final category in DefaultCategories.system) {
+      await db.insert('categories', {
+        'name': category.name,
+        'type': category.type,
+      });
+    }
 
     final products = [
       {'name': 'Roti Sosis', 'price': 5000},
@@ -223,9 +211,7 @@ class DatabaseHelper {
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 3) {
-      await db.execute(
-        'ALTER TABLE users ADD COLUMN profile_image_path TEXT',
-      );
+      await db.execute('ALTER TABLE users ADD COLUMN profile_image_path TEXT');
     }
     if (oldVersion < 4) {
       await db.execute('''
@@ -295,19 +281,12 @@ class DatabaseHelper {
 
   Future<List<Map<String, dynamic>>> getDeletedTransactions() async {
     final db = await database;
-    return db.query(
-      'deleted_transactions',
-      orderBy: 'deleted_at DESC',
-    );
+    return db.query('deleted_transactions', orderBy: 'deleted_at DESC');
   }
 
   Future<void> deleteDeletedTransaction(int id) async {
     final db = await database;
-    await db.delete(
-      'deleted_transactions',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    await db.delete('deleted_transactions', where: 'id = ?', whereArgs: [id]);
   }
 
   Future<void> clearDeletedTransactions() async {

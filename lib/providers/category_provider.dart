@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../constants/default_categories.dart';
 import '../database/database_helper.dart';
 import '../models/category_model.dart';
 
@@ -17,15 +18,15 @@ class CategoryProvider extends ChangeNotifier {
   }
 
   final List<CategoryModel> _categories = [];
+  final Map<int, bool> _categoryUsage = {};
   String? _currentRole;
-  static const Set<String> _protectedCategoryNames = {
-    'penjualan kue',
-    'pemasukan lain',
-    'bahan baku',
-    'operasional',
-  };
+  static final Set<String> _protectedCategoryNames =
+      DefaultCategories.system
+          .map((category) => category.normalizedName)
+          .toSet();
 
   List<CategoryModel> get categories => List.unmodifiable(_categories);
+  Map<int, bool> get categoryUsage => Map.unmodifiable(_categoryUsage);
 
   bool isProtectedCategory(CategoryModel category) {
     return _protectedCategoryNames.contains(category.name.toLowerCase().trim());
@@ -38,6 +39,45 @@ class CategoryProvider extends ChangeNotifier {
       [categoryId],
     );
     return result.isNotEmpty;
+  }
+
+  Future<void> _ensureSystemCategories(Database db) async {
+    for (final category in DefaultCategories.system) {
+      final exists = await db.query(
+        'categories',
+        columns: ['id'],
+        where: 'LOWER(TRIM(name)) = ? AND type = ?',
+        whereArgs: [category.normalizedName, category.type],
+        limit: 1,
+      );
+      if (exists.isEmpty) {
+        await db.insert('categories', {
+          'name': category.name,
+          'type': category.type,
+        });
+      }
+    }
+  }
+
+  Future<void> _refreshCategoryUsage(Database db) async {
+    _categoryUsage.clear();
+
+    final ids =
+        _categories.map((category) => category.id).whereType<int>().toList();
+    if (ids.isEmpty) {
+      return;
+    }
+
+    final placeholders = List.filled(ids.length, '?').join(',');
+    final rows = await db.rawQuery(
+      'SELECT DISTINCT category_id FROM transactions WHERE category_id IN ($placeholders)',
+      ids,
+    );
+    final usedIds =
+        rows.map((row) => row['category_id']).whereType<int>().toSet();
+    for (final id in ids) {
+      _categoryUsage[id] = usedIds.contains(id);
+    }
   }
 
   void setCurrentRole(String? role) {
@@ -151,11 +191,13 @@ class CategoryProvider extends ChangeNotifier {
 
   Future<void> loadCategories() async {
     final Database db = await DatabaseHelper.instance.database;
+    await _ensureSystemCategories(db);
     final List<Map<String, dynamic>> result = await db.query('categories');
 
     _categories
       ..clear()
       ..addAll(result.map(CategoryModel.fromMap));
+    await _refreshCategoryUsage(db);
 
     notifyListeners();
   }

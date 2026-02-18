@@ -69,6 +69,17 @@ Catatan:
    - Input manual
    - Kategori bisa tambah via opsi **Lainnya**
 
+3.1 **Kelola Kategori (Owner)**
+   - Owner dapat mengelola kategori langsung dari tab Akun.
+   - Kategori sistem default:
+     - IN: `Penjualan Kue`, `Pemasukan Lain`
+     - OUT: `Bahan Baku`, `Operasional`, `Gaji`
+   - Kategori sistem tidak bisa diubah/hapus.
+   - Kategori custom yang sudah pernah dipakai transaksi tidak bisa dihapus.
+   - Kategori custom yang belum dipakai bisa diubah/hapus.
+   - Tersedia tombol **Tambah Kategori** di layar Kelola Kategori; tipe mengikuti tab aktif (Pemasukan/Pengeluaran).
+   - Sinkronisasi startup memastikan kategori sistem wajib tetap tersedia untuk data existing.
+
 4. **Produksi & Stok**
    - Produksi menambah stok
    - Penjualan & waste mengurangi stok

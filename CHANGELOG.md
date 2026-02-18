@@ -71,8 +71,14 @@ All notable changes to this project will be documented in this file.
 - Produksi (edit produk): ditambahkan field **Penyesuaian Stok (opsional)** pada dialog edit untuk tambah/kurangi stok langsung via nilai `+/-` dengan validasi agar stok tidak minus.
 - Dashboard staff: FAB `+` di beranda dihapus dan diganti dua aksi langsung (**Catat Pemasukan** dan **Catat Pengeluaran**) agar konsisten dengan alur owner.
 - Proteksi kategori:
-  - kategori sistem (`Penjualan Kue`, `Pemasukan Lain`, `Bahan Baku`, `Operasional`) tidak bisa diubah/hapus.
+  - kategori sistem (`Penjualan Kue`, `Pemasukan Lain`, `Bahan Baku`, `Operasional`, `Gaji`) tidak bisa diubah/hapus.
   - kategori yang sudah dipakai transaksi tidak bisa dihapus permanen.
+- Seed & sinkronisasi kategori:
+  - seed install baru diselaraskan dengan kategori sistem (termasuk `Pemasukan Lain` dan `Gaji`).
+  - data existing dibackfill otomatis agar kategori sistem yang wajib selalu tersedia.
+- Kelola Kategori:
+  - ditambahkan aksi **Tambah Kategori** langsung di layar Kelola Kategori (owner).
+  - status item diperjelas (sistem/custom/dipakai transaksi) dan aksi non-valid dinonaktifkan sejak awal.
 
 ---
 

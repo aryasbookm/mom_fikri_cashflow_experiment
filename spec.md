@@ -81,7 +81,7 @@ Setiap fitur non-trivial dinyatakan siap merge jika lolos:
 
 ## 4. Struktur Database (Tabel)
 1. **users:** id, username, pin (hash), role, profile_image_path.
-2. **categories:** id, name, type (IN/OUT). Mendukung tambahan kategori via opsi “Lainnya”.
+2. **categories:** id, name, type (IN/OUT). Mendukung tambahan kategori via opsi “Lainnya” dan layar **Kelola Kategori** (owner).
 3. **products:** id, name, price, stock, min_stock, is_active.
 4. **transactions:** id, type (IN/OUT/WASTE), amount, category_id, description, date, user_id, product_id, quantity.
 5. **transaction_items:** id, transaction_id, product_id, product_name, unit_price, quantity, total.
@@ -92,6 +92,10 @@ Setiap fitur non-trivial dinyatakan siap merge jika lolos:
 - **Kasir (Pemasukan):** grid produk + input jumlah, validasi stok, ringkasan sebelum simpan.
   - Keranjang bersifat foldable (default tertutup) dengan sticky summary bar (`jumlah produk + total`) agar area pilih produk tetap luas.
 - **Pengeluaran:** input manual, kategori dinamis.
+- **Kelola Kategori (Owner):**
+  - owner dapat tambah kategori dari layar Kelola Kategori (tipe mengikuti tab aktif IN/OUT),
+  - kategori sistem tidak bisa diubah/hapus,
+  - kategori custom yang sudah dipakai transaksi tidak bisa dihapus.
 - **Produksi & Stok:** produksi menambah stok, penjualan & waste mengurangi stok.
 - **Produksi & Stok:** produksi menambah stok, penjualan & waste mengurangi stok.
   - Daftar stok memiliki filter tampilan `Aktif` (default), `Arsip`, `Semua`.
@@ -137,5 +141,5 @@ Setiap fitur non-trivial dinyatakan siap merge jika lolos:
 
 ## 7. Data Awal (Seeding)
 - User default: admin/1234 (owner), karyawan/0000 (staff).
-- Kategori awal: Penjualan Kue (IN), Bahan Baku/Operasional/Gaji (OUT).
+- Kategori awal (sistem): Penjualan Kue (IN), Pemasukan Lain (IN), Bahan Baku (OUT), Operasional (OUT), Gaji (OUT).
 - Produk awal: daftar kue dan snack sesuai data seed (dengan harga, stok awal 0).
