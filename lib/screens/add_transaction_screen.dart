@@ -486,7 +486,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                             .where(
                               (category) =>
                                   category.name.toLowerCase().trim() !=
-                                  'penjualan kue',
+                                  DefaultCategories.incomePrimary
+                                      .toLowerCase()
+                                      .trim(),
                             )
                             .toList()
                         : allCategories;

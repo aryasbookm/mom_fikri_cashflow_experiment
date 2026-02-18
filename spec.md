@@ -12,7 +12,7 @@
 - **Release Notes:** `CHANGELOG.md` (timeline v0.9.0 → v1.0.0-rc3)
 
 ## Rencana Fase 4 (Final)
-Prioritas (tanpa ubah DB v8):
+Prioritas (catatan: fitur arsip kategori membutuhkan migrasi schema DB v9):
 1. **Global Search**
    - Search bar di Kasir, Stok, dan Riwayat.
    - Filtering real-time saat mengetik.
@@ -81,7 +81,7 @@ Setiap fitur non-trivial dinyatakan siap merge jika lolos:
 
 ## 4. Struktur Database (Tabel)
 1. **users:** id, username, pin (hash), role, profile_image_path.
-2. **categories:** id, name, type (IN/OUT). Mendukung tambahan kategori via opsi “Lainnya” dan layar **Kelola Kategori** (owner).
+2. **categories:** id, name, type (IN/OUT), is_active. Mendukung tambahan kategori via opsi “Lainnya” dan layar **Kelola Kategori** (owner), serta soft-archive kategori.
 3. **products:** id, name, price, stock, min_stock, is_active.
 4. **transactions:** id, type (IN/OUT/WASTE), amount, category_id, description, date, user_id, product_id, quantity.
 5. **transaction_items:** id, transaction_id, product_id, product_name, unit_price, quantity, total.
@@ -95,8 +95,9 @@ Setiap fitur non-trivial dinyatakan siap merge jika lolos:
 - **Kelola Kategori (Owner):**
   - owner dapat tambah kategori dari layar Kelola Kategori (tipe mengikuti tab aktif IN/OUT),
   - UI status kategori menampilkan badge `Sistem/Custom` dan `Dipakai N transaksi`,
-  - kategori sistem tidak bisa diubah/hapus,
-  - kategori custom yang sudah dipakai transaksi tidak bisa dihapus.
+  - kategori sistem tidak bisa diubah/hapus/arsip,
+  - kategori custom bisa diarsipkan/diaktifkan kembali,
+  - kategori custom yang sudah dipakai transaksi tidak bisa dihapus permanen.
 - **Produksi & Stok:** produksi menambah stok, penjualan & waste mengurangi stok.
 - **Produksi & Stok:** produksi menambah stok, penjualan & waste mengurangi stok.
   - Daftar stok memiliki filter tampilan `Aktif` (default), `Arsip`, `Semua`.

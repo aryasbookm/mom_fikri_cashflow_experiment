@@ -79,6 +79,10 @@ All notable changes to this project will be documented in this file.
 - Kelola Kategori:
   - ditambahkan aksi **Tambah Kategori** langsung di layar Kelola Kategori (owner).
   - status item diperjelas (badge **Sistem/Custom** + info **Dipakai N transaksi**) dan aksi non-valid dinonaktifkan sejak awal.
+  - ditambahkan aksi **Arsipkan/Aktifkan** kategori custom (soft delete) dengan filter status Aktif/Arsip.
+  - dropdown input transaksi kini hanya menampilkan kategori aktif.
+- Database:
+  - skema dinaikkan ke **v9** dengan kolom `categories.is_active` (default aktif) untuk mendukung arsip kategori secara aman pada data existing.
 
 ---
 

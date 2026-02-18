@@ -13,6 +13,7 @@ class ManageCategoriesScreen extends StatefulWidget {
 
 class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
   String _typeFilter = 'IN';
+  String _statusFilter = 'ALL';
 
   Widget _buildStatusChip(String label, Color color) {
     return Container(
@@ -188,6 +189,51 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
     ).showSnackBar(SnackBar(content: Text(result.message)));
   }
 
+  Future<void> _toggleCategoryStatus(CategoryModel category) async {
+    final targetActive = !category.isActive;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(
+            targetActive ? 'Aktifkan Kategori?' : 'Arsipkan Kategori?',
+          ),
+          content: Text(
+            targetActive
+                ? 'Kategori "${category.name}" akan aktif kembali dan muncul di input transaksi.'
+                : 'Kategori "${category.name}" akan disembunyikan dari input transaksi baru.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Batal'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(targetActive ? 'Aktifkan' : 'Arsipkan'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    final result = await context.read<CategoryProvider>().toggleCategoryActive(
+      category: category,
+      isActive: targetActive,
+    );
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(result.message)));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -202,6 +248,15 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
           final categories =
               provider.categories
                   .where((category) => category.type == _typeFilter)
+                  .where((category) {
+                    if (_statusFilter == 'ACTIVE') {
+                      return category.isActive;
+                    }
+                    if (_statusFilter == 'ARCHIVED') {
+                      return !category.isActive;
+                    }
+                    return true;
+                  })
                   .toList()
                 ..sort(
                   (a, b) =>
@@ -241,9 +296,45 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Sistem: tidak bisa diubah/hapus. Dipakai transaksi: tidak bisa dihapus.',
+                    'Sistem: tidak bisa diubah/hapus/arsip. Arsip: tidak muncul di input transaksi baru.',
                     style: TextStyle(color: Colors.grey, fontSize: 12),
                   ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Row(
+                  children: [
+                    ChoiceChip(
+                      label: const Text('Semua'),
+                      selected: _statusFilter == 'ALL',
+                      onSelected: (_) {
+                        setState(() {
+                          _statusFilter = 'ALL';
+                        });
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    ChoiceChip(
+                      label: const Text('Aktif'),
+                      selected: _statusFilter == 'ACTIVE',
+                      onSelected: (_) {
+                        setState(() {
+                          _statusFilter = 'ACTIVE';
+                        });
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    ChoiceChip(
+                      label: const Text('Arsip'),
+                      selected: _statusFilter == 'ARCHIVED',
+                      onSelected: (_) {
+                        setState(() {
+                          _statusFilter = 'ARCHIVED';
+                        });
+                      },
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 8),
@@ -268,24 +359,32 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
                                 category.id != null &&
                                 (provider.categoryUsage[category.id!] ?? false);
                             final canRename = !protected;
+                            final canArchive = !protected && category.isActive;
+                            final canRestore = !protected && !category.isActive;
                             final canDelete = !protected && !isUsed;
                             return ListTile(
                               leading: Icon(
                                 protected
                                     ? Icons.lock_outline
+                                    : !category.isActive
+                                    ? Icons.archive_outlined
                                     : isUsed
                                     ? Icons.info_outline
                                     : Icons.label_outline,
                                 color:
                                     protected
                                         ? Colors.grey.shade700
+                                        : !category.isActive
+                                        ? Colors.blueGrey.shade700
                                         : isUsed
                                         ? Colors.orange.shade700
                                         : Colors.green.shade700,
                               ),
                               subtitle: Text(
                                 protected
-                                    ? 'Kategori sistem: tidak bisa diubah/hapus'
+                                    ? 'Kategori sistem: tidak bisa diubah/hapus/arsip'
+                                    : !category.isActive
+                                    ? 'Kategori custom: diarsipkan (disembunyikan dari input transaksi)'
                                     : isUsed
                                     ? 'Kategori custom: dipakai transaksi, tidak bisa dihapus'
                                     : 'Kategori custom: bisa diubah/hapus',
@@ -323,13 +422,34 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
                                             : null,
                                   ),
                                   IconButton(
+                                    icon: Icon(
+                                      category.isActive
+                                          ? Icons.archive_outlined
+                                          : Icons.unarchive_outlined,
+                                      color: Colors.blueGrey,
+                                    ),
+                                    tooltip:
+                                        (canArchive || canRestore)
+                                            ? (category.isActive
+                                                ? 'Arsipkan'
+                                                : 'Aktifkan')
+                                            : protected
+                                            ? 'Kategori sistem tidak bisa diarsipkan'
+                                            : 'Status kategori tidak dapat diubah',
+                                    onPressed:
+                                        (canArchive || canRestore)
+                                            ? () =>
+                                                _toggleCategoryStatus(category)
+                                            : null,
+                                  ),
+                                  IconButton(
                                     icon: const Icon(
                                       Icons.delete_outline,
                                       color: Colors.red,
                                     ),
                                     tooltip:
                                         canDelete
-                                            ? 'Hapus'
+                                            ? 'Hapus permanen'
                                             : protected
                                             ? 'Kategori sistem tidak bisa dihapus'
                                             : 'Kategori sudah dipakai transaksi',
@@ -354,6 +474,12 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
                                         protected
                                             ? Colors.grey.shade700
                                             : Colors.green.shade700,
+                                      ),
+                                      _buildStatusChip(
+                                        category.isActive ? 'Aktif' : 'Arsip',
+                                        category.isActive
+                                            ? Colors.teal.shade700
+                                            : Colors.blueGrey.shade700,
                                       ),
                                       if (isUsed)
                                         _buildStatusChip(

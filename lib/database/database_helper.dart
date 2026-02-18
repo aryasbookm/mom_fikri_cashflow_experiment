@@ -19,7 +19,7 @@ class DatabaseHelper {
     return _database!;
   }
 
-  static const int _dbVersion = 8;
+  static const int _dbVersion = 9;
   static const String _dbName = 'mom_fikri_cashflow_v2.db';
 
   Future<Database> _initDatabase() async {
@@ -63,7 +63,8 @@ class DatabaseHelper {
       CREATE TABLE categories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
-        type TEXT NOT NULL
+        type TEXT NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 1
       )
     ''');
 
@@ -161,6 +162,7 @@ class DatabaseHelper {
       await db.insert('categories', {
         'name': category.name,
         'type': category.type,
+        'is_active': 1,
       });
     }
 
@@ -271,6 +273,14 @@ class DatabaseHelper {
           FOREIGN KEY(product_id) REFERENCES products(id)
         )
       ''');
+    }
+    if (oldVersion < 9) {
+      await db.execute(
+        'ALTER TABLE categories ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1',
+      );
+      await db.execute(
+        'UPDATE categories SET is_active = 1 WHERE is_active IS NULL',
+      );
     }
   }
 

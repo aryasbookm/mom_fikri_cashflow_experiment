@@ -56,7 +56,18 @@ class CategoryProvider extends ChangeNotifier {
         await db.insert('categories', {
           'name': category.name,
           'type': category.type,
+          'is_active': 1,
         });
+      } else {
+        final existingId = exists.first['id'] as int?;
+        if (existingId != null) {
+          await db.update(
+            'categories',
+            {'is_active': 1},
+            where: 'id = ?',
+            whereArgs: [existingId],
+          );
+        }
       }
     }
   }
@@ -116,6 +127,7 @@ class CategoryProvider extends ChangeNotifier {
     final id = await db.insert('categories', {
       'name': normalized,
       'type': type,
+      'is_active': 1,
     });
     await loadCategories();
     return id;
@@ -201,6 +213,48 @@ class CategoryProvider extends ChangeNotifier {
     );
   }
 
+  Future<CategoryActionResult> toggleCategoryActive({
+    required CategoryModel category,
+    required bool isActive,
+  }) async {
+    final db = await DatabaseHelper.instance.database;
+    if (category.id == null) {
+      return const CategoryActionResult(
+        success: false,
+        message: 'Kategori tidak valid.',
+      );
+    }
+    if (isProtectedCategory(category)) {
+      return const CategoryActionResult(
+        success: false,
+        message: 'Kategori sistem tidak dapat diarsipkan.',
+      );
+    }
+    if (category.isActive == isActive) {
+      return CategoryActionResult(
+        success: true,
+        message:
+            isActive
+                ? 'Kategori sudah aktif.'
+                : 'Kategori sudah berada di arsip.',
+      );
+    }
+    await db.update(
+      'categories',
+      {'is_active': isActive ? 1 : 0},
+      where: 'id = ?',
+      whereArgs: [category.id],
+    );
+    await loadCategories();
+    return CategoryActionResult(
+      success: true,
+      message:
+          isActive
+              ? 'Kategori berhasil diaktifkan.'
+              : 'Kategori berhasil diarsipkan.',
+    );
+  }
+
   Future<void> loadCategories() async {
     final Database db = await DatabaseHelper.instance.database;
     await _ensureSystemCategories(db);
@@ -215,11 +269,14 @@ class CategoryProvider extends ChangeNotifier {
   }
 
   List<CategoryModel> get incomeCategories {
-    return _categories.where((cat) => cat.type == 'IN').toList();
+    return _categories
+        .where((cat) => cat.type == 'IN' && cat.isActive)
+        .toList();
   }
 
   List<CategoryModel> get expenseCategories {
-    final expense = _categories.where((cat) => cat.type == 'OUT').toList();
+    final expense =
+        _categories.where((cat) => cat.type == 'OUT' && cat.isActive).toList();
     if (_currentRole != 'staff') {
       return expense;
     }

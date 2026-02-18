@@ -21,7 +21,7 @@
 - **Project capsule:** maintain `WORKFLOW.md` + fixed port + browser profile dedicated untuk isolasi konteks antar proyek.
 
 ## Rencana Fase 4 (Final)
-Prioritas (tanpa ubah DB v8):
+Prioritas (catatan: fitur arsip kategori membutuhkan migrasi schema DB v9):
 1. **Global Search**
    - Search bar di Kasir, Stok, dan Riwayat.
    - Filtering real-time saat mengetik.
@@ -75,6 +75,8 @@ Catatan:
      - IN: `Penjualan Kue`, `Pemasukan Lain`
      - OUT: `Bahan Baku`, `Operasional`, `Gaji`
    - Kategori sistem tidak bisa diubah/hapus.
+   - Kategori sistem tidak bisa diubah/hapus/arsip.
+   - Kategori custom bisa diarsipkan (disembunyikan dari input transaksi) dan bisa diaktifkan kembali.
    - Kategori custom yang sudah pernah dipakai transaksi tidak bisa dihapus.
    - UI menampilkan badge status per item (`Sistem`/`Custom`) serta indikator penggunaan (`Dipakai N transaksi`) untuk mengurangi trial-error.
    - Kategori custom yang belum dipakai bisa diubah/hapus.
@@ -151,11 +153,11 @@ Catatan:
 9. **Dashboard Owner (Ringkas)**
    - Menampilkan Top Produk (7 hari) untuk keputusan produksi
 
-## Skema Database (v8)
+## Skema Database (v9)
 - **products**: id, name (unique), price, stock, min_stock, is_active
 - **transactions**: id, type, amount, category_id, description, date, user_id, product_id, quantity
 - **transaction_items**: id, transaction_id, product_id, product_name, unit_price, quantity, total
-- **production**, **categories**, **users** (users memiliki `profile_image_path`)
+- **production**, **categories** (`is_active` untuk soft archive), **users** (users memiliki `profile_image_path`)
 - **deleted_transactions**: log penghapusan transaksi (alasan, waktu, pelaku, item terkait)
   - Kolom tambahan: category_id, user_id, product_id, quantity
 
