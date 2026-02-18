@@ -15,6 +15,7 @@ import '../services/backup_service.dart';
 import '../services/cloud_drive_service.dart';
 import '../widgets/account_panel.dart';
 import 'login_screen.dart';
+import 'manage_categories_screen.dart';
 import 'manage_users_screen.dart';
 
 class AccountScreen extends StatefulWidget {
@@ -154,11 +155,7 @@ class _AccountScreenState extends State<AccountScreen> {
           result.includeImages
               ? 'Mode: Lengkap (dengan foto produk).'
               : 'Mode: Data saja (tanpa foto produk).';
-      _showSnackBar(
-        context,
-        '$downloadMessage\n$modeLabel',
-        isError: false,
-      );
+      _showSnackBar(context, '$downloadMessage\n$modeLabel', isError: false);
     } catch (error) {
       if (!mounted) {
         return;
@@ -950,6 +947,20 @@ class _AccountScreenState extends State<AccountScreen> {
                 }
                 await Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const ManageUsersScreen()),
+                );
+              }
+              : null,
+      onManageCategories:
+          isOwner
+              ? () async {
+                await context.read<CategoryProvider>().loadCategories();
+                if (!context.mounted) {
+                  return;
+                }
+                await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const ManageCategoriesScreen(),
+                  ),
                 );
               }
               : null,

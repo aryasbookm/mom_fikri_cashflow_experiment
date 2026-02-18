@@ -28,6 +28,7 @@ All notable changes to this project will be documented in this file.
 - Akun: section backup kini konsisten menjadi **Backup Lokal / Backup Cloud / Pengaturan Google Drive**.
 - Produksi: filter daftar stok **Aktif / Arsip / Semua** (default: Aktif).
 - Guarded delete produk: hapus permanen hanya diizinkan jika stok `0` dan belum punya riwayat di `transaction_items`.
+- Owner: menu **Kelola Kategori** di tab Akun untuk ubah nama kategori custom dan hapus kategori yang belum pernah dipakai transaksi.
 
 ### Changed
 - Branding aplikasi disederhanakan dari "Toko Kue Mom Fiqry (Eksperimen)" menjadi "Toko Kue Mom Fiqry" pada Android/iOS/Web/Desktop.
@@ -65,6 +66,9 @@ All notable changes to this project will be documented in this file.
 - Kasir (catat pemasukan): saat produk yang sama dipilih ulang, input jumlah kini memperbarui qty item di cart (replace), bukan menambah qty lama.
 - Produksi (edit produk): ditambahkan field **Penyesuaian Stok (opsional)** pada dialog edit untuk tambah/kurangi stok langsung via nilai `+/-` dengan validasi agar stok tidak minus.
 - Dashboard staff: FAB `+` di beranda dihapus dan diganti dua aksi langsung (**Catat Pemasukan** dan **Catat Pengeluaran**) agar konsisten dengan alur owner.
+- Proteksi kategori:
+  - kategori sistem (`Penjualan Kue`, `Pemasukan Lain`, `Bahan Baku`, `Operasional`) tidak bisa diubah/hapus.
+  - kategori yang sudah dipakai transaksi tidak bisa dihapus permanen.
 
 ---
 

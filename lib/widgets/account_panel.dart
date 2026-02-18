@@ -14,6 +14,7 @@ class AccountPanel extends StatelessWidget {
     super.key,
     required this.onLogout,
     this.onManageUsers,
+    this.onManageCategories,
     this.onBackup,
     this.isBackingUp = false,
     this.onRestore,
@@ -35,6 +36,7 @@ class AccountPanel extends StatelessWidget {
 
   final VoidCallback onLogout;
   final VoidCallback? onManageUsers;
+  final VoidCallback? onManageCategories;
   final VoidCallback? onBackup;
   final bool isBackingUp;
   final VoidCallback? onRestore;
@@ -229,16 +231,23 @@ class AccountPanel extends StatelessWidget {
               ),
             ],
           ),
-          if (onManageUsers != null) ...[
+          if (onManageUsers != null || onManageCategories != null) ...[
             const SizedBox(height: 16),
             const _SectionTitle(title: 'Administrasi'),
             _SectionCard(
               children: [
-                _SettingsTile(
-                  icon: Icons.manage_accounts,
-                  label: 'Kelola Pengguna',
-                  onTap: onManageUsers,
-                ),
+                if (onManageUsers != null)
+                  _SettingsTile(
+                    icon: Icons.manage_accounts,
+                    label: 'Kelola Pengguna',
+                    onTap: onManageUsers,
+                  ),
+                if (onManageCategories != null)
+                  _SettingsTile(
+                    icon: Icons.category_outlined,
+                    label: 'Kelola Kategori',
+                    onTap: onManageCategories,
+                  ),
               ],
             ),
           ],
