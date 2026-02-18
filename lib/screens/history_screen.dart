@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
-import '../models/deleted_transaction_model.dart';
 import '../models/transaction_item_model.dart';
 import '../models/transaction_model.dart';
 import '../providers/auth_provider.dart';
@@ -129,6 +128,27 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
+  String _buildTransactionTitle(
+    TransactionModel tx,
+    Map<int, List<TransactionItemModel>> itemsByTxId,
+  ) {
+    if (tx.type != 'IN' || tx.id == null) {
+      return tx.categoryName ?? 'Transaksi';
+    }
+
+    final items = itemsByTxId[tx.id!] ?? const <TransactionItemModel>[];
+    if (items.isEmpty) {
+      return tx.categoryName ?? 'Transaksi';
+    }
+    if (items.length == 1) {
+      return items.first.productName;
+    }
+
+    final firstName = items.first.productName;
+    final extraCount = items.length - 1;
+    return '$firstName +$extraCount item';
+  }
+
   @override
   Widget build(BuildContext context) {
     final currency = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ');
@@ -148,26 +168,22 @@ class _HistoryScreenState extends State<HistoryScreen> {
             });
           });
         }
-        final baseFiltered = provider.transactions.where((tx) {
-          if (tx.type == 'WASTE') {
-            return false;
-          }
-          final date = DateTime.tryParse(tx.date);
-          if (date == null) {
-            return false;
-          }
-          return _matchesFilter(date);
-        }).toList();
-        final needsItemSearch = _searchQuery.trim().isNotEmpty;
-        final txIds = needsItemSearch
-            ? baseFiltered
-                .map((tx) => tx.id)
-                .whereType<int>()
-                .toList()
-            : const <int>[];
-        final itemsFuture = needsItemSearch && txIds.isNotEmpty
-            ? provider.getItemsByTransactionIds(txIds)
-            : Future.value(<int, List<TransactionItemModel>>{});
+        final baseFiltered =
+            provider.transactions.where((tx) {
+              if (tx.type == 'WASTE') {
+                return false;
+              }
+              final date = DateTime.tryParse(tx.date);
+              if (date == null) {
+                return false;
+              }
+              return _matchesFilter(date);
+            }).toList();
+        final txIds = baseFiltered.map((tx) => tx.id).whereType<int>().toList();
+        final itemsFuture =
+            txIds.isNotEmpty
+                ? provider.getItemsByTransactionIds(txIds)
+                : Future.value(<int, List<TransactionItemModel>>{});
 
         final totalIncome = baseFiltered
             .where((tx) => tx.type == 'IN')
@@ -197,19 +213,21 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   },
                 ),
               IconButton(
-                icon: _isExporting
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.file_download),
-                onPressed: _isExporting
-                    ? null
-                    : () => _exportFiltered(context, provider),
+                icon:
+                    _isExporting
+                        ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                        : const Icon(Icons.file_download),
+                onPressed:
+                    _isExporting
+                        ? null
+                        : () => _exportFiltered(context, provider),
                 tooltip: 'Export Excel',
               ),
             ],
@@ -219,8 +237,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
               SizedBox(
                 height: 52,
                 child: ListView.separated(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   scrollDirection: Axis.horizontal,
                   itemBuilder: (context, index) {
                     final label = _filters[index];
@@ -240,8 +260,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
               ),
               Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 child: TextField(
                   controller: _searchController,
                   onChanged: (value) {
@@ -252,17 +274,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   decoration: InputDecoration(
                     hintText: 'Cari transaksi...',
                     prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _searchQuery.isEmpty
-                        ? null
-                        : IconButton(
-                            icon: const Icon(Icons.close),
-                            onPressed: () {
-                              setState(() {
-                                _searchController.clear();
-                                _searchQuery = '';
-                              });
-                            },
-                          ),
+                    suffixIcon:
+                        _searchQuery.isEmpty
+                            ? null
+                            : IconButton(
+                              icon: const Icon(Icons.close),
+                              onPressed: () {
+                                setState(() {
+                                  _searchController.clear();
+                                  _searchQuery = '';
+                                });
+                              },
+                            ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -271,8 +294,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ),
               ),
               Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -306,9 +331,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         child: _SummaryItem(
                           label: 'Saldo',
                           value: currency.format(balance),
-                          color: balance >= 0
-                              ? const Color(0xFF1565C0)
-                              : Colors.red,
+                          color:
+                              balance >= 0
+                                  ? const Color(0xFF1565C0)
+                                  : Colors.red,
                         ),
                       ),
                     ],
@@ -320,17 +346,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   future: itemsFuture,
                   builder: (context, snapshot) {
                     final itemsByTxId = snapshot.data ?? const {};
-                    final deepFiltered = baseFiltered.where((tx) {
-                      if (_searchQuery.trim().isEmpty) {
-                        return true;
-                      }
-                      final id = tx.id;
-                      if (id == null) {
-                        return _matchesSearch(tx);
-                      }
-                      return _matchesSearch(tx) ||
-                          _matchesItemSearch(id, itemsByTxId);
-                    }).toList();
+                    final deepFiltered =
+                        baseFiltered.where((tx) {
+                          if (_searchQuery.trim().isEmpty) {
+                            return true;
+                          }
+                          final id = tx.id;
+                          if (id == null) {
+                            return _matchesSearch(tx);
+                          }
+                          return _matchesSearch(tx) ||
+                              _matchesItemSearch(id, itemsByTxId);
+                        }).toList();
 
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(
@@ -348,15 +375,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
                     Widget listContent;
                     if (deepFiltered.isEmpty) {
-                      final emptyLabel = searchActive
-                          ? 'Transaksi tidak ditemukan'
-                          : 'Belum ada transaksi';
+                      final emptyLabel =
+                          searchActive
+                              ? 'Transaksi tidak ditemukan'
+                              : 'Belum ada transaksi';
                       listContent = Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.history,
-                                size: 64, color: Colors.grey),
+                            const Icon(
+                              Icons.history,
+                              size: 64,
+                              color: Colors.grey,
+                            ),
                             const SizedBox(height: 12),
                             Text(
                               emptyLabel,
@@ -372,54 +403,64 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           final tx = deepFiltered[index];
                           final isIncome = tx.type == 'IN';
                           final color = isIncome ? Colors.green : Colors.red;
-                          final icon = isIncome
-                              ? Icons.arrow_downward
-                              : Icons.arrow_upward;
-                          final description = tx.description?.isNotEmpty == true
-                              ? tx.description!
-                              : null;
+                          final icon =
+                              isIncome
+                                  ? Icons.arrow_downward
+                                  : Icons.arrow_upward;
+                          final description =
+                              tx.description?.isNotEmpty == true
+                                  ? tx.description!
+                                  : null;
                           final dateLabel = DateFormat(
                             'd MMMM y HH:mm',
                             'id_ID',
                           ).format(DateTime.parse(tx.date));
-                          final subtitleText = description == null
-                              ? dateLabel
-                              : '$dateLabel • $description';
+                          final subtitleText =
+                              description == null
+                                  ? dateLabel
+                                  : '$dateLabel • $description';
 
-                          final matchInfo = searchActive && tx.id != null
-                              ? _buildMatchInfo(tx.id!, itemsByTxId)
-                              : null;
-                          final matchLabel = matchInfo == null
-                              ? null
-                              : 'Mengandung: ${matchInfo.name} '
-                                  '(${matchInfo.quantity} pcs)'
-                                  '${matchInfo.hasMore ? ' dan lainnya' : ''}';
+                          final matchInfo =
+                              searchActive && tx.id != null
+                                  ? _buildMatchInfo(tx.id!, itemsByTxId)
+                                  : null;
+                          final matchLabel =
+                              matchInfo == null
+                                  ? null
+                                  : 'Mengandung: ${matchInfo.name} '
+                                      '(${matchInfo.quantity} pcs)'
+                                      '${matchInfo.hasMore ? ' dan lainnya' : ''}';
 
                           return ListTile(
                             leading: Icon(icon, color: color),
-                            title: Text(tx.categoryName ?? 'Transaksi'),
-                            subtitle: matchLabel == null
-                                ? Text(subtitleText)
-                                : Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(subtitleText),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        matchLabel,
-                                        style: TextStyle(
-                                          color: Colors.grey.shade600,
-                                          fontStyle: FontStyle.italic,
+                            title: Text(
+                              _buildTransactionTitle(tx, itemsByTxId),
+                            ),
+                            subtitle:
+                                matchLabel == null
+                                    ? Text(subtitleText)
+                                    : Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(subtitleText),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          matchLabel,
+                                          style: TextStyle(
+                                            color: Colors.grey.shade600,
+                                            fontStyle: FontStyle.italic,
+                                          ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
+                                      ],
+                                    ),
                             onTap: () {
                               Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (_) =>
-                                      TransactionDetailScreen(transaction: tx),
+                                  builder:
+                                      (_) => TransactionDetailScreen(
+                                        transaction: tx,
+                                      ),
                                 ),
                               );
                             },
@@ -434,29 +475,38 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   ),
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.delete,
-                                      color: Colors.red),
+                                  icon: const Icon(
+                                    Icons.delete,
+                                    color: Colors.red,
+                                  ),
                                   onPressed: () async {
                                     final confirmed = await showDialog<bool>(
                                       context: context,
-                                      builder: (context) => AlertDialog(
-                                        title: const Text('Hapus transaksi ini?'),
-                                        content: const Text(
-                                          'Data yang dihapus tidak bisa dikembalikan.',
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.of(context).pop(false),
-                                            child: const Text('Batal'),
+                                      builder:
+                                          (context) => AlertDialog(
+                                            title: const Text(
+                                              'Hapus transaksi ini?',
+                                            ),
+                                            content: const Text(
+                                              'Data yang dihapus tidak bisa dikembalikan.',
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed:
+                                                    () => Navigator.of(
+                                                      context,
+                                                    ).pop(false),
+                                                child: const Text('Batal'),
+                                              ),
+                                              TextButton(
+                                                onPressed:
+                                                    () => Navigator.of(
+                                                      context,
+                                                    ).pop(true),
+                                                child: const Text('Hapus'),
+                                              ),
+                                            ],
                                           ),
-                                          TextButton(
-                                            onPressed: () =>
-                                                Navigator.of(context).pop(true),
-                                            child: const Text('Hapus'),
-                                          ),
-                                        ],
-                                      ),
                                     );
 
                                     if (confirmed == true && tx.id != null) {
@@ -467,9 +517,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                         tx.id!,
                                         productProvider:
                                             Provider.of<ProductProvider>(
-                                          context,
-                                          listen: false,
-                                        ),
+                                              context,
+                                              listen: false,
+                                            ),
                                       );
                                     }
                                   },
@@ -545,9 +595,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
       _isExporting = true;
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Mengekspor data...')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Mengekspor data...')));
 
     try {
       await ExportService.exportTransactionsToExcel(
@@ -557,16 +607,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
       if (!context.mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Laporan berhasil dibuat')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Laporan berhasil dibuat')));
     } catch (_) {
       if (!context.mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Gagal mengekspor laporan')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Gagal mengekspor laporan')));
     } finally {
       if (mounted) {
         setState(() {
@@ -597,10 +647,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
-  void _showAuditLog(
-    BuildContext context,
-    TransactionProvider provider,
-  ) {
+  void _showAuditLog(BuildContext context, TransactionProvider provider) {
     final messenger = ScaffoldMessenger.of(context);
     showModalBottomSheet(
       context: context,
@@ -629,31 +676,34 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         ),
                         IconButton(
                           tooltip: 'Kosongkan Audit Log',
-                          icon:
-                              const Icon(Icons.delete_sweep, color: Colors.red),
-                          onPressed: deleted.isEmpty
-                              ? null
-                              : () async {
-                                  final confirm = await _confirmAction(
-                                    context,
-                                    title: 'Kosongkan Audit Log?',
-                                    message:
-                                        'Semua data audit akan dihapus permanen.',
-                                    confirmLabel: 'Hapus Semua',
-                                  );
-                                  if (confirm != true) {
-                                    return;
-                                  }
-                                  await provider.clearAllAuditLogs();
-                                  if (!context.mounted) {
-                                    return;
-                                  }
-                                  messenger.showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Audit log dikosongkan'),
-                                    ),
-                                  );
-                                },
+                          icon: const Icon(
+                            Icons.delete_sweep,
+                            color: Colors.red,
+                          ),
+                          onPressed:
+                              deleted.isEmpty
+                                  ? null
+                                  : () async {
+                                    final confirm = await _confirmAction(
+                                      context,
+                                      title: 'Kosongkan Audit Log?',
+                                      message:
+                                          'Semua data audit akan dihapus permanen.',
+                                      confirmLabel: 'Hapus Semua',
+                                    );
+                                    if (confirm != true) {
+                                      return;
+                                    }
+                                    await provider.clearAllAuditLogs();
+                                    if (!context.mounted) {
+                                      return;
+                                    }
+                                    messenger.showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Audit log dikosongkan'),
+                                      ),
+                                    );
+                                  },
                         ),
                       ],
                     ),
@@ -668,7 +718,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         height: 400,
                         child: ListView.separated(
                           itemCount: deleted.length,
-                          separatorBuilder: (_, __) => const Divider(height: 24),
+                          separatorBuilder:
+                              (_, __) => const Divider(height: 24),
                           itemBuilder: (context, index) {
                             final item = deleted[index];
                             final dateLabel = DateFormat(
@@ -713,11 +764,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                       }
                                       final productProvider =
                                           context.read<ProductProvider>();
-                                      final restored =
-                                          await provider.restoreDeletedTransaction(
-                                        item,
-                                        productProvider: productProvider,
-                                      );
+                                      final restored = await provider
+                                          .restoreDeletedTransaction(
+                                            item,
+                                            productProvider: productProvider,
+                                          );
                                       if (!context.mounted) {
                                         return;
                                       }
@@ -834,17 +885,11 @@ class _SummaryItem extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(color: Colors.grey, fontSize: 12),
-        ),
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
         const SizedBox(height: 4),
         Text(
           value,
-          style: TextStyle(
-            color: color,
-            fontWeight: FontWeight.w700,
-          ),
+          style: TextStyle(color: color, fontWeight: FontWeight.w700),
         ),
       ],
     );
