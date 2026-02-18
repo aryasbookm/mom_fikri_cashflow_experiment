@@ -31,8 +31,7 @@ class _ProductionScreenState extends State<ProductionScreen> {
   String? _selectedProductName;
   int? _selectedProductId;
   final TextEditingController _quantityController = TextEditingController();
-  final TextEditingController _stockSearchController =
-      TextEditingController();
+  final TextEditingController _stockSearchController = TextEditingController();
   bool _isLoading = false;
   bool _selectionMode = false;
   final Set<int> _selectedProductIds = {};
@@ -43,7 +42,10 @@ class _ProductionScreenState extends State<ProductionScreen> {
   void initState() {
     super.initState();
     Provider.of<ProductProvider>(context, listen: false).loadProducts();
-    Provider.of<ProductionProvider>(context, listen: false).loadTodayProduction();
+    Provider.of<ProductionProvider>(
+      context,
+      listen: false,
+    ).loadTodayProduction();
     Provider.of<CategoryProvider>(context, listen: false).loadCategories();
     Provider.of<TransactionProvider>(context, listen: false).loadTransactions();
   }
@@ -108,29 +110,31 @@ class _ProductionScreenState extends State<ProductionScreen> {
     }
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Hapus produk permanen?'),
-        content: Text(
-          'Produk "${product.name}" akan dihapus permanen. '
-          'Aksi ini tidak bisa dibatalkan.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Batal'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Hapus produk permanen?'),
+            content: Text(
+              'Produk "${product.name}" akan dihapus permanen. '
+              'Aksi ini tidak bisa dibatalkan.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Batal'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Hapus'),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Hapus'),
-          ),
-        ],
-      ),
     );
     if (confirmed != true) {
       return;
     }
-    final status =
-        await context.read<ProductProvider>().deleteProductSafely(productId);
+    final status = await context.read<ProductProvider>().deleteProductSafely(
+      productId,
+    );
     if (!mounted) {
       return;
     }
@@ -192,12 +196,15 @@ class _ProductionScreenState extends State<ProductionScreen> {
     final ids = _selectedProductIds.toList();
     if (!isActive) {
       final products = context.read<ProductProvider>().products;
-      final blocked = products
-          .where((product) =>
-              product.id != null &&
-              ids.contains(product.id) &&
-              product.stock > 0)
-          .toList();
+      final blocked =
+          products
+              .where(
+                (product) =>
+                    product.id != null &&
+                    ids.contains(product.id) &&
+                    product.stock > 0,
+              )
+              .toList();
       if (blocked.isNotEmpty) {
         if (!mounted) {
           return;
@@ -213,17 +220,15 @@ class _ProductionScreenState extends State<ProductionScreen> {
       }
     }
     await context.read<ProductProvider>().updateProductsActive(
-          ids: ids,
-          isActive: isActive,
-        );
+      ids: ids,
+      isActive: isActive,
+    );
     if (!mounted) {
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          isActive ? 'Produk diaktifkan.' : 'Produk diarsipkan.',
-        ),
+        content: Text(isActive ? 'Produk diaktifkan.' : 'Produk diarsipkan.'),
       ),
     );
     _clearSelection();
@@ -321,9 +326,7 @@ class _ProductionScreenState extends State<ProductionScreen> {
                       controller: priceController,
                       keyboardType: TextInputType.number,
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: const InputDecoration(
-                        labelText: 'Harga',
-                      ),
+                      decoration: const InputDecoration(labelText: 'Harga'),
                     ),
                     const SizedBox(height: 12),
                     TextField(
@@ -399,22 +402,23 @@ class _ProductionScreenState extends State<ProductionScreen> {
     if (existing != null && !existing.isActive && existing.id != null) {
       final reactivate = await showDialog<bool>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Produk ditemukan di arsip'),
-          content: const Text(
-            'Nama produk ini sudah ada di arsip. Aktifkan kembali dengan data baru?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Batal'),
+        builder:
+            (context) => AlertDialog(
+              title: const Text('Produk ditemukan di arsip'),
+              content: const Text(
+                'Nama produk ini sudah ada di arsip. Aktifkan kembali dengan data baru?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Batal'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('Aktifkan'),
+                ),
+              ],
             ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Aktifkan'),
-            ),
-          ],
-        ),
       );
       if (reactivate != true) {
         return;
@@ -453,11 +457,11 @@ class _ProductionScreenState extends State<ProductionScreen> {
         content: Text(
           reactivated
               ? (imageSaved
-                    ? 'Produk arsip diaktifkan kembali.'
-                    : 'Produk arsip diaktifkan, tapi foto gagal disimpan.')
+                  ? 'Produk arsip diaktifkan kembali.'
+                  : 'Produk arsip diaktifkan, tapi foto gagal disimpan.')
               : (imageSaved
-                    ? 'Produk baru ditambahkan.'
-                    : 'Produk ditambahkan, tapi foto gagal disimpan.'),
+                  ? 'Produk baru ditambahkan.'
+                  : 'Produk ditambahkan, tapi foto gagal disimpan.'),
         ),
       ),
     );
@@ -466,8 +470,10 @@ class _ProductionScreenState extends State<ProductionScreen> {
   Future<void> _editProduct(ProductModel product) async {
     final nameController = TextEditingController(text: product.name);
     final priceController = TextEditingController(text: '${product.price}');
-    final minStockController =
-        TextEditingController(text: '${product.minStock}');
+    final minStockController = TextEditingController(
+      text: '${product.minStock}',
+    );
+    final stockAdjustmentController = TextEditingController();
     File? existingImage;
     if (product.id != null) {
       existingImage = await ProductImageService.getProductImage(product.id!);
@@ -575,9 +581,7 @@ class _ProductionScreenState extends State<ProductionScreen> {
                       controller: priceController,
                       keyboardType: TextInputType.number,
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: const InputDecoration(
-                        labelText: 'Harga',
-                      ),
+                      decoration: const InputDecoration(labelText: 'Harga'),
                     ),
                     const SizedBox(height: 12),
                     TextField(
@@ -586,6 +590,28 @@ class _ProductionScreenState extends State<ProductionScreen> {
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       decoration: const InputDecoration(
                         labelText: 'Batas Stok Minimum',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: stockAdjustmentController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        signed: true,
+                      ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'^-?\d*$')),
+                      ],
+                      decoration: const InputDecoration(
+                        labelText: 'Penyesuaian Stok (Opsional)',
+                        hintText: 'Contoh: 5 atau -3',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Gunakan nilai positif untuk tambah stok, nilai negatif untuk kurangi stok.',
+                        style: TextStyle(color: Colors.black54, fontSize: 12),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -630,6 +656,8 @@ class _ProductionScreenState extends State<ProductionScreen> {
     final name = nameController.text.trim();
     final price = int.tryParse(priceController.text.trim()) ?? 0;
     final minStock = int.tryParse(minStockController.text.trim()) ?? 0;
+    final stockAdjustment =
+        int.tryParse(stockAdjustmentController.text.trim()) ?? 0;
     if (name.isEmpty || price <= 0 || minStock < 0) {
       if (!mounted) {
         return;
@@ -653,15 +681,36 @@ class _ProductionScreenState extends State<ProductionScreen> {
       );
       return;
     }
+    final projectedStock = product.stock + stockAdjustment;
+    if (projectedStock < 0) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Penyesuaian stok melebihi stok tersedia. Sisa saat ini: ${product.stock}.',
+          ),
+        ),
+      );
+      return;
+    }
 
     if (product.id != null) {
       await context.read<ProductProvider>().updateProduct(
-            id: product.id!,
-            name: name,
-            price: price,
-            minStock: minStock,
-            isActive: isActive,
-          );
+        id: product.id!,
+        name: name,
+        price: price,
+        minStock: minStock,
+        isActive: isActive,
+      );
+      bool stockAdjusted = true;
+      if (stockAdjustment != 0) {
+        stockAdjusted = await context.read<ProductProvider>().updateStock(
+          product.id!,
+          stockAdjustment,
+        );
+      }
       bool imageSaved = true;
       if (selectedImage != null) {
         imageSaved = await ProductImageService.saveProductImage(
@@ -680,9 +729,13 @@ class _ProductionScreenState extends State<ProductionScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            imageSaved
-                ? 'Produk diperbarui.'
-                : 'Produk diperbarui, tapi foto gagal diproses.',
+            !stockAdjusted
+                ? 'Produk diperbarui, tapi penyesuaian stok gagal diproses.'
+                : (imageSaved
+                    ? (stockAdjustment == 0
+                        ? 'Produk diperbarui.'
+                        : 'Produk dan stok berhasil diperbarui.')
+                    : 'Produk diperbarui, tapi foto gagal diproses.'),
           ),
         ),
       );
@@ -705,9 +758,9 @@ class _ProductionScreenState extends State<ProductionScreen> {
       setState(() {
         _isLoading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lengkapi data produksi.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Lengkapi data produksi.')));
       return;
     }
 
@@ -718,9 +771,9 @@ class _ProductionScreenState extends State<ProductionScreen> {
       setState(() {
         _isLoading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('User belum login.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('User belum login.')));
       return;
     }
 
@@ -731,16 +784,17 @@ class _ProductionScreenState extends State<ProductionScreen> {
       userId: userId,
     );
 
-    final updated = await context
-        .read<ProductProvider>()
-        .updateStock(_selectedProductId!, quantity);
+    final updated = await context.read<ProductProvider>().updateStock(
+      _selectedProductId!,
+      quantity,
+    );
     if (!updated) {
       setState(() {
         _isLoading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Gagal menambah stok.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Gagal menambah stok.')));
       return;
     }
 
@@ -778,17 +832,16 @@ class _ProductionScreenState extends State<ProductionScreen> {
                 children: [
                   DropdownButtonFormField<String>(
                     value: selectedReason,
-                    decoration: const InputDecoration(
-                      labelText: 'Alasan',
-                    ),
-                    items: reasons
-                        .map(
-                          (reason) => DropdownMenuItem<String>(
-                            value: reason,
-                            child: Text(reason),
-                          ),
-                        )
-                        .toList(),
+                    decoration: const InputDecoration(labelText: 'Alasan'),
+                    items:
+                        reasons
+                            .map(
+                              (reason) => DropdownMenuItem<String>(
+                                value: reason,
+                                child: Text(reason),
+                              ),
+                            )
+                            .toList(),
                     onChanged: (value) {
                       if (value == null) {
                         return;
@@ -838,27 +891,29 @@ class _ProductionScreenState extends State<ProductionScreen> {
 
     final qty = int.tryParse(controller.text.trim()) ?? 0;
     if (qty <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Jumlah tidak valid.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Jumlah tidak valid.')));
       return;
     }
 
-    final updated =
-        await context.read<ProductProvider>().updateStock(productId, -qty);
+    final updated = await context.read<ProductProvider>().updateStock(
+      productId,
+      -qty,
+    );
     if (!updated) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Stok tidak cukup.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Stok tidak cukup.')));
       return;
     }
 
     final authProvider = context.read<AuthProvider>();
     final userId = authProvider.currentUser?.id;
     if (userId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('User belum login.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('User belum login.')));
       return;
     }
 
@@ -880,20 +935,20 @@ class _ProductionScreenState extends State<ProductionScreen> {
     final note = noteController.text.trim();
     final noteSuffix = note.isEmpty ? '' : ' - $note';
     await context.read<TransactionProvider>().addWasteTransaction(
-          productId: productId,
-          quantity: qty,
-          userId: userId,
-          categoryId: wasteCategoryId,
-          description: '[$reasonTag] $productName ($qty pcs)$noteSuffix',
-          date: DateTime.now().toIso8601String(),
-        );
+      productId: productId,
+      quantity: qty,
+      userId: userId,
+      categoryId: wasteCategoryId,
+      description: '[$reasonTag] $productName ($qty pcs)$noteSuffix',
+      date: DateTime.now().toIso8601String(),
+    );
 
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Stok dikurangi.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Stok dikurangi.')));
   }
 
   int? _resolveWasteCategory(CategoryProvider categoryProvider) {
@@ -912,54 +967,60 @@ class _ProductionScreenState extends State<ProductionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: widget.showAppBar
-          ? AppBar(
-              title: const Text('Produksi Kue'),
-            )
-          : null,
+      appBar:
+          widget.showAppBar ? AppBar(title: const Text('Produksi Kue')) : null,
       body: Consumer3<ProductionProvider, ProductProvider, TransactionProvider>(
-        builder: (context, productionProvider, productProvider, transactionProvider, _) {
+        builder: (
+          context,
+          productionProvider,
+          productProvider,
+          transactionProvider,
+          _,
+        ) {
           final products = productProvider.products;
           if (_selectedProductName == null && products.isNotEmpty) {
             _selectedProductName = products.first.name;
             _selectedProductId = products.first.id;
           }
-          final sortedByStock = [...products]
-            ..sort((a, b) {
-              if (a.isActive != b.isActive) {
-                return a.isActive ? -1 : 1;
-              }
-              if (a.stock != b.stock) {
-                return b.stock.compareTo(a.stock);
-              }
-              return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-            });
+          final sortedByStock = [...products]..sort((a, b) {
+            if (a.isActive != b.isActive) {
+              return a.isActive ? -1 : 1;
+            }
+            if (a.stock != b.stock) {
+              return b.stock.compareTo(a.stock);
+            }
+            return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+          });
           final query = _stockSearchQuery.trim().toLowerCase();
-          final filteredBySearch = query.isEmpty
-              ? sortedByStock
-              : sortedByStock
-                  .where((product) =>
-                      product.name.toLowerCase().contains(query))
-                  .toList();
-          final filteredProducts = filteredBySearch
-              .where(_matchesStockListFilter)
-              .toList();
+          final filteredBySearch =
+              query.isEmpty
+                  ? sortedByStock
+                  : sortedByStock
+                      .where(
+                        (product) => product.name.toLowerCase().contains(query),
+                      )
+                      .toList();
+          final filteredProducts =
+              filteredBySearch.where(_matchesStockListFilter).toList();
           final now = DateTime.now();
-          final wasteToday = transactionProvider.transactions.where((tx) {
-            if (tx.type != 'WASTE') {
-              return false;
-            }
-            final parsed = DateTime.tryParse(tx.date);
-            if (parsed == null) {
-              return false;
-            }
-            return parsed.year == now.year &&
-                parsed.month == now.month &&
-                parsed.day == now.day;
-          }).toList();
+          final wasteToday =
+              transactionProvider.transactions.where((tx) {
+                if (tx.type != 'WASTE') {
+                  return false;
+                }
+                final parsed = DateTime.tryParse(tx.date);
+                if (parsed == null) {
+                  return false;
+                }
+                return parsed.year == now.year &&
+                    parsed.month == now.month &&
+                    parsed.day == now.day;
+              }).toList();
 
-          final totalStock =
-              products.fold<int>(0, (sum, product) => sum + product.stock);
+          final totalStock = products.fold<int>(
+            0,
+            (sum, product) => sum + product.stock,
+          );
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -1062,20 +1123,22 @@ class _ProductionScreenState extends State<ProductionScreen> {
                                 labelText: 'Nama Kue',
                                 border: OutlineInputBorder(),
                               ),
-                              items: products
-                                  .map(
-                                    (product) => DropdownMenuItem<String>(
-                                      value: product.name,
-                                      child: Text(product.name),
-                                    ),
-                                  )
-                                  .toList(),
+                              items:
+                                  products
+                                      .map(
+                                        (product) => DropdownMenuItem<String>(
+                                          value: product.name,
+                                          child: Text(product.name),
+                                        ),
+                                      )
+                                      .toList(),
                               onChanged: (value) {
                                 setState(() {
                                   _selectedProductName = value;
-                                  _selectedProductId = products
-                                      .firstWhere((p) => p.name == value)
-                                      .id;
+                                  _selectedProductId =
+                                      products
+                                          .firstWhere((p) => p.name == value)
+                                          .id;
                                 });
                               },
                             ),
@@ -1091,7 +1154,9 @@ class _ProductionScreenState extends State<ProductionScreen> {
                       TextField(
                         controller: _quantityController,
                         keyboardType: TextInputType.number,
-                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
                         decoration: const InputDecoration(
                           labelText: 'Jumlah',
                           border: OutlineInputBorder(),
@@ -1102,13 +1167,16 @@ class _ProductionScreenState extends State<ProductionScreen> {
                         width: double.infinity,
                         child: ElevatedButton(
                           onPressed: _isLoading ? null : _saveProduction,
-                          child: _isLoading
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Text('Catat'),
+                          child:
+                              _isLoading
+                                  ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                  : const Text('Catat'),
                         ),
                       ),
                     ],
@@ -1183,17 +1251,18 @@ class _ProductionScreenState extends State<ProductionScreen> {
                             decoration: InputDecoration(
                               hintText: 'Cari produk...',
                               prefixIcon: const Icon(Icons.search),
-                              suffixIcon: _stockSearchQuery.isEmpty
-                                  ? null
-                                  : IconButton(
-                                      icon: const Icon(Icons.close),
-                                      onPressed: () {
-                                        setState(() {
-                                          _stockSearchController.clear();
-                                          _stockSearchQuery = '';
-                                        });
-                                      },
-                                    ),
+                              suffixIcon:
+                                  _stockSearchQuery.isEmpty
+                                      ? null
+                                      : IconButton(
+                                        icon: const Icon(Icons.close),
+                                        onPressed: () {
+                                          setState(() {
+                                            _stockSearchController.clear();
+                                            _stockSearchQuery = '';
+                                          });
+                                        },
+                                      ),
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -1211,7 +1280,8 @@ class _ProductionScreenState extends State<ProductionScreen> {
                           children: [
                             ChoiceChip(
                               label: const Text('Aktif'),
-                              selected: _stockListFilter == _StockListFilter.active,
+                              selected:
+                                  _stockListFilter == _StockListFilter.active,
                               onSelected: (_) {
                                 setState(() {
                                   _stockListFilter = _StockListFilter.active;
@@ -1230,7 +1300,8 @@ class _ProductionScreenState extends State<ProductionScreen> {
                             ),
                             ChoiceChip(
                               label: const Text('Semua'),
-                              selected: _stockListFilter == _StockListFilter.all,
+                              selected:
+                                  _stockListFilter == _StockListFilter.all,
                               onSelected: (_) {
                                 setState(() {
                                   _stockListFilter = _StockListFilter.all;
@@ -1265,20 +1336,22 @@ class _ProductionScreenState extends State<ProductionScreen> {
                           final textColor =
                               isArchived ? Colors.grey : Colors.black87;
                           return ListTile(
-                            contentPadding:
-                                const EdgeInsets.symmetric(horizontal: 8),
-                            tileColor:
-                                isArchived ? Colors.grey.shade200 : null,
-                            leading: _selectionMode
-                                ? Checkbox(
-                                    value: isSelected,
-                                    onChanged: (_) => _toggleSelection(product),
-                                  )
-                                : ProductAvatar(
-                                    productId: product.id,
-                                    productName: product.name,
-                                    radius: 20,
-                                  ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                            ),
+                            tileColor: isArchived ? Colors.grey.shade200 : null,
+                            leading:
+                                _selectionMode
+                                    ? Checkbox(
+                                      value: isSelected,
+                                      onChanged:
+                                          (_) => _toggleSelection(product),
+                                    )
+                                    : ProductAvatar(
+                                      productId: product.id,
+                                      productName: product.name,
+                                      radius: 20,
+                                    ),
                             title: Text(
                               product.name,
                               style: TextStyle(color: textColor),
@@ -1287,117 +1360,127 @@ class _ProductionScreenState extends State<ProductionScreen> {
                               'Stok: ${product.stock} • Min: ${product.minStock}${product.isActive ? '' : ' • Arsip'}',
                               style: TextStyle(color: textColor),
                             ),
-                            onTap: _selectionMode
-                                ? () => _toggleSelection(product)
-                                : null,
-                            onLongPress: _selectionMode
-                                ? null
-                                : () => _enterSelectionMode(product),
-                            trailing: _selectionMode
-                                ? null
-                                : Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      IconButton(
-                                        icon: const Icon(Icons.edit,
-                                            color: Color(0xFF1565C0)),
-                                        onPressed: () => _editProduct(product),
-                                      ),
-                                      PopupMenuButton<String>(
-                                        onSelected: (value) async {
-                                          if (value == 'waste') {
-                                            if (product.id != null) {
-                                              await _wasteStock(
-                                                product.id!,
-                                                product.name,
-                                              );
-                                            }
-                                            return;
-                                          }
-                                          if (value == 'toggle') {
-                                            if (!product.isActive &&
-                                                product.id != null) {
-                                              await context
-                                                  .read<ProductProvider>()
-                                                  .updateProductsActive(
-                                                    ids: [product.id!],
-                                                    isActive: true,
-                                                  );
-                                              if (!mounted) {
-                                                return;
+                            onTap:
+                                _selectionMode
+                                    ? () => _toggleSelection(product)
+                                    : null,
+                            onLongPress:
+                                _selectionMode
+                                    ? null
+                                    : () => _enterSelectionMode(product),
+                            trailing:
+                                _selectionMode
+                                    ? null
+                                    : Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.edit,
+                                            color: Color(0xFF1565C0),
+                                          ),
+                                          onPressed:
+                                              () => _editProduct(product),
+                                        ),
+                                        PopupMenuButton<String>(
+                                          onSelected: (value) async {
+                                            if (value == 'waste') {
+                                              if (product.id != null) {
+                                                await _wasteStock(
+                                                  product.id!,
+                                                  product.name,
+                                                );
                                               }
-                                              ScaffoldMessenger.of(context)
-                                                  .showSnackBar(
-                                                SnackBar(
-                                                  content: Text(
-                                                    '${product.name} diaktifkan.',
-                                                  ),
-                                                ),
-                                              );
                                               return;
                                             }
-                                            if (product.stock > 0) {
-                                              if (!mounted) {
+                                            if (value == 'toggle') {
+                                              if (!product.isActive &&
+                                                  product.id != null) {
+                                                await context
+                                                    .read<ProductProvider>()
+                                                    .updateProductsActive(
+                                                      ids: [product.id!],
+                                                      isActive: true,
+                                                    );
+                                                if (!mounted) {
+                                                  return;
+                                                }
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      '${product.name} diaktifkan.',
+                                                    ),
+                                                  ),
+                                                );
                                                 return;
                                               }
-                                              ScaffoldMessenger.of(context)
-                                                  .showSnackBar(
-                                                SnackBar(
-                                                  content: Text(
-                                                    'Stok ${product.name} masih ${product.stock} pcs. '
-                                                    'Habiskan dulu sebelum arsip.',
+                                              if (product.stock > 0) {
+                                                if (!mounted) {
+                                                  return;
+                                                }
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      'Stok ${product.name} masih ${product.stock} pcs. '
+                                                      'Habiskan dulu sebelum arsip.',
+                                                    ),
                                                   ),
-                                                ),
-                                              );
+                                                );
+                                                return;
+                                              }
+                                              if (product.id != null) {
+                                                await context
+                                                    .read<ProductProvider>()
+                                                    .updateProductsActive(
+                                                      ids: [product.id!],
+                                                      isActive: false,
+                                                    );
+                                                if (!mounted) {
+                                                  return;
+                                                }
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      '${product.name} diarsipkan.',
+                                                    ),
+                                                  ),
+                                                );
+                                              }
                                               return;
                                             }
-                                            if (product.id != null) {
-                                              await context
-                                                  .read<ProductProvider>()
-                                                  .updateProductsActive(
-                                                    ids: [product.id!],
-                                                    isActive: false,
-                                                  );
-                                              if (!mounted) {
-                                                return;
-                                              }
-                                              ScaffoldMessenger.of(context)
-                                                  .showSnackBar(
-                                                SnackBar(
-                                                  content: Text(
-                                                    '${product.name} diarsipkan.',
+                                            if (value == 'delete') {
+                                              await _deleteProduct(product);
+                                            }
+                                          },
+                                          itemBuilder:
+                                              (context) => [
+                                                if (product.stock > 0)
+                                                  const PopupMenuItem<String>(
+                                                    value: 'waste',
+                                                    child: Text('Kurangi stok'),
+                                                  ),
+                                                PopupMenuItem<String>(
+                                                  value: 'toggle',
+                                                  child: Text(
+                                                    product.isActive
+                                                        ? 'Arsipkan produk'
+                                                        : 'Aktifkan produk',
                                                   ),
                                                 ),
-                                              );
-                                            }
-                                            return;
-                                          }
-                                          if (value == 'delete') {
-                                            await _deleteProduct(product);
-                                          }
-                                        },
-                                        itemBuilder: (context) => [
-                                          if (product.stock > 0)
-                                            const PopupMenuItem<String>(
-                                              value: 'waste',
-                                              child: Text('Kurangi stok'),
-                                            ),
-                                          PopupMenuItem<String>(
-                                            value: 'toggle',
-                                            child: Text(
-                                              product.isActive
-                                                  ? 'Arsipkan produk'
-                                                  : 'Aktifkan produk',
-                                            ),
-                                          ),
-                                          const PopupMenuItem<String>(
-                                            value: 'delete',
-                                            child: Text('Hapus permanen'),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
+                                                const PopupMenuItem<String>(
+                                                  value: 'delete',
+                                                  child: Text('Hapus permanen'),
+                                                ),
+                                              ],
+                                        ),
+                                      ],
+                                    ),
                           );
                         }).toList(),
                     ],
@@ -1435,14 +1518,16 @@ class _ProductionScreenState extends State<ProductionScreen> {
                         )
                       else
                         ...productionProvider.todayItems.map((item) {
-                          final product = products
-                              .where((p) => p.name == item.productName)
-                              .toList();
+                          final product =
+                              products
+                                  .where((p) => p.name == item.productName)
+                                  .toList();
                           final stock =
                               product.isNotEmpty ? product.first.stock : 0;
                           return ListTile(
-                            contentPadding:
-                                const EdgeInsets.symmetric(horizontal: 8),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                            ),
                             title: Text(item.productName),
                             subtitle: Text('Stok saat ini: $stock'),
                             trailing: Text('${item.quantity} pcs'),
@@ -1484,8 +1569,9 @@ class _ProductionScreenState extends State<ProductionScreen> {
                       else
                         ...wasteToday.map((item) {
                           return ListTile(
-                            contentPadding:
-                                const EdgeInsets.symmetric(horizontal: 8),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                            ),
                             title: Text(item.description ?? 'Barang rusak'),
                             trailing: Text('${item.quantity ?? 0} pcs'),
                           );
