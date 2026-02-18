@@ -8,11 +8,29 @@ class DefaultCategory {
 }
 
 class DefaultCategories {
+  static const String incomePrimary = 'Penjualan Kue';
+  static const String incomeFallback = 'Pemasukan Lain';
+  static const String expenseRawMaterials = 'Bahan Baku';
+  static const String expenseOperational = 'Operasional';
+  static const String expenseSalary = 'Gaji';
+
   static const List<DefaultCategory> system = [
-    DefaultCategory(name: 'Penjualan Kue', type: 'IN'),
-    DefaultCategory(name: 'Pemasukan Lain', type: 'IN'),
-    DefaultCategory(name: 'Bahan Baku', type: 'OUT'),
-    DefaultCategory(name: 'Operasional', type: 'OUT'),
-    DefaultCategory(name: 'Gaji', type: 'OUT'),
+    DefaultCategory(name: incomePrimary, type: 'IN'),
+    DefaultCategory(name: incomeFallback, type: 'IN'),
+    DefaultCategory(name: expenseRawMaterials, type: 'OUT'),
+    DefaultCategory(name: expenseOperational, type: 'OUT'),
+    DefaultCategory(name: expenseSalary, type: 'OUT'),
   ];
+
+  static final Set<String> _normalizedSystemNames = {
+    for (final category in system) category.normalizedName,
+  };
+
+  static bool isSystemCategoryName(String name) {
+    return _normalizedSystemNames.contains(name.toLowerCase().trim());
+  }
+
+  static List<DefaultCategory> byType(String type) {
+    return system.where((category) => category.type == type).toList();
+  }
 }

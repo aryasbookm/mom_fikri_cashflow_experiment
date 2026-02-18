@@ -14,6 +14,24 @@ class ManageCategoriesScreen extends StatefulWidget {
 class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
   String _typeFilter = 'IN';
 
+  Widget _buildStatusChip(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -265,7 +283,6 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
                                         ? Colors.orange.shade700
                                         : Colors.green.shade700,
                               ),
-                              title: Text(category.name),
                               subtitle: Text(
                                 protected
                                     ? 'Kategori sistem: tidak bisa diubah/hapus'
@@ -273,6 +290,21 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
                                     ? 'Kategori custom: dipakai transaksi, tidak bisa dihapus'
                                     : 'Kategori custom: bisa diubah/hapus',
                               ),
+                              isThreeLine: true,
+                              titleTextStyle:
+                                  Theme.of(context).textTheme.titleMedium,
+                              subtitleTextStyle: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: Colors.grey.shade700),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 6,
+                              ),
+                              dense: false,
+                              horizontalTitleGap: 12,
+                              minLeadingWidth: 24,
+                              visualDensity: const VisualDensity(vertical: 0),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -305,6 +337,30 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
                                         canDelete
                                             ? () => _deleteCategory(category)
                                             : null,
+                                  ),
+                                ],
+                              ),
+                              title: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(category.name),
+                                  const SizedBox(height: 6),
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 4,
+                                    children: [
+                                      _buildStatusChip(
+                                        protected ? 'Sistem' : 'Custom',
+                                        protected
+                                            ? Colors.grey.shade700
+                                            : Colors.green.shade700,
+                                      ),
+                                      if (isUsed)
+                                        _buildStatusChip(
+                                          'Dipakai ${provider.categoryUsageCount[category.id!] ?? 0} transaksi',
+                                          Colors.orange.shade700,
+                                        ),
+                                    ],
                                   ),
                                 ],
                               ),

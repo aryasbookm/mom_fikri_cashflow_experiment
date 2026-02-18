@@ -78,7 +78,7 @@ All notable changes to this project will be documented in this file.
   - data existing dibackfill otomatis agar kategori sistem yang wajib selalu tersedia.
 - Kelola Kategori:
   - ditambahkan aksi **Tambah Kategori** langsung di layar Kelola Kategori (owner).
-  - status item diperjelas (sistem/custom/dipakai transaksi) dan aksi non-valid dinonaktifkan sejak awal.
+  - status item diperjelas (badge **Sistem/Custom** + info **Dipakai N transaksi**) dan aksi non-valid dinonaktifkan sejak awal.
 
 ---
 

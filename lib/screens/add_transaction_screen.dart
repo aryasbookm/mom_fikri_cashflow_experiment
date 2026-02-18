@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../constants/default_categories.dart';
 import '../models/category_model.dart';
 import '../models/transaction_model.dart';
 import '../models/transaction_item_model.dart';
@@ -38,14 +39,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   String _productSearchQuery = '';
 
   int? _preferredManualIncomeCategoryId(List<CategoryModel> categories) {
+    final fallbackName = DefaultCategories.incomeFallback.toLowerCase().trim();
+    final primaryName = DefaultCategories.incomePrimary.toLowerCase().trim();
     for (final category in categories) {
-      if (category.name.toLowerCase().trim() == 'pemasukan lain') {
+      if (category.name.toLowerCase().trim() == fallbackName) {
         return category.id;
       }
     }
     for (final category in categories) {
       final name = category.name.toLowerCase().trim();
-      if (name != 'penjualan kue') {
+      if (name != primaryName) {
         return category.id;
       }
     }

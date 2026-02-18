@@ -69,6 +69,20 @@ For cashflow/financial logic, `Verify` is mandatory and must include:
   - `CHANGELOG.md`
   - `README.md`
 
+## Cross-Surface Impact Check (Mandatory)
+- Untuk perubahan pada konstanta, skema data, label UI, atau logika bisnis inti:
+  - wajib lakukan impact-check lintas surface sebelum commit.
+- Surface minimum yang harus dicek:
+  - UI utama fitur terkait,
+  - UI role lain (owner/staff) bila role-based,
+  - output turunan (Excel/PDF/export),
+  - laporan/riwayat/summary yang memakai field sama,
+  - backup/restore jika data model terkait.
+- Handoff wajib memuat bukti, bukan klaim umum:
+  - `Impacted surfaces:`
+  - `<surface>: updated` atau `<surface>: checked, no update needed`
+  - sertakan file yang dicek dan hasil ringkas.
+
 ## Git Workflow
 - Use `codex/*` branches for feature experiments until stable.
 - Merge to `main` after validation.

@@ -76,6 +76,7 @@ Catatan:
      - OUT: `Bahan Baku`, `Operasional`, `Gaji`
    - Kategori sistem tidak bisa diubah/hapus.
    - Kategori custom yang sudah pernah dipakai transaksi tidak bisa dihapus.
+   - UI menampilkan badge status per item (`Sistem`/`Custom`) serta indikator penggunaan (`Dipakai N transaksi`) untuk mengurangi trial-error.
    - Kategori custom yang belum dipakai bisa diubah/hapus.
    - Tersedia tombol **Tambah Kategori** di layar Kelola Kategori; tipe mengikuti tab aktif (Pemasukan/Pengeluaran).
    - Sinkronisasi startup memastikan kategori sistem wajib tetap tersedia untuk data existing.

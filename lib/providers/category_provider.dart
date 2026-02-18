@@ -19,6 +19,7 @@ class CategoryProvider extends ChangeNotifier {
 
   final List<CategoryModel> _categories = [];
   final Map<int, bool> _categoryUsage = {};
+  final Map<int, int> _categoryUsageCount = {};
   String? _currentRole;
   static final Set<String> _protectedCategoryNames =
       DefaultCategories.system
@@ -27,6 +28,7 @@ class CategoryProvider extends ChangeNotifier {
 
   List<CategoryModel> get categories => List.unmodifiable(_categories);
   Map<int, bool> get categoryUsage => Map.unmodifiable(_categoryUsage);
+  Map<int, int> get categoryUsageCount => Map.unmodifiable(_categoryUsageCount);
 
   bool isProtectedCategory(CategoryModel category) {
     return _protectedCategoryNames.contains(category.name.toLowerCase().trim());
@@ -61,6 +63,7 @@ class CategoryProvider extends ChangeNotifier {
 
   Future<void> _refreshCategoryUsage(Database db) async {
     _categoryUsage.clear();
+    _categoryUsageCount.clear();
 
     final ids =
         _categories.map((category) => category.id).whereType<int>().toList();
@@ -70,13 +73,22 @@ class CategoryProvider extends ChangeNotifier {
 
     final placeholders = List.filled(ids.length, '?').join(',');
     final rows = await db.rawQuery(
-      'SELECT DISTINCT category_id FROM transactions WHERE category_id IN ($placeholders)',
+      'SELECT category_id, COUNT(*) AS usage_count FROM transactions WHERE category_id IN ($placeholders) GROUP BY category_id',
       ids,
     );
-    final usedIds =
-        rows.map((row) => row['category_id']).whereType<int>().toSet();
+    final usageById = <int, int>{};
+    for (final row in rows) {
+      final categoryId = row['category_id'];
+      final usageCount = row['usage_count'];
+      if (categoryId is int) {
+        usageById[categoryId] =
+            usageCount is int ? usageCount : int.tryParse('$usageCount') ?? 0;
+      }
+    }
     for (final id in ids) {
-      _categoryUsage[id] = usedIds.contains(id);
+      final count = usageById[id] ?? 0;
+      _categoryUsageCount[id] = count;
+      _categoryUsage[id] = count > 0;
     }
   }
 

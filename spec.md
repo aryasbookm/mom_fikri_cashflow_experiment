@@ -94,6 +94,7 @@ Setiap fitur non-trivial dinyatakan siap merge jika lolos:
 - **Pengeluaran:** input manual, kategori dinamis.
 - **Kelola Kategori (Owner):**
   - owner dapat tambah kategori dari layar Kelola Kategori (tipe mengikuti tab aktif IN/OUT),
+  - UI status kategori menampilkan badge `Sistem/Custom` dan `Dipakai N transaksi`,
   - kategori sistem tidak bisa diubah/hapus,
   - kategori custom yang sudah dipakai transaksi tidak bisa dihapus.
 - **Produksi & Stok:** produksi menambah stok, penjualan & waste mengurangi stok.
