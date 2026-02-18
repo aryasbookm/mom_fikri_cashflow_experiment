@@ -116,12 +116,24 @@ class CategoryProvider extends ChangeNotifier {
     }
     final exists = await db.query(
       'categories',
-      columns: ['id'],
+      columns: ['id', 'is_active'],
       where: 'LOWER(TRIM(name)) = ? AND type = ?',
       whereArgs: [normalized.toLowerCase(), type],
       limit: 1,
     );
     if (exists.isNotEmpty) {
+      final existingId = exists.first['id'] as int?;
+      final isActive = (exists.first['is_active'] as int? ?? 1) == 1;
+      if (existingId != null && !isActive) {
+        await db.update(
+          'categories',
+          {'is_active': 1},
+          where: 'id = ?',
+          whereArgs: [existingId],
+        );
+        await loadCategories();
+        return existingId;
+      }
       throw Exception('Kategori sudah ada.');
     }
     final id = await db.insert('categories', {
@@ -199,10 +211,23 @@ class CategoryProvider extends ChangeNotifier {
       );
     }
     if (await hasTransactions(category.id!)) {
+      if (!category.isActive) {
+        return const CategoryActionResult(
+          success: false,
+          message:
+              'Kategori arsip yang sudah dipakai transaksi tidak dapat dihapus permanen.',
+        );
+      }
+      await db.update(
+        'categories',
+        {'is_active': 0},
+        where: 'id = ?',
+        whereArgs: [category.id],
+      );
+      await loadCategories();
       return const CategoryActionResult(
-        success: false,
-        message:
-            'Kategori sudah dipakai transaksi. Hapus ditolak untuk menjaga riwayat data.',
+        success: true,
+        message: 'Kategori disembunyikan dari input transaksi baru.',
       );
     }
     await db.delete('categories', where: 'id = ?', whereArgs: [category.id]);

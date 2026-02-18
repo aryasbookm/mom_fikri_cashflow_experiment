@@ -96,8 +96,14 @@ Setiap fitur non-trivial dinyatakan siap merge jika lolos:
   - owner dapat tambah kategori dari layar Kelola Kategori (tipe mengikuti tab aktif IN/OUT),
   - UI status kategori menampilkan badge `Sistem/Custom` dan `Dipakai N transaksi`,
   - kategori sistem tidak bisa diubah/hapus/arsip,
-  - kategori custom bisa diarsipkan/diaktifkan kembali,
-  - kategori custom yang sudah dipakai transaksi tidak bisa dihapus permanen.
+  - aksi kategori sistem disembunyikan (read-only),
+  - kategori custom aktif bisa diarsipkan/diubah,
+  - smart delete:
+    - kategori custom terpakai -> soft delete (`is_active=0`),
+    - kategori custom belum terpakai -> hard delete,
+    - kategori arsip terpakai -> hard delete ditolak,
+  - kategori arsip ditampilkan opsional via toggle `Tampilkan Arsip`,
+  - penambahan nama kategori yang bentrok dengan arsip akan melakukan reaktivasi kategori lama (tanpa duplikasi).
 - **Produksi & Stok:** produksi menambah stok, penjualan & waste mengurangi stok.
 - **Produksi & Stok:** produksi menambah stok, penjualan & waste mengurangi stok.
   - Daftar stok memiliki filter tampilan `Aktif` (default), `Arsip`, `Semua`.

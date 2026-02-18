@@ -78,8 +78,14 @@ All notable changes to this project will be documented in this file.
   - data existing dibackfill otomatis agar kategori sistem yang wajib selalu tersedia.
 - Kelola Kategori:
   - ditambahkan aksi **Tambah Kategori** langsung di layar Kelola Kategori (owner).
-  - status item diperjelas (badge **Sistem/Custom** + info **Dipakai N transaksi**) dan aksi non-valid dinonaktifkan sejak awal.
-  - ditambahkan aksi **Arsipkan/Aktifkan** kategori custom (soft delete) dengan filter status Aktif/Arsip.
+  - status item diperjelas (badge **Sistem/Custom** + info **Dipakai N transaksi**).
+  - UI disederhanakan menjadi satu daftar aktif + toggle **Tampilkan Arsip** di AppBar.
+  - tombol aksi untuk kategori sistem disembunyikan (tanpa tombol pajangan).
+  - `Hapus` menjadi smart action:
+    - kategori custom terpakai -> soft delete (`is_active=0`, disembunyikan dari input baru),
+    - kategori custom belum terpakai -> hard delete,
+    - kategori arsip terpakai -> hard delete ditolak.
+  - tambah kategori dengan nama yang sama seperti kategori arsip akan mengaktifkan kembali kategori lama (tanpa duplikasi).
   - dropdown input transaksi kini hanya menampilkan kategori aktif.
 - Database:
   - skema dinaikkan ke **v9** dengan kolom `categories.is_active` (default aktif) untuk mendukung arsip kategori secara aman pada data existing.

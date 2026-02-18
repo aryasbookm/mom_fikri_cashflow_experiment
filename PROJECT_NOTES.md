@@ -74,12 +74,16 @@ Catatan:
    - Kategori sistem default:
      - IN: `Penjualan Kue`, `Pemasukan Lain`
      - OUT: `Bahan Baku`, `Operasional`, `Gaji`
-   - Kategori sistem tidak bisa diubah/hapus.
    - Kategori sistem tidak bisa diubah/hapus/arsip.
    - Kategori custom bisa diarsipkan (disembunyikan dari input transaksi) dan bisa diaktifkan kembali.
-   - Kategori custom yang sudah pernah dipakai transaksi tidak bisa dihapus.
+   - Tombol aksi kategori sistem disembunyikan agar tidak menjadi tombol pajangan.
+   - Hapus kategori custom memakai smart delete:
+     - jika sudah dipakai transaksi -> soft delete (`is_active=0`),
+     - jika belum dipakai -> hard delete.
+   - Kategori arsip yang sudah dipakai transaksi tidak bisa dihapus permanen.
    - UI menampilkan badge status per item (`Sistem`/`Custom`) serta indikator penggunaan (`Dipakai N transaksi`) untuk mengurangi trial-error.
-   - Kategori custom yang belum dipakai bisa diubah/hapus.
+   - Tampilan default hanya kategori aktif; kategori arsip dapat ditampilkan via toggle `Tampilkan Arsip`.
+   - Tambah kategori dengan nama yang sama seperti kategori arsip akan mengaktifkan kembali kategori lama.
    - Tersedia tombol **Tambah Kategori** di layar Kelola Kategori; tipe mengikuti tab aktif (Pemasukan/Pengeluaran).
    - Sinkronisasi startup memastikan kategori sistem wajib tetap tersedia untuk data existing.
 

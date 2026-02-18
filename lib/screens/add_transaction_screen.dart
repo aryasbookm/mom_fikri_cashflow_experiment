@@ -312,11 +312,21 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         return;
       }
       final lowerName = customName.toLowerCase();
-      final existing = categoryProvider.categories.where((cat) {
-        return cat.name.toLowerCase().trim() == lowerName;
-      });
+      final existing =
+          categoryProvider.categories.where((cat) {
+            return cat.name.toLowerCase().trim() == lowerName &&
+                cat.type == _type;
+          }).toList();
       if (existing.isNotEmpty) {
-        categoryId = existing.first.id ?? categoryId;
+        final active = existing.where((cat) => cat.isActive).toList();
+        final target = active.isNotEmpty ? active.first : existing.first;
+        if (!target.isActive) {
+          await categoryProvider.toggleCategoryActive(
+            category: target,
+            isActive: true,
+          );
+        }
+        categoryId = target.id ?? categoryId;
       } else {
         categoryId = await categoryProvider.addCategory(customName, _type);
       }

@@ -13,7 +13,7 @@ class ManageCategoriesScreen extends StatefulWidget {
 
 class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
   String _typeFilter = 'IN';
-  String _statusFilter = 'ALL';
+  bool _showArchived = false;
 
   Widget _buildStatusChip(String label, Color color) {
     return Container(
@@ -150,13 +150,18 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
   }
 
   Future<void> _deleteCategory(CategoryModel category) async {
+    final usedHint =
+        category.isActive
+            ? 'Jika kategori sudah pernah dipakai transaksi, kategori akan disembunyikan dari input baru.'
+            : 'Kategori arsip akan dihapus permanen jika belum pernah dipakai transaksi.';
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text('Hapus Kategori?'),
           content: Text(
-            'Kategori "${category.name}" akan dihapus permanen jika belum pernah dipakai transaksi.',
+            'Kategori "${category.name}" akan diproses.\n$usedHint',
           ),
           actions: [
             TextButton(
@@ -165,7 +170,7 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
             ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Hapus'),
+              child: const Text('Lanjutkan'),
             ),
           ],
         );
@@ -237,7 +242,24 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Kelola Kategori')),
+      appBar: AppBar(
+        title: const Text('Kelola Kategori'),
+        actions: [
+          IconButton(
+            tooltip: _showArchived ? 'Sembunyikan arsip' : 'Tampilkan arsip',
+            onPressed: () {
+              setState(() {
+                _showArchived = !_showArchived;
+              });
+            },
+            icon: Icon(
+              _showArchived
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined,
+            ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _addCategory,
         icon: const Icon(Icons.add),
@@ -248,15 +270,7 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
           final categories =
               provider.categories
                   .where((category) => category.type == _typeFilter)
-                  .where((category) {
-                    if (_statusFilter == 'ACTIVE') {
-                      return category.isActive;
-                    }
-                    if (_statusFilter == 'ARCHIVED') {
-                      return !category.isActive;
-                    }
-                    return true;
-                  })
+                  .where((category) => _showArchived || category.isActive)
                   .toList()
                 ..sort(
                   (a, b) =>
@@ -291,50 +305,16 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
                   ],
                 ),
               ),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Sistem: tidak bisa diubah/hapus/arsip. Arsip: tidak muncul di input transaksi baru.',
-                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                    _showArchived
+                        ? 'Sistem terkunci. Arsip tampil untuk aktivasi/pembersihan.'
+                        : 'Sistem terkunci. Arsip disembunyikan dari daftar.',
+                    style: const TextStyle(color: Colors.grey, fontSize: 12),
                   ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: Row(
-                  children: [
-                    ChoiceChip(
-                      label: const Text('Semua'),
-                      selected: _statusFilter == 'ALL',
-                      onSelected: (_) {
-                        setState(() {
-                          _statusFilter = 'ALL';
-                        });
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                    ChoiceChip(
-                      label: const Text('Aktif'),
-                      selected: _statusFilter == 'ACTIVE',
-                      onSelected: (_) {
-                        setState(() {
-                          _statusFilter = 'ACTIVE';
-                        });
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                    ChoiceChip(
-                      label: const Text('Arsip'),
-                      selected: _statusFilter == 'ARCHIVED',
-                      onSelected: (_) {
-                        setState(() {
-                          _statusFilter = 'ARCHIVED';
-                        });
-                      },
-                    ),
-                  ],
                 ),
               ),
               const SizedBox(height: 8),
@@ -358,10 +338,61 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
                             final isUsed =
                                 category.id != null &&
                                 (provider.categoryUsage[category.id!] ?? false);
-                            final canRename = !protected;
+                            final canRename = !protected && category.isActive;
                             final canArchive = !protected && category.isActive;
                             final canRestore = !protected && !category.isActive;
-                            final canDelete = !protected && !isUsed;
+                            final canDelete =
+                                !protected && (!isUsed || category.isActive);
+
+                            final trailing = <Widget>[];
+                            if (!protected) {
+                              if (canRename) {
+                                trailing.add(
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.edit,
+                                      color: Color(0xFF1565C0),
+                                    ),
+                                    tooltip: 'Ubah nama',
+                                    onPressed: () => _renameCategory(category),
+                                  ),
+                                );
+                              }
+                              if (canArchive || canRestore) {
+                                trailing.add(
+                                  IconButton(
+                                    icon: Icon(
+                                      category.isActive
+                                          ? Icons.archive_outlined
+                                          : Icons.unarchive_outlined,
+                                      color: Colors.blueGrey,
+                                    ),
+                                    tooltip:
+                                        category.isActive
+                                            ? 'Arsipkan'
+                                            : 'Aktifkan',
+                                    onPressed:
+                                        () => _toggleCategoryStatus(category),
+                                  ),
+                                );
+                              }
+                              if (canDelete) {
+                                trailing.add(
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.delete_outline,
+                                      color: Colors.red,
+                                    ),
+                                    tooltip:
+                                        category.isActive
+                                            ? 'Hapus/Sembunyikan'
+                                            : 'Hapus permanen',
+                                    onPressed: () => _deleteCategory(category),
+                                  ),
+                                );
+                              }
+                            }
+
                             return ListTile(
                               leading: Icon(
                                 protected
@@ -382,12 +413,12 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
                               ),
                               subtitle: Text(
                                 protected
-                                    ? 'Kategori sistem: tidak bisa diubah/hapus/arsip'
+                                    ? 'Kategori sistem: tidak dapat diubah'
                                     : !category.isActive
-                                    ? 'Kategori custom: diarsipkan (disembunyikan dari input transaksi)'
+                                    ? 'Kategori arsip: tidak tampil pada input transaksi'
                                     : isUsed
-                                    ? 'Kategori custom: dipakai transaksi, tidak bisa dihapus'
-                                    : 'Kategori custom: bisa diubah/hapus',
+                                    ? 'Kategori dipakai transaksi: hapus akan menyembunyikan'
+                                    : 'Kategori custom: dapat diubah dan dihapus',
                               ),
                               isThreeLine: true,
                               titleTextStyle:
@@ -404,62 +435,16 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
                               horizontalTitleGap: 12,
                               minLeadingWidth: 24,
                               visualDensity: const VisualDensity(vertical: 0),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.edit,
-                                      color: Color(0xFF1565C0),
-                                    ),
-                                    tooltip:
-                                        canRename
-                                            ? 'Ubah nama'
-                                            : 'Kategori sistem tidak bisa diubah',
-                                    onPressed:
-                                        canRename
-                                            ? () => _renameCategory(category)
-                                            : null,
-                                  ),
-                                  IconButton(
-                                    icon: Icon(
-                                      category.isActive
-                                          ? Icons.archive_outlined
-                                          : Icons.unarchive_outlined,
-                                      color: Colors.blueGrey,
-                                    ),
-                                    tooltip:
-                                        (canArchive || canRestore)
-                                            ? (category.isActive
-                                                ? 'Arsipkan'
-                                                : 'Aktifkan')
-                                            : protected
-                                            ? 'Kategori sistem tidak bisa diarsipkan'
-                                            : 'Status kategori tidak dapat diubah',
-                                    onPressed:
-                                        (canArchive || canRestore)
-                                            ? () =>
-                                                _toggleCategoryStatus(category)
-                                            : null,
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.delete_outline,
-                                      color: Colors.red,
-                                    ),
-                                    tooltip:
-                                        canDelete
-                                            ? 'Hapus permanen'
-                                            : protected
-                                            ? 'Kategori sistem tidak bisa dihapus'
-                                            : 'Kategori sudah dipakai transaksi',
-                                    onPressed:
-                                        canDelete
-                                            ? () => _deleteCategory(category)
-                                            : null,
-                                  ),
-                                ],
-                              ),
+                              trailing:
+                                  trailing.isEmpty
+                                      ? _buildStatusChip(
+                                        'Terkunci Sistem',
+                                        Colors.grey.shade700,
+                                      )
+                                      : Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: trailing,
+                                      ),
                               title: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
@@ -475,12 +460,13 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
                                             ? Colors.grey.shade700
                                             : Colors.green.shade700,
                                       ),
-                                      _buildStatusChip(
-                                        category.isActive ? 'Aktif' : 'Arsip',
-                                        category.isActive
-                                            ? Colors.teal.shade700
-                                            : Colors.blueGrey.shade700,
-                                      ),
+                                      if (!protected)
+                                        _buildStatusChip(
+                                          category.isActive ? 'Aktif' : 'Arsip',
+                                          category.isActive
+                                              ? Colors.teal.shade700
+                                              : Colors.blueGrey.shade700,
+                                        ),
                                       if (isUsed)
                                         _buildStatusChip(
                                           'Dipakai ${provider.categoryUsageCount[category.id!] ?? 0} transaksi',
