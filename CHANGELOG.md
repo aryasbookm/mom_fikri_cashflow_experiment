@@ -29,6 +29,7 @@ All notable changes to this project will be documented in this file.
 - Produksi: filter daftar stok **Aktif / Arsip / Semua** (default: Aktif).
 - Guarded delete produk: hapus permanen hanya diizinkan jika stok `0` dan belum punya riwayat di `transaction_items`.
 - Owner: menu **Kelola Kategori** di tab Akun untuk ubah nama kategori custom dan hapus kategori yang belum pernah dipakai transaksi.
+- Pemasukan manual: kategori pemasukan kini memprioritaskan non-`Penjualan Kue` (default ke `Pemasukan Lain` bila tersedia) dan menampilkan info bahwa input manual tidak memengaruhi stok produk.
 
 ### Changed
 - Branding aplikasi disederhanakan dari "Toko Kue Mom Fiqry (Eksperimen)" menjadi "Toko Kue Mom Fiqry" pada Android/iOS/Web/Desktop.

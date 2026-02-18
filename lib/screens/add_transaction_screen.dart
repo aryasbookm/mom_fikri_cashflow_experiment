@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../models/category_model.dart';
 import '../models/transaction_model.dart';
 import '../models/transaction_item_model.dart';
 import '../providers/auth_provider.dart';
@@ -35,6 +36,21 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   bool _isCartExpanded = false;
   final List<_CartItem> _cartItems = [];
   String _productSearchQuery = '';
+
+  int? _preferredManualIncomeCategoryId(List<CategoryModel> categories) {
+    for (final category in categories) {
+      if (category.name.toLowerCase().trim() == 'pemasukan lain') {
+        return category.id;
+      }
+    }
+    for (final category in categories) {
+      final name = category.name.toLowerCase().trim();
+      if (name != 'penjualan kue') {
+        return category.id;
+      }
+    }
+    return categories.isNotEmpty ? categories.first.id : null;
+  }
 
   @override
   void initState() {
@@ -457,10 +473,32 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             ],
             Consumer<CategoryProvider>(
               builder: (context, provider, _) {
-                final categories =
+                final allCategories =
                     _type == 'IN'
                         ? provider.incomeCategories
                         : provider.expenseCategories;
+                final categories =
+                    _type == 'IN' && _manualIncomeInput
+                        ? allCategories
+                            .where(
+                              (category) =>
+                                  category.name.toLowerCase().trim() !=
+                                  'penjualan kue',
+                            )
+                            .toList()
+                        : allCategories;
+
+                if (_type == 'IN' &&
+                    _manualIncomeInput &&
+                    categories.isNotEmpty &&
+                    (_selectedCategoryId == null ||
+                        !categories.any(
+                          (cat) => cat.id == _selectedCategoryId,
+                        ))) {
+                  _selectedCategoryId = _preferredManualIncomeCategoryId(
+                    categories,
+                  );
+                }
 
                 if (_selectedCategoryId == null && categories.isNotEmpty) {
                   _selectedCategoryId = categories.first.id;
@@ -499,6 +537,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         });
                       },
                     ),
+                    if (_type == 'IN' && _manualIncomeInput) ...[
+                      const SizedBox(height: 8),
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Input manual tidak memengaruhi stok produk.',
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
+                      ),
+                    ],
                     if (_selectedCategoryId == -1) ...[
                       const SizedBox(height: 12),
                       TextField(
