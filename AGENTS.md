@@ -74,6 +74,19 @@ For cashflow/financial logic, `Verify` is mandatory and must include:
 - App icon source: `assets/icon_toko.png` (`flutter_launcher_icons`).
 - Do not run `flutter_launcher_icons` or `flutter pub get` unless requested.
 
+## Validation Scope Policy (Token-Efficient)
+- Tujuan: menjaga kualitas tetap tinggi dengan biaya token/waktu lebih efisien.
+- Default saat iterasi harian:
+  - jalankan `format` + `analyze` **hanya untuk file yang diubah**.
+  - hindari analyze seluruh repo untuk perubahan kecil/lokal.
+- Wajib jalankan validasi lebih luas (module-wide/full) ketika:
+  - user meminta `pre-merge` / `release check`,
+  - perubahan lintas banyak file/fitur,
+  - perubahan menyentuh alur kritikal (backup/restore, auth, laporan finansial, delete/rollback).
+- Jika analyzer menghasilkan banyak lint lama yang tidak terkait perubahan:
+  - fokus pada error/regression baru dari patch saat ini,
+  - jangan membuka refactor lint massal kecuali diminta user.
+
 ## Command Access & Blocker Policy
 - Some commands can be blocked by environment policy (sandbox scope, network restriction, or OS privilege such as `sudo` with TTY password).
 - Treat blocked commands as execution constraints, not feature failure.

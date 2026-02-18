@@ -151,6 +151,9 @@ lib/
 - Best practice is default (no need to wait for keyword).
 - Timebox blockers: **3 attempts or 45–60 minutes max**.
 - If blocked: declare blocker, propose fallback path, continue progress.
+- Validation scope is token-aware by default:
+  - daily iteration: format/analyze per changed file,
+  - full/module-wide checks only for pre-merge/release or critical cross-cutting changes.
 - Definition of Done per feature slice:
   - code complete
   - minimal validation on target platform
