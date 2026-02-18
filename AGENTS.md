@@ -86,6 +86,19 @@ For cashflow/financial logic, `Verify` is mandatory and must include:
   - `<surface>: updated` atau `<surface>: checked, no update needed`
   - sertakan file yang dicek dan hasil ringkas.
 
+## Version Consistency Check (Mandatory)
+- Jika ada perubahan schema/version DB, wajib sinkronkan referensi versi lintas dokumen dalam sesi yang sama.
+- Minimum dokumen yang harus dicek:
+  - `AGENTS.md`
+  - `AI_CONTEXT.md`
+  - `PROJECT_NOTES.md`
+  - `spec.md`
+  - `CHANGELOG.md`
+  - `README.md`
+- Handoff wajib menyertakan status eksplisit:
+  - `DB version consistency: synced`, atau
+  - `DB version consistency: pending` (dengan alasan, jika memang belum bisa ditutup).
+
 ## Git Workflow
 - Use `codex/*` branches for feature experiments until stable.
 - Merge to `main` after validation.
@@ -134,7 +147,7 @@ For cashflow/financial logic, `Verify` is mandatory and must include:
   - UI outcome verified (no silent fallback/default state when assets should exist).
 
 ## Safety
-- DB v8 is locked unless explicit migration approval exists.
+- DB v9 is locked unless explicit migration approval exists.
 - Backup/restore changes require rollback-safe behavior and validation.
 
 ## Handoff (Session End)

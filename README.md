@@ -21,7 +21,7 @@ Repositori ini dilengkapi dengan dokumentasi teknis dan operasional sebagai beri
 - **[CHANGELOG.md](CHANGELOG.md)**: Catatan lengkap evolusi fitur berdasarkan fase pengembangan (Timeline: v0.9.0 hingga v1.0.0-rc3). **(Baca ini untuk melihat progres skripsi)**.
 
 ### 2. Spesifikasi Teknis
-- **[spec.md](spec.md)**: Spesifikasi teknis mendalam, termasuk Skema Database SQLite (v8) dan arsitektur State Management.
+- **[spec.md](spec.md)**: Spesifikasi teknis mendalam, termasuk Skema Database SQLite (v9) dan arsitektur State Management.
 - **[PROJECT_NOTES.md](PROJECT_NOTES.md)**: Catatan keputusan desain, daftar fitur, dan strategi pengembangan.
 
 ### 3. Protokol & Pengujian

@@ -6,7 +6,7 @@
 
 > ⚠️ ALL AI AGENTS MUST READ THIS FILE BEFORE STARTING A SESSION.
 
-Last updated: 2026-02-12  
+Last updated: 2026-02-19  
 Project: **Mom Fiqry Cashflow**
 
 ## 1) Purpose
@@ -25,10 +25,10 @@ Hard rules for mentor/reviewer AI:
 ## 3) Current Project State
 - Active workspace branch (current session): `main`
 - Recent commits:
-  - `e4f0fe7` docs: final sync notes changelog and thesis reference
-  - `cfdcfd5` feat: switch local auto-backup to 5-minute session throttle
-  - `b3f14ec` refactor: align account backup sections and labels
-- DB policy: **SQLite v8 locked** (no schema changes without migration approval).
+  - `98d8917` fix: harden android safe-area handling for bottom actions
+  - `04b9e14` refactor: simplify category management with smart delete
+  - `91f1d4a` feat: add category archive flow with db v9 migration
+- DB policy: **SQLite v9 locked** (no schema changes without migration approval).
 
 ## 3.5) Workspace Capsule (Operational)
 - File operasional: `WORKFLOW.md` di root repo.
@@ -41,7 +41,7 @@ Hard rules for mentor/reviewer AI:
   - Dart SDK: `3.7.2`
   - Flutter SDK: local environment indicates `3.29.0` path usage (`/opt/homebrew/Caskroom/flutter/3.29.0/...`)
 - State management: `provider`
-- Local database: `sqflite` (DB schema/version locked at v8)
+- Local database: `sqflite` (DB schema/version locked at v9)
 - Cloud stack (Android):
   - `google_sign_in`
   - `googleapis` (Drive v3)
