@@ -36,10 +36,7 @@ class _StaffDashboardState extends State<StaffDashboard> {
     }
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     _userId = authProvider.currentUser?.id;
-    final txProvider = Provider.of<TransactionProvider>(
-      context,
-      listen: false,
-    );
+    final txProvider = Provider.of<TransactionProvider>(context, listen: false);
     txProvider.clearTransactions();
     if (_userId == null) {
       return;
@@ -74,12 +71,28 @@ class _StaffDashboardState extends State<StaffDashboard> {
       return;
     }
 
-    Provider.of<TransactionProvider>(context, listen: false)
-        .clearTransactions();
+    Provider.of<TransactionProvider>(
+      context,
+      listen: false,
+    ).clearTransactions();
     authProvider.logout();
     Navigator.of(
       context,
     ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
+  }
+
+  Future<void> _openAddTransaction(String type) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AddTransactionScreen(initialType: type),
+      ),
+    );
+    if (_userId != null && mounted) {
+      Provider.of<TransactionProvider>(
+        context,
+        listen: false,
+      ).loadTodayTransactionsForUser(_userId!);
+    }
   }
 
   Widget _buildHome(BuildContext context) {
@@ -97,40 +110,80 @@ class _StaffDashboardState extends State<StaffDashboard> {
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1565C0),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.08),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1565C0),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Total Setoran Hari Ini',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontWeight: FontWeight.w600,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Total Setoran Hari Ini',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          currency.format(totalSetoran),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => _openAddTransaction('IN'),
+                          icon: const Icon(Icons.attach_money),
+                          label: const Text('Catat Pemasukan'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      currency.format(totalSetoran),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => _openAddTransaction('OUT'),
+                          icon: const Icon(Icons.shopping_basket),
+                          label: const Text('Catat Pengeluaran'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
               ),
             ),
             Expanded(
@@ -192,10 +245,12 @@ class _StaffDashboardState extends State<StaffDashboard> {
                                     color: Colors.red,
                                   ),
                                   onPressed: () async {
-                                    if (_userId != null && tx.userId != _userId) {
+                                    if (_userId != null &&
+                                        tx.userId != _userId) {
                                       if (mounted) {
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
                                           const SnackBar(
                                             content: Text(
                                               'Tidak bisa menghapus transaksi user lain',
@@ -331,25 +386,6 @@ class _StaffDashboardState extends State<StaffDashboard> {
         ),
       ),
       body: IndexedStack(index: _currentIndex, children: pages),
-      floatingActionButton:
-          _currentIndex == 0
-              ? FloatingActionButton(
-                onPressed: () async {
-                  await Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const AddTransactionScreen(),
-                    ),
-                  );
-                  if (_userId != null && mounted) {
-                    Provider.of<TransactionProvider>(
-                      context,
-                      listen: false,
-                    ).loadTodayTransactionsForUser(_userId!);
-                  }
-                },
-                child: const Icon(Icons.add),
-              )
-              : null,
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         selectedItemColor: const Color(0xFF8D1B3D),

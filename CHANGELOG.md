@@ -64,6 +64,7 @@ All notable changes to this project will be documented in this file.
   - catatan backup panjang dibuat foldable lewat panel **Info & Catatan Penting** (default tertutup).
 - Kasir (catat pemasukan): saat produk yang sama dipilih ulang, input jumlah kini memperbarui qty item di cart (replace), bukan menambah qty lama.
 - Produksi (edit produk): ditambahkan field **Penyesuaian Stok (opsional)** pada dialog edit untuk tambah/kurangi stok langsung via nilai `+/-` dengan validasi agar stok tidak minus.
+- Dashboard staff: FAB `+` di beranda dihapus dan diganti dua aksi langsung (**Catat Pemasukan** dan **Catat Pengeluaran**) agar konsisten dengan alur owner.
 
 ---
 
