@@ -977,6 +977,8 @@ class _ProductionScreenState extends State<ProductionScreen> {
           transactionProvider,
           _,
         ) {
+          final isOwner =
+              context.watch<AuthProvider>().currentUser?.role == 'owner';
           final products = productProvider.products;
           if (_selectedProductName == null && products.isNotEmpty) {
             _selectedProductName = products.first.name;
@@ -1144,10 +1146,11 @@ class _ProductionScreenState extends State<ProductionScreen> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          IconButton(
-                            onPressed: _addProduct,
-                            icon: const Icon(Icons.add),
-                          ),
+                          if (isOwner)
+                            IconButton(
+                              onPressed: _addProduct,
+                              icon: const Icon(Icons.add),
+                            ),
                         ],
                       ),
                       const SizedBox(height: 12),
@@ -1204,7 +1207,7 @@ class _ProductionScreenState extends State<ProductionScreen> {
                     initiallyExpanded: false,
                     children: [
                       const SizedBox(height: 4),
-                      if (_selectionMode)
+                      if (isOwner && _selectionMode)
                         Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
@@ -1341,7 +1344,7 @@ class _ProductionScreenState extends State<ProductionScreen> {
                             ),
                             tileColor: isArchived ? Colors.grey.shade200 : null,
                             leading:
-                                _selectionMode
+                                isOwner && _selectionMode
                                     ? Checkbox(
                                       value: isSelected,
                                       onChanged:
@@ -1361,17 +1364,18 @@ class _ProductionScreenState extends State<ProductionScreen> {
                               style: TextStyle(color: textColor),
                             ),
                             onTap:
-                                _selectionMode
+                                isOwner && _selectionMode
                                     ? () => _toggleSelection(product)
                                     : null,
                             onLongPress:
-                                _selectionMode
+                                !isOwner || _selectionMode
                                     ? null
                                     : () => _enterSelectionMode(product),
                             trailing:
-                                _selectionMode
+                                isOwner && _selectionMode
                                     ? null
-                                    : Row(
+                                    : isOwner
+                                    ? Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         IconButton(
@@ -1480,7 +1484,21 @@ class _ProductionScreenState extends State<ProductionScreen> {
                                               ],
                                         ),
                                       ],
-                                    ),
+                                    )
+                                    : (product.stock > 0 && product.id != null)
+                                    ? IconButton(
+                                      tooltip: 'Kurangi stok',
+                                      icon: const Icon(
+                                        Icons.remove_circle_outline,
+                                        color: Color(0xFF8D1B3D),
+                                      ),
+                                      onPressed:
+                                          () => _wasteStock(
+                                            product.id!,
+                                            product.name,
+                                          ),
+                                    )
+                                    : null,
                           );
                         }).toList(),
                     ],
