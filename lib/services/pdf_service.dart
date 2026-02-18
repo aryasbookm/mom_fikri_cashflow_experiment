@@ -7,6 +7,53 @@ import '../models/transaction_item_model.dart';
 import '../models/transaction_model.dart';
 
 class PdfService {
+  static String _buildIncomeSummary(List<TransactionItemModel> items) {
+    if (items.isEmpty) {
+      return 'Penjualan Kue';
+    }
+    if (items.length == 1) {
+      return items.first.productName;
+    }
+    final firstName = items.first.productName;
+    final extraCount = items.length - 1;
+    return '$firstName +$extraCount item';
+  }
+
+  static String _buildFinancialDescription({
+    required TransactionModel tx,
+    required List<TransactionItemModel> items,
+    required NumberFormat currency,
+  }) {
+    final category = tx.categoryName ?? 'Transaksi';
+    final note = tx.description?.trim();
+
+    if (tx.type == 'IN') {
+      final summary = _buildIncomeSummary(items);
+      final itemSummary = items
+          .map((item) {
+            final unit = currency.format(item.unitPrice);
+            return '${item.productName} (${item.quantity}) @$unit';
+          })
+          .join(', ');
+      final lines = <String>[summary, 'Kategori: $category'];
+      if (note != null && note.isNotEmpty) {
+        lines.add(note);
+      }
+      if (itemSummary.isNotEmpty) {
+        lines.add('Detail: $itemSummary');
+      }
+      return lines.join('\n');
+    }
+
+    if (note == null || note.isEmpty) {
+      return category;
+    }
+    if (note.toLowerCase() == category.toLowerCase()) {
+      return category;
+    }
+    return '$category\n$note';
+  }
+
   static Future<void> generateReport({
     required String monthLabel,
     required List<TransactionModel> financialData,
@@ -16,18 +63,17 @@ class PdfService {
     required Map<int, List<TransactionItemModel>> itemsByTransaction,
   }) async {
     final currency = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ');
-    final nowLabel = DateFormat('dd MMMM y, HH:mm', 'id_ID')
-        .format(DateTime.now());
+    final nowLabel = DateFormat(
+      'dd MMMM y, HH:mm',
+      'id_ID',
+    ).format(DateTime.now());
     final balance = totalIncome - totalExpense;
 
     final baseFont = await PdfGoogleFonts.openSansRegular();
     final boldFont = await PdfGoogleFonts.openSansBold();
 
     final pdf = pw.Document(
-      theme: pw.ThemeData.withFont(
-        base: baseFont,
-        bold: boldFont,
-      ),
+      theme: pw.ThemeData.withFont(base: baseFont, bold: boldFont),
     );
 
     pdf.addPage(
@@ -37,10 +83,7 @@ class PdfService {
           return [
             pw.Text(
               'Laporan Keuangan Mom Fiqry',
-              style: pw.TextStyle(
-                fontSize: 18,
-                fontWeight: pw.FontWeight.bold,
-              ),
+              style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
             ),
             pw.SizedBox(height: 4),
             pw.Text('Periode: $monthLabel'),
@@ -50,9 +93,7 @@ class PdfService {
               padding: const pw.EdgeInsets.all(12),
               decoration: pw.BoxDecoration(
                 border: pw.Border.all(color: PdfColors.grey300),
-                borderRadius: const pw.BorderRadius.all(
-                  pw.Radius.circular(6),
-                ),
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
               ),
               child: pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -78,10 +119,7 @@ class PdfService {
             pw.SizedBox(height: 16),
             pw.Text(
               'Section A - Laporan Keuangan',
-              style: pw.TextStyle(
-                fontSize: 14,
-                fontWeight: pw.FontWeight.bold,
-              ),
+              style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
             ),
             pw.SizedBox(height: 8),
             _financialTable(
@@ -92,10 +130,7 @@ class PdfService {
             pw.SizedBox(height: 16),
             pw.Text(
               'Section B - Laporan Barang Rusak/Waste',
-              style: pw.TextStyle(
-                fontSize: 14,
-                fontWeight: pw.FontWeight.bold,
-              ),
+              style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
             ),
             pw.SizedBox(height: 8),
             _wasteTable(wasteData),
@@ -152,21 +187,15 @@ class PdfService {
         ['Tanggal', 'Keterangan', 'Masuk', 'Keluar'],
         ...financialData.map((tx) {
           final dateLabel = _formatDate(tx.date);
-          final description =
-              tx.description ?? tx.categoryName ?? 'Transaksi';
-          final items = tx.id == null
-              ? <TransactionItemModel>[]
-              : (itemsByTransaction[tx.id!] ?? []);
-          final itemSummary = items.isEmpty
-              ? ''
-              : items
-                  .map((item) {
-                    final unit = currency.format(item.unitPrice);
-                    return '${item.productName} (${item.quantity}) @$unit';
-                  })
-                  .join(', ');
-          final details =
-              itemSummary.isEmpty ? description : '$description\n$itemSummary';
+          final items =
+              tx.id == null
+                  ? <TransactionItemModel>[]
+                  : (itemsByTransaction[tx.id!] ?? []);
+          final details = _buildFinancialDescription(
+            tx: tx,
+            items: items,
+            currency: currency,
+          );
           final income = tx.type == 'IN' ? currency.format(tx.amount) : '-';
           final expense = tx.type == 'OUT' ? currency.format(tx.amount) : '-';
           return [dateLabel, details, income, expense];

@@ -30,6 +30,9 @@ All notable changes to this project will be documented in this file.
 - Guarded delete produk: hapus permanen hanya diizinkan jika stok `0` dan belum punya riwayat di `transaction_items`.
 - Owner: menu **Kelola Kategori** di tab Akun untuk ubah nama kategori custom dan hapus kategori yang belum pernah dipakai transaksi.
 - Pemasukan manual: kategori pemasukan kini memprioritaskan non-`Penjualan Kue` (default ke `Pemasukan Lain` bila tersedia) dan menampilkan info bahwa input manual tidak memengaruhi stok produk.
+- Export laporan diselaraskan:
+  - Excel memakai header yang lebih jelas (`Kategori Transaksi`, `Ringkasan Produk`, `Catatan`, `Detail Produk`) dengan detail item tetap lengkap.
+  - PDF menampilkan ringkasan produk untuk transaksi pemasukan (hybrid) dan tetap menyertakan detail item agar lebih mudah dibaca owner.
 
 ### Changed
 - Branding aplikasi disederhanakan dari "Toko Kue Mom Fiqry (Eksperimen)" menjadi "Toko Kue Mom Fiqry" pada Android/iOS/Web/Desktop.

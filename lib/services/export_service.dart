@@ -12,15 +12,41 @@ import '../models/transaction_item_model.dart';
 import '../models/transaction_model.dart';
 
 class ExportService {
+  static String _buildProductSummary({
+    required TransactionModel tx,
+    required List<TransactionItemModel> items,
+    required Map<int, String> productMap,
+  }) {
+    if (tx.type != 'IN') {
+      if (tx.productId != null) {
+        return productMap[tx.productId!] ?? '-';
+      }
+      return '-';
+    }
+
+    if (items.isEmpty) {
+      if (tx.productId != null) {
+        return productMap[tx.productId!] ?? '-';
+      }
+      return '-';
+    }
+
+    if (items.length == 1) {
+      return items.first.productName;
+    }
+
+    final firstName = items.first.productName;
+    final extraCount = items.length - 1;
+    return '$firstName +$extraCount item';
+  }
+
   static Future<void> exportTransactionsToExcel(
     List<TransactionModel> transactions, {
     required String filterLabel,
-  }
-  ) async {
+  }) async {
     final excel = Excel.createExcel();
-    final sheetName = excel.sheets.keys.isNotEmpty
-        ? excel.sheets.keys.first
-        : 'Sheet1';
+    final sheetName =
+        excel.sheets.keys.isNotEmpty ? excel.sheets.keys.first : 'Sheet1';
     final sheet = excel[sheetName];
 
     final thinBorder = Border(borderStyle: BorderStyle.Thin);
@@ -107,12 +133,12 @@ class ExportService {
     final headers = [
       'Tanggal',
       'Tipe',
-      'Kategori',
-      'Produk',
+      'Kategori Transaksi',
+      'Ringkasan Produk',
       'Jumlah',
       'Nominal',
-      'Keterangan',
-      'Rincian Item',
+      'Catatan',
+      'Detail Produk',
       'User',
     ];
 
@@ -131,8 +157,7 @@ class ExportService {
     final categoryRows = await db.query('categories', columns: ['id', 'name']);
 
     final userMap = {
-      for (final row in userRows)
-        row['id'] as int: row['username'] as String,
+      for (final row in userRows) row['id'] as int: row['username'] as String,
     };
     final productMap = {
       for (final row in productRows) row['id'] as int: row['name'] as String,
@@ -150,10 +175,8 @@ class ExportService {
     int totalIncome = 0;
     int totalExpense = 0;
 
-    final txIds = transactions
-        .where((tx) => tx.id != null)
-        .map((tx) => tx.id!)
-        .toList();
+    final txIds =
+        transactions.where((tx) => tx.id != null).map((tx) => tx.id!).toList();
     final Map<int, List<TransactionItemModel>> itemsByTx = {};
     if (txIds.isNotEmpty) {
       final placeholders = List.filled(txIds.length, '?').join(', ');
@@ -170,11 +193,12 @@ class ExportService {
 
     for (final tx in transactions) {
       final parsedDate = DateTime.tryParse(tx.date);
-      final formattedDate = parsedDate == null
-          ? tx.date
-          : dateFormat.format(
-              parsedDate.isUtc ? parsedDate.toLocal() : parsedDate,
-            );
+      final formattedDate =
+          parsedDate == null
+              ? tx.date
+              : dateFormat.format(
+                parsedDate.isUtc ? parsedDate.toLocal() : parsedDate,
+              );
 
       if (tx.type == 'IN') {
         totalIncome += tx.amount;
@@ -182,22 +206,24 @@ class ExportService {
         totalExpense += tx.amount;
       }
 
-      final items = tx.id == null ? <TransactionItemModel>[] : (itemsByTx[tx.id!] ?? []);
-      final itemSummary = items.isEmpty
-          ? '-'
-          : items
-              .map((item) {
-                final unit = currency.format(item.unitPrice);
-                return '${item.productName} (${item.quantity}) @$unit';
-              })
-              .join(', ');
+      final items =
+          tx.id == null ? <TransactionItemModel>[] : (itemsByTx[tx.id!] ?? []);
+      final itemSummary =
+          items.isEmpty
+              ? '-'
+              : items
+                  .map((item) {
+                    final unit = currency.format(item.unitPrice);
+                    return '${item.productName} (${item.quantity}) @$unit';
+                  })
+                  .join(', ');
 
       final values = [
         TextCellValue(formattedDate),
         TextCellValue(tx.type),
         TextCellValue(tx.categoryName ?? categoryMap[tx.categoryId] ?? '-'),
         TextCellValue(
-          tx.productId != null ? (productMap[tx.productId!] ?? '-') : '-',
+          _buildProductSummary(tx: tx, items: items, productMap: productMap),
         ),
         tx.quantity == null ? TextCellValue('-') : IntCellValue(tx.quantity!),
         IntCellValue(tx.amount),
@@ -210,16 +236,14 @@ class ExportService {
 
       for (var i = 0; i < values.length; i++) {
         final cell = sheet.cell(
-          CellIndex.indexByColumnRow(
-            columnIndex: i,
-            rowIndex: currentRow,
-          ),
+          CellIndex.indexByColumnRow(columnIndex: i, rowIndex: currentRow),
         );
         cell
           ..value = values[i]
-          ..cellStyle = i == 5
-              ? nominalStyle
-              : i == 4
+          ..cellStyle =
+              i == 5
+                  ? nominalStyle
+                  : i == 4
                   ? qtyStyle
                   : dataStyle;
       }
@@ -267,9 +291,6 @@ class ExportService {
     }
     await file.writeAsBytes(bytes, flush: true);
 
-    await Share.shareXFiles(
-      [XFile(filePath)],
-      text: 'Laporan transaksi',
-    );
+    await Share.shareXFiles([XFile(filePath)], text: 'Laporan transaksi');
   }
 }
