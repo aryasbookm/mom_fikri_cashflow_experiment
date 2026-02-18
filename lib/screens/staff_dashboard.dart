@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../models/transaction_item_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/product_provider.dart';
 import '../providers/transaction_provider.dart';
@@ -93,6 +94,27 @@ class _StaffDashboardState extends State<StaffDashboard> {
         listen: false,
       ).loadTodayTransactionsForUser(_userId!);
     }
+  }
+
+  String _buildTransactionTitle(
+    tx,
+    Map<int, List<TransactionItemModel>> itemsByTxId,
+  ) {
+    if (tx.type != 'IN' || tx.id == null) {
+      return tx.categoryName ?? 'Transaksi';
+    }
+
+    final items = itemsByTxId[tx.id!] ?? const <TransactionItemModel>[];
+    if (items.isEmpty) {
+      return tx.categoryName ?? 'Transaksi';
+    }
+    if (items.length == 1) {
+      return items.first.productName;
+    }
+
+    final firstName = items.first.productName;
+    final extraCount = items.length - 1;
+    return '$firstName +$extraCount item';
   }
 
   Widget _buildHome(BuildContext context) {
@@ -202,157 +224,195 @@ class _StaffDashboardState extends State<StaffDashboard> {
                           ],
                         ),
                       )
-                      : ListView.builder(
-                        itemCount: provider.transactions.length,
-                        itemBuilder: (context, index) {
-                          final tx = provider.transactions[index];
-                          final isIncome = tx.type == 'IN';
-                          final color = isIncome ? Colors.green : Colors.red;
-                          final icon =
-                              isIncome
-                                  ? Icons.arrow_downward
-                                  : Icons.arrow_upward;
-                          final description =
-                              tx.description?.isNotEmpty == true
-                                  ? tx.description!
-                                  : null;
-                          final dateLabel = DateFormat(
-                            'd MMMM y',
-                            'id_ID',
-                          ).format(DateTime.parse(tx.date));
-                          final subtitleText =
-                              description == null
-                                  ? dateLabel
-                                  : '$dateLabel • $description';
-
-                          return ListTile(
-                            leading: Icon(icon, color: color),
-                            title: Text(tx.categoryName ?? 'Transaksi'),
-                            subtitle: Text(subtitleText),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  currency.format(tx.amount),
-                                  style: TextStyle(
-                                    color: color,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                      : FutureBuilder<Map<int, List<TransactionItemModel>>>(
+                        future: provider.getItemsByTransactionIds(
+                          provider.transactions
+                              .map((tx) => tx.id)
+                              .whereType<int>()
+                              .toList(),
+                        ),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Center(
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
                                 ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.delete,
-                                    color: Colors.red,
-                                  ),
-                                  onPressed: () async {
-                                    if (_userId != null &&
-                                        tx.userId != _userId) {
-                                      if (mounted) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Tidak bisa menghapus transaksi user lain',
-                                            ),
-                                          ),
-                                        );
-                                      }
-                                      return;
-                                    }
-                                    final reasonController =
-                                        TextEditingController();
-                                    final confirmed = await showDialog<bool>(
-                                      context: context,
-                                      builder:
-                                          (context) => AlertDialog(
-                                            title: const Text(
-                                              'Hapus transaksi ini?',
-                                            ),
-                                            content: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                const Text(
-                                                  'Masukkan alasan penghapusan (wajib).',
+                              ),
+                            );
+                          }
+                          final itemsByTxId = snapshot.data ?? const {};
+                          return ListView.builder(
+                            itemCount: provider.transactions.length,
+                            itemBuilder: (context, index) {
+                              final tx = provider.transactions[index];
+                              final isIncome = tx.type == 'IN';
+                              final color =
+                                  isIncome ? Colors.green : Colors.red;
+                              final icon =
+                                  isIncome
+                                      ? Icons.arrow_downward
+                                      : Icons.arrow_upward;
+                              final description =
+                                  tx.description?.isNotEmpty == true
+                                      ? tx.description!
+                                      : null;
+                              final dateLabel = DateFormat(
+                                'd MMMM y',
+                                'id_ID',
+                              ).format(DateTime.parse(tx.date));
+                              final subtitleText =
+                                  description == null
+                                      ? dateLabel
+                                      : '$dateLabel • $description';
+
+                              return ListTile(
+                                leading: Icon(icon, color: color),
+                                title: Text(
+                                  _buildTransactionTitle(tx, itemsByTxId),
+                                ),
+                                subtitle: Text(subtitleText),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      currency.format(tx.amount),
+                                      style: TextStyle(
+                                        color: color,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.delete,
+                                        color: Colors.red,
+                                      ),
+                                      onPressed: () async {
+                                        if (_userId != null &&
+                                            tx.userId != _userId) {
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'Tidak bisa menghapus transaksi user lain',
                                                 ),
-                                                const SizedBox(height: 12),
-                                                TextField(
-                                                  controller: reasonController,
-                                                  decoration: const InputDecoration(
-                                                    hintText:
-                                                        'Contoh: salah input nominal',
+                                              ),
+                                            );
+                                          }
+                                          return;
+                                        }
+                                        final reasonController =
+                                            TextEditingController();
+                                        final confirmed = await showDialog<
+                                          bool
+                                        >(
+                                          context: context,
+                                          builder:
+                                              (context) => AlertDialog(
+                                                title: const Text(
+                                                  'Hapus transaksi ini?',
+                                                ),
+                                                content: Column(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    const Text(
+                                                      'Masukkan alasan penghapusan (wajib).',
+                                                    ),
+                                                    const SizedBox(height: 12),
+                                                    TextField(
+                                                      controller:
+                                                          reasonController,
+                                                      decoration:
+                                                          const InputDecoration(
+                                                            hintText:
+                                                                'Contoh: salah input nominal',
+                                                          ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed:
+                                                        () => Navigator.of(
+                                                          context,
+                                                        ).pop(false),
+                                                    child: const Text('Batal'),
                                                   ),
-                                                ),
-                                              ],
-                                            ),
-                                            actions: [
-                                              TextButton(
-                                                onPressed:
-                                                    () => Navigator.of(
-                                                      context,
-                                                    ).pop(false),
-                                                child: const Text('Batal'),
+                                                  TextButton(
+                                                    onPressed:
+                                                        () => Navigator.of(
+                                                          context,
+                                                        ).pop(true),
+                                                    child: const Text('Hapus'),
+                                                  ),
+                                                ],
                                               ),
-                                              TextButton(
-                                                onPressed:
-                                                    () => Navigator.of(
-                                                      context,
-                                                    ).pop(true),
-                                                child: const Text('Hapus'),
-                                              ),
-                                            ],
-                                          ),
-                                    );
-
-                                    final reason = reasonController.text.trim();
-                                    if (confirmed == true && reason.isEmpty) {
-                                      if (mounted) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Alasan penghapusan wajib diisi',
-                                            ),
-                                          ),
                                         );
-                                      }
-                                      return;
-                                    }
 
-                                    if (confirmed == true && tx.id != null) {
-                                      final auth = Provider.of<AuthProvider>(
-                                        context,
-                                        listen: false,
-                                      );
-                                      final username =
-                                          auth.currentUser?.username ?? 'staff';
-                                      await Provider.of<TransactionProvider>(
-                                        context,
-                                        listen: false,
-                                      ).deleteTransactionWithAudit(
-                                        transaction: tx,
-                                        reason: reason,
-                                        deletedBy: username,
-                                        productProvider:
-                                            Provider.of<ProductProvider>(
+                                        final reason =
+                                            reasonController.text.trim();
+                                        if (confirmed == true &&
+                                            reason.isEmpty) {
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'Alasan penghapusan wajib diisi',
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                          return;
+                                        }
+
+                                        if (confirmed == true &&
+                                            tx.id != null) {
+                                          final auth =
+                                              Provider.of<AuthProvider>(
+                                                context,
+                                                listen: false,
+                                              );
+                                          final username =
+                                              auth.currentUser?.username ??
+                                              'staff';
+                                          await Provider.of<
+                                            TransactionProvider
+                                          >(
+                                            context,
+                                            listen: false,
+                                          ).deleteTransactionWithAudit(
+                                            transaction: tx,
+                                            reason: reason,
+                                            deletedBy: username,
+                                            productProvider:
+                                                Provider.of<ProductProvider>(
+                                                  context,
+                                                  listen: false,
+                                                ),
+                                          );
+                                          if (_userId != null && mounted) {
+                                            Provider.of<TransactionProvider>(
                                               context,
                                               listen: false,
-                                            ),
-                                      );
-                                      if (_userId != null && mounted) {
-                                        Provider.of<TransactionProvider>(
-                                          context,
-                                          listen: false,
-                                        ).loadTodayTransactionsForUser(
-                                          _userId!,
-                                        );
-                                      }
-                                    }
-                                  },
+                                            ).loadTodayTransactionsForUser(
+                                              _userId!,
+                                            );
+                                          }
+                                        }
+                                      },
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
+                              );
+                            },
                           );
                         },
                       ),
