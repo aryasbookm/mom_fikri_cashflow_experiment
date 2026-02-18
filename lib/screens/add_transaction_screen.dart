@@ -422,6 +422,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   @override
   Widget build(BuildContext context) {
     final isTypeLocked = widget.initialType != null;
+    final bottomSafeInset = MediaQuery.viewPaddingOf(context).bottom;
     final dateLabel = DateFormat('dd MMM yyyy', 'id_ID').format(_selectedDate);
     final currency = NumberFormat.currency(
       locale: 'id_ID',
@@ -437,7 +438,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         title: Text(_type == 'IN' ? 'Catat Pemasukan' : 'Catat Pengeluaran'),
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomSafeInset),
         child: Column(
           children: [
             if (!isTypeLocked) ...[

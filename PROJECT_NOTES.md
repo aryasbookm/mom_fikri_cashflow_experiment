@@ -211,6 +211,13 @@ Catatan:
   - Urutan aksi backup diseragamkan: Auto-Backup -> Cadangkan -> Pulihkan (lokal & cloud).
   - Catatan backup dipindah ke panel foldable "Info & Catatan Penting" agar layar lebih bersih.
 
+## Technical Debt / Pending
+- Android release build warning Java obsolete options:
+  - Gejala: warning `source value 8` / `target value 8` saat `flutter build apk --release`.
+  - Penyebab saat ini: dependency `printing` (`/Users/aryasaputra/.pub-cache/hosted/pub.dev/printing-5.14.2/android/build.gradle`) masih memakai `JavaVersion.VERSION_1_8`.
+  - Dampak: non-fatal (build tetap sukses), tetapi menambah noise warning dan berpotensi jadi blocker pada upgrade toolchain mendatang.
+  - Rencana perbaikan: upgrade paket `printing` ke versi yang sudah Java 11+ lalu retest alur PDF/export sebelum merge release final.
+
 ## Build & Icon
 - Icon: `assets/icon_toko.png`
 - `flutter_launcher_icons` sudah ada di `pubspec.yaml`

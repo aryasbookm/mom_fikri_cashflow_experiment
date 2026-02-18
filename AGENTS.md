@@ -45,6 +45,9 @@ For cashflow/financial logic, `Verify` is mandatory and must include:
   - local project instruction file(s), and
   - global template file(s) under `/Users/aryasaputra/Projects/_standards/`.
 - Do not treat global sync as optional/follow-up.
+- Hard Gate verification (mandatory before handoff):
+  - explicitly report `global sync: updated` or `global sync: checked, no update needed`.
+  - do not close session while this status is missing.
 - Use Tiered Doc Sync (pragmatic, not full-scan by default):
   - Tier 1 (mandatory on non-trivial `unc`): `PROJECT_NOTES.md`, `spec.md`, `CHANGELOG.md`.
   - Tier 2 (contextual): `AI_CONTEXT.md`, `TESTING_*.md` when context/testing flow changes.
@@ -104,6 +107,12 @@ For cashflow/financial logic, `Verify` is mandatory and must include:
 - Jika analyzer menghasilkan banyak lint lama yang tidak terkait perubahan:
   - fokus pada error/regression baru dari patch saat ini,
   - jangan membuka refactor lint massal kecuali diminta user.
+
+## Mobile UI Safe-Area Rule (Mandatory)
+- Semua layar Android dengan aksi utama di area bawah (mis. tombol `Simpan`, `Bagikan`, CTA form) wajib menghormati safe area bawah.
+- Gunakan `SafeArea(bottom: true)` atau tambahkan `MediaQuery.viewPaddingOf(context).bottom` ke padding bawah konten.
+- Jangan menaruh tombol penting mentok bawah tanpa inset sistem.
+- Validasi minimal di device Android mode navigasi 3 tombol untuk memastikan CTA tidak tertutup system navigation bar.
 
 ## Command Access & Blocker Policy
 - Some commands can be blocked by environment policy (sandbox scope, network restriction, or OS privilege such as `sudo` with TTY password).

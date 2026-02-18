@@ -93,22 +93,22 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final currency = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ');
+    final bottomSafeInset = MediaQuery.viewPaddingOf(context).bottom;
     final parsedDate = DateTime.tryParse(widget.transaction.date);
-    final dateLabel = DateFormat('dd MMMM y, HH:mm', 'id_ID')
-        .format(parsedDate ?? DateTime.now());
+    final dateLabel = DateFormat(
+      'dd MMMM y, HH:mm',
+      'id_ID',
+    ).format(parsedDate ?? DateTime.now());
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Detail Transaksi'),
-      ),
+      appBar: AppBar(title: const Text('Detail Transaksi')),
       body: FutureBuilder<List<TransactionItemModel>>(
         future: _loadItems(),
         builder: (context, snapshot) {
           final items = snapshot.data ?? [];
           final total = items.fold<int>(0, (sum, item) => sum + item.total);
-          final displayTotal =
-              total > 0 ? total : widget.transaction.amount;
+          final displayTotal = total > 0 ? total : widget.transaction.amount;
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomSafeInset),
             children: [
               Screenshot(
                 controller: _screenshotController,
@@ -124,16 +124,18 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: widget.transaction.type != 'IN' || _isSharing
-                      ? null
-                      : _shareReceipt,
-                  icon: _isSharing
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.share),
+                  onPressed:
+                      widget.transaction.type != 'IN' || _isSharing
+                          ? null
+                          : _shareReceipt,
+                  icon:
+                      _isSharing
+                          ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                          : const Icon(Icons.share),
                   label: const Text('Bagikan Struk'),
                 ),
               ),
@@ -198,24 +200,29 @@ class _ReceiptCard extends StatelessWidget {
             )
           else
             Column(
-              children: items.map((item) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          item.productName,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
+              children:
+                  items.map((item) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              item.productName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${item.quantity} x ${currency.format(item.unitPrice)}',
+                          ),
+                          const SizedBox(width: 8),
+                          Text(currency.format(item.total)),
+                        ],
                       ),
-                      Text('${item.quantity} x ${currency.format(item.unitPrice)}'),
-                      const SizedBox(width: 8),
-                      Text(currency.format(item.total)),
-                    ],
-                  ),
-                );
-              }).toList(),
+                    );
+                  }).toList(),
             ),
           const Divider(),
           Row(

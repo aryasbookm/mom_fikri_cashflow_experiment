@@ -87,6 +87,8 @@ All notable changes to this project will be documented in this file.
     - kategori arsip terpakai -> hard delete ditolak.
   - tambah kategori dengan nama yang sama seperti kategori arsip akan mengaktifkan kembali kategori lama (tanpa duplikasi).
   - dropdown input transaksi kini hanya menampilkan kategori aktif.
+- Safe-area Android:
+  - layar `Catat Pemasukan/Pengeluaran` dan `Detail Transaksi` kini menambahkan inset bawah sistem agar tombol aksi tidak tertutup navigation bar 3 tombol.
 - Database:
   - skema dinaikkan ke **v9** dengan kolom `categories.is_active` (default aktif) untuk mendukung arsip kategori secara aman pada data existing.
 
