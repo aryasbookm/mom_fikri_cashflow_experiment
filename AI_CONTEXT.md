@@ -146,6 +146,7 @@ lib/
   - `hld` should be treated as a hard stop for execution actions.
   - Normal mode resumes when user gives explicit execution instruction.
 - Source of operational detail: `AGENTS.md` (this section is summary only).
+- Cross-project rule changes must pass hard gate: local + global template sync in the same session.
 
 ## 7) Working SOP
 - Best practice is default (no need to wait for keyword).

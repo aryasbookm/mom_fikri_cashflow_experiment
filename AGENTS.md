@@ -41,6 +41,10 @@ For cashflow/financial logic, `Verify` is mandatory and must include:
 ## Docs + Commit Workflow
 - Impacted-docs-only: update only docs affected by the change.
 - If a new instruction is generic (cross-project), update global standard (`/Users/aryasaputra/Projects/_standards/AGENTS.template.md`) in the same session.
+- HARD GATE (mandatory): for any cross-project rule change, session is **not done** until both are updated:
+  - local project instruction file(s), and
+  - global template file(s) under `/Users/aryasaputra/Projects/_standards/`.
+- Do not treat global sync as optional/follow-up.
 - Use Tiered Doc Sync (pragmatic, not full-scan by default):
   - Tier 1 (mandatory on non-trivial `unc`): `PROJECT_NOTES.md`, `spec.md`, `CHANGELOG.md`.
   - Tier 2 (contextual): `AI_CONTEXT.md`, `TESTING_*.md` when context/testing flow changes.
