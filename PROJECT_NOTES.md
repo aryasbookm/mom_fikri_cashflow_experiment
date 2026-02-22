@@ -11,6 +11,7 @@
 - **DB:** SQLite (`sqflite`)
 - **State:** Provider
 - **Release Notes:** lihat `CHANGELOG.md` (timeline v0.9.0 → v1.0.0-rc3)
+- **Release channel map:** `main` = stable, `codex/*` = experimental.
 
 ## SOP Kolaborasi AI (Aktif)
 - **Role boundary:** Gemini = mentor/reviewer, Codex = eksekutor perubahan repo, User = approver final.
@@ -54,7 +55,7 @@ Catatan:
 1. **Login Role**
    - Owner: akses penuh
    - Staff: operasional (Beranda, Stok, Akun)
-   - Seed user: admin/1234 (owner), karyawan/0000 (staff)
+   - Instalasi baru: **tanpa akun default**; aplikasi langsung masuk onboarding untuk membuat akun owner pertama.
    - Password disimpan dalam bentuk hash (SHA-256)
    - Tab Akun untuk owner dilindungi PIN (session 5 menit, panjang PIN fleksibel)
    - Dialog PIN menyediakan opsi Logout/Ganti Akun dengan konfirmasi
@@ -72,8 +73,8 @@ Catatan:
 3.1 **Kelola Kategori (Owner)**
    - Owner dapat mengelola kategori langsung dari tab Akun.
    - Kategori sistem default:
-     - IN: `Penjualan Kue`, `Pemasukan Lain`
-     - OUT: `Bahan Baku`, `Operasional`, `Gaji`
+     - IN: `Penjualan Kue`, `Pemasukan Lain`, `Saldo Awal`, `Penyesuaian Saldo`
+     - OUT: `Bahan Baku`, `Operasional`, `Gaji`, `Penyesuaian Saldo`
    - Kategori sistem tidak bisa diubah/hapus/arsip.
    - Kategori custom bisa diarsipkan (disembunyikan dari input transaksi) dan bisa diaktifkan kembali.
    - Tombol aksi kategori sistem disembunyikan agar tidak menjadi tombol pajangan.
@@ -157,6 +158,23 @@ Catatan:
 9. **Dashboard Owner (Ringkas)**
    - Menampilkan Top Produk (7 hari) untuk keputusan produksi
 
+10. **Onboarding & Penyesuaian Saldo**
+   - First-install onboarding (2 langkah):
+     - buat akun owner (username + PIN),
+     - pilih tanggal cut-off dan isi saldo awal kas fisik.
+   - Saldo awal dicatat otomatis sebagai transaksi `IN` kategori `Saldo Awal` pada tanggal cut-off.
+   - Tombol utama onboarding (`Lanjut` / `Selesaikan Setup`) menggunakan kontras teks putih agar mudah dibaca.
+   - Reminder backup diberi grace baseline setelah onboarding selesai agar user baru tidak langsung menerima warning backup pada kunjungan pertama dashboard.
+   - Smart reminder backup (tanpa over-engineering):
+     - grace period 3 hari pasca onboarding,
+     - jika auto-backup lokal/cloud aktif -> warning hanya saat backup stale (>7 hari) dan ada perubahan data,
+     - jika auto-backup nonaktif -> warning standar (>3 hari) dan ada perubahan data.
+   - Menu owner `Penyesuaian Saldo Kas` tersedia di tab Akun:
+     - input kas fisik saat ini + alasan wajib,
+     - sistem menghitung selisih terhadap saldo sistem,
+     - selisih `+` -> transaksi `IN`, selisih `-` -> transaksi `OUT`,
+     - kategori otomatis `Penyesuaian Saldo`.
+
 ## Skema Database (v9)
 - **products**: id, name (unique), price, stock, min_stock, is_active
 - **transactions**: id, type, amount, category_id, description, date, user_id, product_id, quantity
@@ -221,6 +239,10 @@ Catatan:
 ## Build & Icon
 - Icon: `assets/icon_toko.png`
 - `flutter_launcher_icons` sudah ada di `pubspec.yaml`
+- Versi branch eksperimen aktif saat ini: `1.1.0-dev+101` (lihat `pubspec.yaml`).
+- Aturan rilis APK:
+  - build untuk user/tester wajib menaikkan `+buildNumber`,
+  - nama file APK harus memuat channel + versi (contoh: `momfiqry-exp-v1.1.0-dev+101.apk`).
 - Jalankan manual:
   ```bash
   flutter pub get
@@ -228,7 +250,7 @@ Catatan:
   ```
 
 ## Reset DB (Hard Reset)
-- DB version: 8
+- DB version: 9
 - File DB: `mom_fikri_cashflow_v2.db`
 - Naikkan versi di `DatabaseHelper` jika perlu reset ulang
 

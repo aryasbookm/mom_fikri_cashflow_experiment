@@ -10,6 +10,8 @@ All notable changes to this project will be documented in this file.
 *Fokus: Pencarian Global, Reminder Backup, Insight Produk Lambat*
 
 ### Added
+- First-install onboarding wajib (owner account + cut-off date + saldo awal kas), aktif otomatis saat tabel user masih kosong.
+- Owner-only menu **Penyesuaian Saldo Kas** di tab Akun: input kas fisik + alasan, hitung selisih otomatis, simpan transaksi `IN/OUT` kategori `Penyesuaian Saldo`.
 - Global Search: search bar di Kasir, Stok, dan Riwayat dengan filtering real-time.
 - Deep Search Riwayat: pencarian juga mencakup nama produk dari transaksi multi-item.
 - Foto produk opsional berbasis filesystem lokal (`product_images/prod_{id}.jpg`) dengan picker galeri/kamera.
@@ -35,6 +37,19 @@ All notable changes to this project will be documented in this file.
   - PDF menampilkan ringkasan produk untuk transaksi pemasukan (hybrid) dan tetap menyertakan detail item agar lebih mudah dibaca owner.
 
 ### Changed
+- Smart backup reminder (versi terkontrol):
+  - menerapkan grace period 3 hari setelah onboarding selesai.
+  - jika auto-backup lokal/cloud aktif, reminder hanya muncul saat backup sangat usang (>7 hari) dan ada perubahan data.
+  - jika auto-backup nonaktif, reminder tetap memakai aturan standar (>3 hari) dan ada perubahan data.
+- Onboarding first-install:
+  - warna teks tombol `Lanjut` / `Selesaikan Setup` diperjelas (kontras putih pada tombol utama).
+  - setelah setup selesai, baseline metadata backup diinisialisasi agar banner reminder backup tidak langsung muncul di detik pertama penggunaan.
+- Versioning branch eksperimen dinaikkan ke `1.1.0-dev+101` untuk membedakan kanal build dari rilis stable.
+- Seed install baru tidak lagi membuat akun default (`admin/1234`, `karyawan/0000`); akun owner dibuat lewat onboarding pertama.
+- Kategori sistem diperluas:
+  - `Saldo Awal` (IN)
+  - `Penyesuaian Saldo` (IN/OUT)
+  - tetap terkunci dari ubah/hapus/arsip.
 - Branding aplikasi disederhanakan dari "Toko Kue Mom Fiqry (Eksperimen)" menjadi "Toko Kue Mom Fiqry" pada Android/iOS/Web/Desktop.
 - Folder kerja proyek diganti dari `mom_fikri_cashflow_experiment` menjadi `mom_fiqry_cashflow_experiment`.
 - Dashboard owner: ringkasan harian statis, analitik produk foldable default terbuka.

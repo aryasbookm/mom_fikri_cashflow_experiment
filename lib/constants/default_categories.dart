@@ -13,13 +13,18 @@ class DefaultCategories {
   static const String expenseRawMaterials = 'Bahan Baku';
   static const String expenseOperational = 'Operasional';
   static const String expenseSalary = 'Gaji';
+  static const String openingBalance = 'Saldo Awal';
+  static const String balanceAdjustment = 'Penyesuaian Saldo';
 
   static const List<DefaultCategory> system = [
     DefaultCategory(name: incomePrimary, type: 'IN'),
     DefaultCategory(name: incomeFallback, type: 'IN'),
+    DefaultCategory(name: openingBalance, type: 'IN'),
+    DefaultCategory(name: balanceAdjustment, type: 'IN'),
     DefaultCategory(name: expenseRawMaterials, type: 'OUT'),
     DefaultCategory(name: expenseOperational, type: 'OUT'),
     DefaultCategory(name: expenseSalary, type: 'OUT'),
+    DefaultCategory(name: balanceAdjustment, type: 'OUT'),
   ];
 
   static final Set<String> _normalizedSystemNames = {

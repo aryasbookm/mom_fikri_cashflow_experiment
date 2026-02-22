@@ -144,20 +144,6 @@ class DatabaseHelper {
   }
 
   Future<void> _seedInitialData(Database db) async {
-    await db.insert('users', {
-      'username': 'admin',
-      'pin': PasswordHasher.hash('1234'),
-      'role': 'owner',
-      'profile_image_path': null,
-    });
-
-    await db.insert('users', {
-      'username': 'karyawan',
-      'pin': PasswordHasher.hash('0000'),
-      'role': 'staff',
-      'profile_image_path': null,
-    });
-
     for (final category in DefaultCategories.system) {
       await db.insert('categories', {
         'name': category.name,
@@ -302,5 +288,108 @@ class DatabaseHelper {
   Future<void> clearDeletedTransactions() async {
     final db = await database;
     await db.delete('deleted_transactions');
+  }
+
+  Future<bool> hasUsers() async {
+    final db = await database;
+    final result = await db.rawQuery('SELECT COUNT(*) AS count FROM users');
+    final count = Sqflite.firstIntValue(result) ?? 0;
+    return count > 0;
+  }
+
+  Future<int> createOwnerUser({
+    required String username,
+    required String pin,
+  }) async {
+    final db = await database;
+    return db.insert('users', {
+      'username': username.trim(),
+      'pin': PasswordHasher.hash(pin),
+      'role': 'owner',
+      'profile_image_path': null,
+    });
+  }
+
+  Future<void> setupFirstInstall({
+    required String username,
+    required String pin,
+    required DateTime cutoffDate,
+    required int openingBalance,
+    String? openingBalanceDescription,
+  }) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      final existingUsers = await txn.rawQuery(
+        'SELECT COUNT(*) AS count FROM users',
+      );
+      final usersCount = Sqflite.firstIntValue(existingUsers) ?? 0;
+      if (usersCount > 0) {
+        throw StateError('Aplikasi sudah memiliki akun pengguna.');
+      }
+
+      final ownerId = await txn.insert('users', {
+        'username': username.trim(),
+        'pin': PasswordHasher.hash(pin),
+        'role': 'owner',
+        'profile_image_path': null,
+      });
+
+      var categoryIdRow = await txn.query(
+        'categories',
+        columns: ['id'],
+        where: 'LOWER(TRIM(name)) = ? AND type = ?',
+        whereArgs: [DefaultCategories.openingBalance.toLowerCase(), 'IN'],
+        limit: 1,
+      );
+
+      if (categoryIdRow.isEmpty) {
+        final insertedId = await txn.insert('categories', {
+          'name': DefaultCategories.openingBalance,
+          'type': 'IN',
+          'is_active': 1,
+        });
+        categoryIdRow = [
+          {'id': insertedId},
+        ];
+      } else {
+        await txn.update(
+          'categories',
+          {'is_active': 1},
+          where: 'id = ?',
+          whereArgs: [categoryIdRow.first['id']],
+        );
+      }
+
+      await txn.insert('transactions', {
+        'type': 'IN',
+        'amount': openingBalance,
+        'category_id': categoryIdRow.first['id'],
+        'description':
+            openingBalanceDescription ??
+            'Saldo awal kas fisik saat onboarding pertama.',
+        'date': cutoffDate.toIso8601String(),
+        'user_id': ownerId,
+        'product_id': null,
+        'quantity': null,
+      });
+    });
+  }
+
+  Future<int?> findCategoryId({
+    required String name,
+    required String type,
+  }) async {
+    final db = await database;
+    final rows = await db.query(
+      'categories',
+      columns: ['id'],
+      where: 'LOWER(TRIM(name)) = ? AND type = ?',
+      whereArgs: [name.toLowerCase().trim(), type],
+      limit: 1,
+    );
+    if (rows.isEmpty) {
+      return null;
+    }
+    return rows.first['id'] as int?;
   }
 }

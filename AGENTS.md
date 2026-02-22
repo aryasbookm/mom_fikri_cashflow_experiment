@@ -17,6 +17,7 @@ Operational mechanics for implementation sessions (commands, commit flow, safety
   - `Kalau sudah siap, silakan jalankan git push secara manual di terminal.`
 
 ## Communication Standards
+- Selalu mulai jawaban dengan prefiks `Codex said:` untuk memperjelas sumber jawaban AI eksekutor.
 - Use proactive heads-up labels before proceeding on risky or non-trivial work:
   - `[HEADS-UP: PLAN]` before implementing a complex/new feature; propose plan first.
   - `[HEADS-UP: TIMEBOX]` when debugging exceeds 3 focused loops or ~45 minutes; propose pivot/fallback.
@@ -24,6 +25,10 @@ Operational mechanics for implementation sessions (commands, commit flow, safety
   - `[HEADS-UP: DOCS]` when flow/architecture changes; list impacted docs only.
 - When replying to quoted statements from another AI/tool, prefix source labels explicitly (`User said:`, `Gemini said:`, `Codex said:`) to avoid speaker ambiguity.
 - Do not repeat setup instructions (OAuth/keystore) if `AI_CONTEXT.md` infrastructure status is already marked as `Registered`.
+- Jangan langsung menyetujui usulan AI lain. Wajib lakukan evaluasi mandiri singkat:
+  - kelayakan teknis berdasarkan kemampuan/arsitektur saat ini,
+  - risiko implementasi,
+  - alasan memilih setuju/tolak/kompromi.
 
 ## Prompt Protocol (Default)
 For non-trivial requests, structure instructions with:
@@ -86,6 +91,16 @@ For cashflow/financial logic, `Verify` is mandatory and must include:
   - `<surface>: updated` atau `<surface>: checked, no update needed`
   - sertakan file yang dicek dan hasil ringkas.
 
+## App Identity & OAuth Impact Rule (Mandatory)
+- Perubahan identitas aplikasi (`applicationId`, package name, flavor/suffix, bundle identifier, signing identity) dikategorikan **high-risk**.
+- Sebelum mengusulkan atau mengeksekusi perubahan tersebut, wajib lakukan impact check eksplisit pada:
+  - OAuth/Auth provider (Google Sign-In, dsb),
+  - cloud integration (Google Drive `appDataFolder`/API scope),
+  - release signing / SHA fingerprint registration,
+  - migrasi data & ko-eksistensi instalasi (apakah dua app bisa hidup berdampingan tanpa bentrok data).
+- Default strategi eksperimen: gunakan **git branching** dulu, bukan mengubah identitas aplikasi.
+- Jangan lanjut ubah identitas aplikasi tanpa persetujuan eksplisit user setelah dampak di atas dijelaskan.
+
 ## Version Consistency Check (Mandatory)
 - Jika ada perubahan schema/version DB, wajib sinkronkan referensi versi lintas dokumen dalam sesi yang sama.
 - Minimum dokumen yang harus dicek:
@@ -107,6 +122,13 @@ For cashflow/financial logic, `Verify` is mandatory and must include:
 ## Build / Tooling Notes
 - App icon source: `assets/icon_toko.png` (`flutter_launcher_icons`).
 - Do not run `flutter_launcher_icons` or `flutter pub get` unless requested.
+- Release versioning (mandatory for APK candidates):
+  - setiap kandidat APK untuk testing/user wajib menaikkan `versionCode` (`pubspec.yaml` bagian `+N`),
+  - jangan kirim APK dengan `versionCode` yang sama dengan build sebelumnya,
+  - gunakan penamaan file rilis yang eksplisit, contoh:
+    - `momfiqry-stable-v1.0.1+2.apk`
+    - `momfiqry-exp-v1.1.0-dev+101.apk`
+  - di handoff, wajib sebutkan channel build (`stable`/`experimental`) + `versionName+versionCode`.
 
 ## Validation Scope Policy (Token-Efficient)
 - Tujuan: menjaga kualitas tetap tinggi dengan biaya token/waktu lebih efisien.

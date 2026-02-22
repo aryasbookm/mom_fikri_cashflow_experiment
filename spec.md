@@ -69,6 +69,7 @@ Setiap fitur non-trivial dinyatakan siap merge jika lolos:
 - Bisa hapus transaksi.
 - Bisa kelola akun staff (tambah/ubah/hapus, reset password).
 - Bisa melihat Audit Log, restore, dan hapus permanen log.
+- Bisa melakukan **Penyesuaian Saldo Kas** (input kas fisik, sistem hitung selisih otomatis sebagai transaksi IN/OUT).
 - Tab Akun dilindungi PIN owner (session 5 menit, panjang PIN fleksibel).
   - Dialog PIN menyediakan opsi Logout/Ganti Akun.
   - Logout dari dialog PIN memakai konfirmasi.
@@ -132,7 +133,10 @@ Setiap fitur non-trivial dinyatakan siap merge jika lolos:
 - **Dashboard Owner:** menampilkan Top Produk (7 hari) sebagai info operasional.
 
 ## 6. Alur Utama
-- Buka aplikasi → Login → cek role.
+- Buka aplikasi:
+  - jika belum ada user: masuk onboarding instalasi pertama (buat owner + tanggal cut-off + saldo awal),
+  - jika sudah ada user: masuk halaman login.
+- Setelah login → cek role.
 - Owner: Dashboard dengan saldo, stok tersedia, ringkasan hari ini, tombol aksi (pemasukan/pengeluaran/riwayat).
 - Staff: Beranda (transaksi hari ini + total setoran), tab Stok, tab Akun.
 
@@ -148,6 +152,8 @@ Setiap fitur non-trivial dinyatakan siap merge jika lolos:
   - Perubahan filter tampilan produksi tidak boleh mengubah perhitungan total stok global/dashboard.
 
 ## 7. Data Awal (Seeding)
-- User default: admin/1234 (owner), karyawan/0000 (staff).
-- Kategori awal (sistem): Penjualan Kue (IN), Pemasukan Lain (IN), Bahan Baku (OUT), Operasional (OUT), Gaji (OUT).
+- User default: **tidak ada**. User owner pertama dibuat saat onboarding instalasi pertama.
+- Kategori awal (sistem):
+  - IN: Penjualan Kue, Pemasukan Lain, Saldo Awal, Penyesuaian Saldo.
+  - OUT: Bahan Baku, Operasional, Gaji, Penyesuaian Saldo.
 - Produk awal: daftar kue dan snack sesuai data seed (dengan harga, stok awal 0).
