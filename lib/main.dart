@@ -10,7 +10,7 @@ import 'providers/product_provider.dart';
 import 'providers/production_provider.dart';
 import 'providers/transaction_provider.dart';
 import 'providers/user_provider.dart';
-import 'screens/login_screen.dart';
+import 'screens/app_entry_screen.dart';
 import 'services/backup_service.dart';
 
 Future<void> main() async {
@@ -53,8 +53,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       return;
     }
     final prefs = await SharedPreferences.getInstance();
-    final enabled =
-        prefs.getBool(BackupService.autoBackupEnabledKey) ?? true;
+    final enabled = prefs.getBool(BackupService.autoBackupEnabledKey) ?? true;
     if (!enabled) {
       return;
     }
@@ -65,8 +64,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     final lastRun = prefs.getInt(BackupService.lastAutoBackupKey);
     final now = DateTime.now();
     if (lastRun != null) {
-      final elapsed = now
-          .difference(DateTime.fromMillisecondsSinceEpoch(lastRun));
+      final elapsed = now.difference(
+        DateTime.fromMillisecondsSinceEpoch(lastRun),
+      );
       if (elapsed < const Duration(minutes: 5)) {
         return;
       }
@@ -108,7 +108,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           ),
           textTheme: GoogleFonts.poppinsTextTheme(),
         ),
-        home: const LoginScreen(),
+        home: const AppEntryScreen(),
       ),
     );
   }

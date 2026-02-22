@@ -86,6 +86,16 @@ For cashflow/financial logic, `Verify` is mandatory and must include:
   - `<surface>: updated` atau `<surface>: checked, no update needed`
   - sertakan file yang dicek dan hasil ringkas.
 
+## App Identity & OAuth Impact Rule (Mandatory)
+- Perubahan identitas aplikasi (`applicationId`, package name, flavor/suffix, bundle identifier, signing identity) dikategorikan **high-risk**.
+- Sebelum mengusulkan atau mengeksekusi perubahan tersebut, wajib lakukan impact check eksplisit pada:
+  - OAuth/Auth provider (Google Sign-In, dsb),
+  - cloud integration (Google Drive `appDataFolder`/API scope),
+  - release signing / SHA fingerprint registration,
+  - migrasi data & ko-eksistensi instalasi (apakah dua app bisa hidup berdampingan tanpa bentrok data).
+- Default strategi eksperimen: gunakan **git branching** dulu, bukan mengubah identitas aplikasi.
+- Jangan lanjut ubah identitas aplikasi tanpa persetujuan eksplisit user setelah dampak di atas dijelaskan.
+
 ## Version Consistency Check (Mandatory)
 - Jika ada perubahan schema/version DB, wajib sinkronkan referensi versi lintas dokumen dalam sesi yang sama.
 - Minimum dokumen yang harus dicek:

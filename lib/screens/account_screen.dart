@@ -5,6 +5,9 @@ import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../constants/default_categories.dart';
+import '../database/database_helper.dart';
+import '../models/transaction_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/product_provider.dart';
@@ -439,6 +442,175 @@ class _AccountScreenState extends State<AccountScreen> {
     await context.read<CategoryProvider>().loadCategories();
     await context.read<ProductionProvider>().loadTodayProduction();
     context.read<TransactionProvider>().markRestored();
+  }
+
+  Future<void> _openBalanceAdjustment() async {
+    final txProvider = context.read<TransactionProvider>();
+    await txProvider.loadTransactions();
+    if (!mounted) {
+      return;
+    }
+
+    final currentBalance = txProvider.balance;
+    final physicalCashController = TextEditingController();
+    final reasonController = TextEditingController();
+    bool isSaving = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final parsedCash = int.tryParse(physicalCashController.text.trim());
+            final hasReason = reasonController.text.trim().isNotEmpty;
+            final diff =
+                parsedCash == null ? null : parsedCash - currentBalance;
+            final canSave = parsedCash != null && hasReason && (diff ?? 0) != 0;
+
+            return AlertDialog(
+              title: const Text('Penyesuaian Saldo Kas'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Saldo Sistem Saat Ini: Rp ${NumberFormat('#,##0', 'id_ID').format(currentBalance)}',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: physicalCashController,
+                      enabled: !isSaving,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Total Kas Fisik Saat Ini (Rp)',
+                      ),
+                      onChanged: (_) => setModalState(() {}),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: reasonController,
+                      enabled: !isSaving,
+                      decoration: const InputDecoration(
+                        labelText: 'Alasan Penyesuaian',
+                      ),
+                      minLines: 2,
+                      maxLines: 3,
+                      onChanged: (_) => setModalState(() {}),
+                    ),
+                    if (diff != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        diff > 0
+                            ? 'Selisih: +Rp ${NumberFormat('#,##0', 'id_ID').format(diff)} (akan dicatat sebagai pemasukan)'
+                            : 'Selisih: -Rp ${NumberFormat('#,##0', 'id_ID').format(diff.abs())} (akan dicatat sebagai pengeluaran)',
+                        style: TextStyle(
+                          color: diff > 0 ? Colors.green[700] : Colors.red[700],
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed:
+                      isSaving ? null : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Batal'),
+                ),
+                TextButton(
+                  onPressed:
+                      (!canSave || isSaving)
+                          ? null
+                          : () async {
+                            final physicalCash = int.tryParse(
+                              physicalCashController.text.trim(),
+                            );
+                            final reason = reasonController.text.trim();
+                            if (physicalCash == null || reason.isEmpty) {
+                              return;
+                            }
+                            final delta = physicalCash - currentBalance;
+                            if (delta == 0) {
+                              return;
+                            }
+
+                            setModalState(() {
+                              isSaving = true;
+                            });
+
+                            try {
+                              final type = delta > 0 ? 'IN' : 'OUT';
+                              final categoryId = await DatabaseHelper.instance
+                                  .findCategoryId(
+                                    name: DefaultCategories.balanceAdjustment,
+                                    type: type,
+                                  );
+                              if (categoryId == null) {
+                                throw Exception(
+                                  'Kategori Penyesuaian Saldo tidak ditemukan.',
+                                );
+                              }
+                              final authProvider = context.read<AuthProvider>();
+                              final userId = authProvider.currentUser?.id;
+                              if (userId == null) {
+                                throw Exception('Sesi user tidak valid.');
+                              }
+
+                              await txProvider.addTransaction(
+                                TransactionModel(
+                                  type: type,
+                                  amount: delta.abs(),
+                                  categoryId: categoryId,
+                                  description: 'Penyesuaian saldo kas. $reason',
+                                  date: DateTime.now().toIso8601String(),
+                                  userId: userId,
+                                ),
+                              );
+
+                              if (!mounted) {
+                                return;
+                              }
+                              Navigator.of(dialogContext).pop();
+                              _showSnackBar(
+                                this.context,
+                                'Penyesuaian saldo berhasil disimpan.',
+                                isError: false,
+                              );
+                            } catch (error) {
+                              if (!mounted) {
+                                return;
+                              }
+                              _showSnackBar(
+                                this.context,
+                                'Gagal menyimpan penyesuaian: $error',
+                                isError: true,
+                              );
+                            } finally {
+                              if (mounted) {
+                                setModalState(() {
+                                  isSaving = false;
+                                });
+                              }
+                            }
+                          },
+                  child:
+                      isSaving
+                          ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                          : const Text('Simpan'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _simulateBackupReminder() async {
@@ -964,6 +1136,7 @@ class _AccountScreenState extends State<AccountScreen> {
                 );
               }
               : null,
+      onAdjustBalance: isOwner ? _openBalanceAdjustment : null,
       onBackup: isOwner ? _backupDatabase : null,
       isBackingUp: _isBackingUp,
       onRestore: isOwner ? _restoreDatabase : null,

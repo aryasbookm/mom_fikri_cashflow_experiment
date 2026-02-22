@@ -54,7 +54,7 @@ Catatan:
 1. **Login Role**
    - Owner: akses penuh
    - Staff: operasional (Beranda, Stok, Akun)
-   - Seed user: admin/1234 (owner), karyawan/0000 (staff)
+   - Instalasi baru: **tanpa akun default**; aplikasi langsung masuk onboarding untuk membuat akun owner pertama.
    - Password disimpan dalam bentuk hash (SHA-256)
    - Tab Akun untuk owner dilindungi PIN (session 5 menit, panjang PIN fleksibel)
    - Dialog PIN menyediakan opsi Logout/Ganti Akun dengan konfirmasi
@@ -72,8 +72,8 @@ Catatan:
 3.1 **Kelola Kategori (Owner)**
    - Owner dapat mengelola kategori langsung dari tab Akun.
    - Kategori sistem default:
-     - IN: `Penjualan Kue`, `Pemasukan Lain`
-     - OUT: `Bahan Baku`, `Operasional`, `Gaji`
+     - IN: `Penjualan Kue`, `Pemasukan Lain`, `Saldo Awal`, `Penyesuaian Saldo`
+     - OUT: `Bahan Baku`, `Operasional`, `Gaji`, `Penyesuaian Saldo`
    - Kategori sistem tidak bisa diubah/hapus/arsip.
    - Kategori custom bisa diarsipkan (disembunyikan dari input transaksi) dan bisa diaktifkan kembali.
    - Tombol aksi kategori sistem disembunyikan agar tidak menjadi tombol pajangan.
@@ -157,6 +157,17 @@ Catatan:
 9. **Dashboard Owner (Ringkas)**
    - Menampilkan Top Produk (7 hari) untuk keputusan produksi
 
+10. **Onboarding & Penyesuaian Saldo**
+   - First-install onboarding (2 langkah):
+     - buat akun owner (username + PIN),
+     - pilih tanggal cut-off dan isi saldo awal kas fisik.
+   - Saldo awal dicatat otomatis sebagai transaksi `IN` kategori `Saldo Awal` pada tanggal cut-off.
+   - Menu owner `Penyesuaian Saldo Kas` tersedia di tab Akun:
+     - input kas fisik saat ini + alasan wajib,
+     - sistem menghitung selisih terhadap saldo sistem,
+     - selisih `+` -> transaksi `IN`, selisih `-` -> transaksi `OUT`,
+     - kategori otomatis `Penyesuaian Saldo`.
+
 ## Skema Database (v9)
 - **products**: id, name (unique), price, stock, min_stock, is_active
 - **transactions**: id, type, amount, category_id, description, date, user_id, product_id, quantity
@@ -228,7 +239,7 @@ Catatan:
   ```
 
 ## Reset DB (Hard Reset)
-- DB version: 8
+- DB version: 9
 - File DB: `mom_fikri_cashflow_v2.db`
 - Naikkan versi di `DatabaseHelper` jika perlu reset ulang
 

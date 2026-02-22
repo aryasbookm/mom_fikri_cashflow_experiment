@@ -6,7 +6,7 @@
 
 > ⚠️ ALL AI AGENTS MUST READ THIS FILE BEFORE STARTING A SESSION.
 
-Last updated: 2026-02-19  
+Last updated: 2026-02-22  
 Project: **Mom Fiqry Cashflow**
 
 ## 1) Purpose
@@ -29,6 +29,10 @@ Hard rules for mentor/reviewer AI:
   - `04b9e14` refactor: simplify category management with smart delete
   - `91f1d4a` feat: add category archive flow with db v9 migration
 - DB policy: **SQLite v9 locked** (no schema changes without migration approval).
+- Fresh install flow:
+  - no default users are seeded,
+  - app routes to first-install onboarding when `users` table is empty,
+  - onboarding creates first owner account + opening balance transaction.
 
 ## 3.5) Workspace Capsule (Operational)
 - File operasional: `WORKFLOW.md` di root repo.
@@ -51,9 +55,11 @@ Hard rules for mentor/reviewer AI:
 
 ## 3.2) Project Map (High-Level)
 - Entry point: `lib/main.dart`
+- Entry router: `lib/screens/app_entry_screen.dart`
 - Database: `lib/database/database_helper.dart`
 - Providers: `lib/providers/*`
 - Screens:
+  - `lib/screens/first_install_onboarding_screen.dart`
   - `lib/screens/owner_dashboard.dart`
   - `lib/screens/staff_dashboard.dart`
   - `lib/screens/add_transaction_screen.dart`
@@ -187,6 +193,7 @@ Output format expected from mentor AI:
 - Keep business logic in providers/services; keep screen widgets focused on UI orchestration.
 - Avoid schema changes by default; if unavoidable, require migration plan approval first.
 - Prefer minimal-risk, incremental changes over broad refactors.
+- For parallel stable/experiment workflow, prefer `git branch` separation over app identity/package changes unless explicitly approved by user after OAuth/cloud impact review.
 
 ## 8) Git Workflow
 - Feature work should use `codex/*` branches until stable.

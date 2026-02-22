@@ -11,6 +11,7 @@ Aplikasi **Point of Sale (POS)** dan **Manajemen Stok** berbasis Flutter yang di
 - **Manajemen Stok Cerdas:** Pelacakan stok otomatis, alert stok menipis, dan audit trail.
 - **Keamanan Data:** Sistem Backup/Restore `.zip` (database + foto produk) dengan validasi integritas & rollback, tetap kompatibel restore `.db` lama.
 - **Cloud Android:** Backup/Restore paket backup ke Google Drive (`appDataFolder`).
+- **Onboarding Instalasi Pertama:** Buat akun owner + tanggal cut-off + saldo awal kas saat pertama kali aplikasi dipakai.
 - **Keamanan Akses:** PIN Guard untuk menu sensitif (Owner) dan isolasi data Staff.
 - **Laporan & Analitik:** Dashboard performa harian, Top Produk, dan ekspor laporan (PDF/Excel).
 

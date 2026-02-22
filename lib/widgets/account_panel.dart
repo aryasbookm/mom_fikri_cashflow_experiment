@@ -15,6 +15,7 @@ class AccountPanel extends StatelessWidget {
     required this.onLogout,
     this.onManageUsers,
     this.onManageCategories,
+    this.onAdjustBalance,
     this.onBackup,
     this.isBackingUp = false,
     this.onRestore,
@@ -37,6 +38,7 @@ class AccountPanel extends StatelessWidget {
   final VoidCallback onLogout;
   final VoidCallback? onManageUsers;
   final VoidCallback? onManageCategories;
+  final VoidCallback? onAdjustBalance;
   final VoidCallback? onBackup;
   final bool isBackingUp;
   final VoidCallback? onRestore;
@@ -231,7 +233,9 @@ class AccountPanel extends StatelessWidget {
               ),
             ],
           ),
-          if (onManageUsers != null || onManageCategories != null) ...[
+          if (onManageUsers != null ||
+              onManageCategories != null ||
+              onAdjustBalance != null) ...[
             const SizedBox(height: 16),
             const _SectionTitle(title: 'Administrasi'),
             _SectionCard(
@@ -247,6 +251,12 @@ class AccountPanel extends StatelessWidget {
                     icon: Icons.category_outlined,
                     label: 'Kelola Kategori',
                     onTap: onManageCategories,
+                  ),
+                if (onAdjustBalance != null)
+                  _SettingsTile(
+                    icon: Icons.tune,
+                    label: 'Penyesuaian Saldo Kas',
+                    onTap: onAdjustBalance,
                   ),
               ],
             ),
