@@ -54,6 +54,8 @@ class BackupService {
   static const String autoBackupEnabledKey = 'auto_backup_enabled';
   static const String lastAutoBackupKey = 'last_auto_backup_timestamp';
   static const String lastBackupDataCountKey = 'last_backup_data_count';
+  static const String onboardingCompletedAtKey =
+      'onboarding_completed_timestamp';
 
   static const String _zipEntryDbName = 'mom_fikri_cashflow_v2.db';
   static const String _zipEntryImagesDir = 'product_images';
@@ -133,10 +135,7 @@ class BackupService {
       autoDir.createSync(recursive: true);
     }
 
-    final zipBytes = await _buildBackupZipBytes(
-      dbPath,
-      includeImages: false,
-    );
+    final zipBytes = await _buildBackupZipBytes(dbPath, includeImages: false);
     final targetPath = p.join(autoDir.path, fileName);
     await File(targetPath).writeAsBytes(zipBytes, flush: true);
 
@@ -319,8 +318,7 @@ class BackupService {
     final dbBytes = _resolveDbBytesFromArchive(archive);
     final resolvedImageFiles = _resolveImageBytesFromArchive(archive);
     final includeImages =
-        (manifest?['includeImages'] as bool?) ??
-        resolvedImageFiles.isNotEmpty;
+        (manifest?['includeImages'] as bool?) ?? resolvedImageFiles.isNotEmpty;
     final imageFiles = includeImages ? resolvedImageFiles : null;
 
     return _replaceLocalData(

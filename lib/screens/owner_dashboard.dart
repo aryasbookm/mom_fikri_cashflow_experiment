@@ -42,9 +42,13 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     super.initState();
     Provider.of<TransactionProvider>(context, listen: false).loadTransactions();
     Provider.of<ProductProvider>(context, listen: false).loadProducts();
-    Provider.of<ProductionProvider>(context, listen: false).loadTodayProduction();
-    _confettiController =
-        ConfettiController(duration: const Duration(seconds: 2));
+    Provider.of<ProductionProvider>(
+      context,
+      listen: false,
+    ).loadTodayProduction();
+    _confettiController = ConfettiController(
+      duration: const Duration(seconds: 2),
+    );
     _loadDailyTarget();
     _loadBackupReminder();
     _runAutoCloudBackup();
@@ -72,15 +76,58 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     final prefs = await SharedPreferences.getInstance();
     final lastBackup = prefs.getInt(BackupService.lastBackupKey);
     final lastDataCount = prefs.getInt(BackupService.lastBackupDataCountKey);
+    final onboardingCompletedAt = prefs.getInt(
+      BackupService.onboardingCompletedAtKey,
+    );
+    final autoBackupLocalEnabled =
+        prefs.getBool(BackupService.autoBackupEnabledKey) ?? true;
+    final autoBackupCloudEnabled =
+        prefs.getBool(CloudDriveService.autoCloudBackupEnabledKey) ?? false;
     final currentCount = await BackupService.getCurrentDataCount();
     final now = DateTime.now();
-    final hasChanges = lastDataCount == null
-        ? currentCount > 0
-        : currentCount != lastDataCount;
-    final isOverdue = hasChanges &&
-        (lastBackup == null ||
-            now.difference(DateTime.fromMillisecondsSinceEpoch(lastBackup)) >
-                const Duration(days: 3));
+    final gracePeriod = const Duration(days: 3);
+    final standardReminderWindow = const Duration(days: 3);
+    final autoBackupStaleWindow = const Duration(days: 7);
+    final hasChanges =
+        lastDataCount == null
+            ? currentCount > 0
+            : currentCount != lastDataCount;
+
+    if (!hasChanges) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _showBackupAlert = false;
+      });
+      return;
+    }
+
+    if (onboardingCompletedAt != null) {
+      final onboardingAge = now.difference(
+        DateTime.fromMillisecondsSinceEpoch(onboardingCompletedAt),
+      );
+      if (onboardingAge < gracePeriod) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _showBackupAlert = false;
+        });
+        return;
+      }
+    }
+
+    final autoBackupEnabled = autoBackupLocalEnabled || autoBackupCloudEnabled;
+    final overdueDuration =
+        lastBackup == null
+            ? Duration(days: 9999)
+            : now.difference(DateTime.fromMillisecondsSinceEpoch(lastBackup));
+    final isOverdue =
+        autoBackupEnabled
+            ? overdueDuration > autoBackupStaleWindow
+            : overdueDuration > standardReminderWindow;
+
     if (!mounted) {
       return;
     }
@@ -109,12 +156,13 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
       if (!mounted) {
         return;
       }
-      final downloadMessage = result.downloadPath != null
-          ? 'Backup tersimpan di: ${result.downloadPath}'
-          : 'Backup selesai, tetapi gagal simpan ke folder Download.';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(downloadMessage)),
-      );
+      final downloadMessage =
+          result.downloadPath != null
+              ? 'Backup tersimpan di: ${result.downloadPath}'
+              : 'Backup selesai, tetapi gagal simpan ke folder Download.';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(downloadMessage)));
       setState(() {
         _showBackupAlert = false;
       });
@@ -122,9 +170,9 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal membuat backup: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal membuat backup: $error')));
     } finally {
       if (mounted) {
         setState(() {
@@ -169,8 +217,9 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
   }
 
   Future<int?> _showTargetDialog({required int initialValue}) async {
-    final controller =
-        TextEditingController(text: initialValue > 0 ? '$initialValue' : '');
+    final controller = TextEditingController(
+      text: initialValue > 0 ? '$initialValue' : '',
+    );
     final result = await showDialog<int>(
       context: context,
       builder: (context) {
@@ -179,9 +228,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
           content: TextField(
             controller: controller,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Target Omzet (Rp)',
-            ),
+            decoration: const InputDecoration(labelText: 'Target Omzet (Rp)'),
           ),
           actions: [
             TextButton(
@@ -244,16 +291,18 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
           );
         }
         final todayDate = DateTime.now();
-        final todayTx = provider.transactions.where((tx) {
-          final parsed = DateTime.tryParse(tx.date);
-          if (parsed == null) {
-            return false;
-          }
-          final sameDay = parsed.year == todayDate.year &&
-              parsed.month == todayDate.month &&
-              parsed.day == todayDate.day;
-          return sameDay && tx.type != 'WASTE';
-        }).toList();
+        final todayTx =
+            provider.transactions.where((tx) {
+              final parsed = DateTime.tryParse(tx.date);
+              if (parsed == null) {
+                return false;
+              }
+              final sameDay =
+                  parsed.year == todayDate.year &&
+                  parsed.month == todayDate.month &&
+                  parsed.day == todayDate.day;
+              return sameDay && tx.type != 'WASTE';
+            }).toList();
         final todayIncome = todayTx
             .where((tx) => tx.type == 'IN')
             .fold<int>(0, (sum, tx) => sum + tx.amount);
@@ -264,16 +313,18 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
             provider.transactions.isNotEmpty ||
             productionProvider.todayItems.isNotEmpty ||
             productProvider.products.any((product) => product.stock > 0);
-        final totalStock = productProvider.products
-            .fold<int>(0, (sum, product) => sum + product.stock);
-        final lowStock = productProvider.products
-            .where((product) => product.isActive)
-            .where((product) => product.minStock > 0)
-            .where((product) => product.stock <= product.minStock)
-            .toList();
+        final totalStock = productProvider.products.fold<int>(
+          0,
+          (sum, product) => sum + product.stock,
+        );
+        final lowStock =
+            productProvider.products
+                .where((product) => product.isActive)
+                .where((product) => product.minStock > 0)
+                .where((product) => product.stock <= product.minStock)
+                .toList();
 
-        final todayKey =
-            DateFormat('yyyy-MM-dd').format(DateTime.now());
+        final todayKey = DateFormat('yyyy-MM-dd').format(DateTime.now());
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _maybeCelebrate(todayIncome: todayIncome, todayKey: todayKey);
         });
@@ -299,8 +350,10 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                         children: [
                           const Padding(
                             padding: EdgeInsets.only(top: 2),
-                            child: Icon(Icons.warning_amber_rounded,
-                                color: Color(0xFF8D1B3D)),
+                            child: Icon(
+                              Icons.warning_amber_rounded,
+                              color: Color(0xFF8D1B3D),
+                            ),
                           ),
                           const SizedBox(width: 8),
                           const Expanded(
@@ -314,16 +367,18 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                           Column(
                             children: [
                               TextButton(
-                                onPressed: _isBackingUp ? null : _backupDatabase,
-                                child: _isBackingUp
-                                    ? const SizedBox(
-                                        width: 16,
-                                        height: 16,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : const Text('Backup'),
+                                onPressed:
+                                    _isBackingUp ? null : _backupDatabase,
+                                child:
+                                    _isBackingUp
+                                        ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                        : const Text('Backup'),
                               ),
                               IconButton(
                                 icon: const Icon(Icons.close, size: 18),
@@ -410,8 +465,10 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                           onTap: () {
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (_) => const AddTransactionScreen(
-                                    initialType: 'IN'),
+                                builder:
+                                    (_) => const AddTransactionScreen(
+                                      initialType: 'IN',
+                                    ),
                               ),
                             );
                           },
@@ -426,8 +483,10 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                           onTap: () {
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (_) => const AddTransactionScreen(
-                                    initialType: 'OUT'),
+                                builder:
+                                    (_) => const AddTransactionScreen(
+                                      initialType: 'OUT',
+                                    ),
                               ),
                             );
                           },
@@ -467,9 +526,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                       children: [
                         const Text(
                           'Ringkasan Hari Ini',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: TextStyle(fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(height: 12),
                         _SummaryRow(
@@ -496,13 +553,9 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _TopProductsCard(
-                    future: _topProductsFuture,
-                  ),
+                  _TopProductsCard(future: _topProductsFuture),
                   const SizedBox(height: 16),
-                  _SlowMovingCard(
-                    future: _slowMovingFuture,
-                  ),
+                  _SlowMovingCard(future: _slowMovingFuture),
                 ],
               ),
             ),
@@ -576,12 +629,11 @@ class _TargetProgressCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final percent = target <= 0
-        ? 0.0
-        : (achieved / target).clamp(0.0, 1.0);
-    final progressColor = percent >= 1
-        ? Colors.green
-        : percent >= 0.7
+    final percent = target <= 0 ? 0.0 : (achieved / target).clamp(0.0, 1.0);
+    final progressColor =
+        percent >= 1
+            ? Colors.green
+            : percent >= 0.7
             ? Colors.orange
             : Colors.red;
 
@@ -642,10 +694,7 @@ class _TargetProgressCard extends StatelessWidget {
 }
 
 class _StockAlertToggle extends StatelessWidget {
-  const _StockAlertToggle({
-    required this.value,
-    required this.onChanged,
-  });
+  const _StockAlertToggle({required this.value, required this.onChanged});
 
   final bool value;
   final ValueChanged<bool> onChanged;
@@ -667,8 +716,11 @@ class _StockAlertToggle extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.notifications_active,
-              color: Color(0xFF8D1B3D), size: 18),
+          const Icon(
+            Icons.notifications_active,
+            color: Color(0xFF8D1B3D),
+            size: 18,
+          ),
           const SizedBox(width: 8),
           const Expanded(
             child: Text(
@@ -725,10 +777,7 @@ class _LowStockCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  summary,
-                  style: const TextStyle(color: Colors.black87),
-                ),
+                Text(summary, style: const TextStyle(color: Colors.black87)),
               ],
             ),
           ),
@@ -830,12 +879,7 @@ class _ActionCard extends StatelessWidget {
               child: Icon(icon, color: color),
             ),
             const SizedBox(height: 12),
-            Text(
-              title,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
           ],
         ),
       ),
@@ -874,10 +918,7 @@ class _SummaryRow extends StatelessWidget {
         ),
         Text(
           value,
-          style: TextStyle(
-            color: color,
-            fontWeight: FontWeight.w700,
-          ),
+          style: TextStyle(color: color, fontWeight: FontWeight.w700),
         ),
       ],
     );
@@ -894,42 +935,43 @@ class _TopProductsCard extends StatelessWidget {
     return _DashboardExpansionCard(
       title: 'Produk Terlaris (7 Hari)',
       initiallyExpanded: true,
-      child: future == null
-          ? const Text('Belum ada data')
-          : FutureBuilder<List<Map<String, dynamic>>>(
-              future: future,
-              builder: (context, snapshot) {
-                final items = snapshot.data ?? const [];
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  );
-                }
-                if (items.isEmpty) {
-                  return const Text('Belum ada transaksi 7 hari terakhir');
-                }
-                return Column(
-                  children: [
-                    for (int i = 0; i < items.length; i++)
-                      Padding(
-                        padding: EdgeInsets.only(
-                          bottom: i == items.length - 1 ? 0 : 8,
-                        ),
-                        child: _TopProductRow(
-                          rank: i + 1,
-                          name: items[i]['name']?.toString() ?? '-',
-                          quantity:
-                              (items[i]['total_qty'] as num?)?.toInt() ?? 0,
-                        ),
+      child:
+          future == null
+              ? const Text('Belum ada data')
+              : FutureBuilder<List<Map<String, dynamic>>>(
+                future: future,
+                builder: (context, snapshot) {
+                  final items = snapshot.data ?? const [];
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
                       ),
-                  ],
-                );
-              },
-            ),
+                    );
+                  }
+                  if (items.isEmpty) {
+                    return const Text('Belum ada transaksi 7 hari terakhir');
+                  }
+                  return Column(
+                    children: [
+                      for (int i = 0; i < items.length; i++)
+                        Padding(
+                          padding: EdgeInsets.only(
+                            bottom: i == items.length - 1 ? 0 : 8,
+                          ),
+                          child: _TopProductRow(
+                            rank: i + 1,
+                            name: items[i]['name']?.toString() ?? '-',
+                            quantity:
+                                (items[i]['total_qty'] as num?)?.toInt() ?? 0,
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
     );
   }
 }
@@ -974,10 +1016,7 @@ class _TopProductRow extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        Text(
-          '$quantity pcs',
-          style: const TextStyle(color: Colors.black54),
-        ),
+        Text('$quantity pcs', style: const TextStyle(color: Colors.black54)),
       ],
     );
   }
@@ -993,42 +1032,42 @@ class _SlowMovingCard extends StatelessWidget {
     return _DashboardExpansionCard(
       title: 'Produk Kurang Laris (30 Hari)',
       initiallyExpanded: true,
-      child: future == null
-          ? const Text('Belum ada data')
-          : FutureBuilder<List<Map<String, dynamic>>>(
-              future: future,
-              builder: (context, snapshot) {
-                final items = snapshot.data ?? const [];
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  );
-                }
-                if (items.isEmpty) {
-                  return const Text('Belum ada produk aktif');
-                }
-                return Column(
-                  children: [
-                    for (int i = 0; i < items.length; i++)
-                      Padding(
-                        padding: EdgeInsets.only(
-                          bottom: i == items.length - 1 ? 0 : 8,
-                        ),
-                        child: _SlowMovingRow(
-                          name: items[i]['name']?.toString() ?? '-',
-                          sold:
-                              (items[i]['total_qty'] as num?)?.toInt() ?? 0,
-                          stock: (items[i]['stock'] as num?)?.toInt() ?? 0,
-                        ),
+      child:
+          future == null
+              ? const Text('Belum ada data')
+              : FutureBuilder<List<Map<String, dynamic>>>(
+                future: future,
+                builder: (context, snapshot) {
+                  final items = snapshot.data ?? const [];
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
                       ),
-                  ],
-                );
-              },
-            ),
+                    );
+                  }
+                  if (items.isEmpty) {
+                    return const Text('Belum ada produk aktif');
+                  }
+                  return Column(
+                    children: [
+                      for (int i = 0; i < items.length; i++)
+                        Padding(
+                          padding: EdgeInsets.only(
+                            bottom: i == items.length - 1 ? 0 : 8,
+                          ),
+                          child: _SlowMovingRow(
+                            name: items[i]['name']?.toString() ?? '-',
+                            sold: (items[i]['total_qty'] as num?)?.toInt() ?? 0,
+                            stock: (items[i]['stock'] as num?)?.toInt() ?? 0,
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
     );
   }
 }
@@ -1056,7 +1095,11 @@ class _SlowMovingRow extends StatelessWidget {
             color: Colors.orange.withOpacity(0.12),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: const Icon(Icons.trending_down, size: 16, color: Colors.orange),
+          child: const Icon(
+            Icons.trending_down,
+            size: 16,
+            color: Colors.orange,
+          ),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -1109,8 +1152,10 @@ class _DashboardExpansionCard extends StatelessWidget {
             style: const TextStyle(fontWeight: FontWeight.w600),
           ),
           tilePadding: const EdgeInsets.symmetric(horizontal: 16),
-          childrenPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          childrenPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 8,
+          ),
           initiallyExpanded: initiallyExpanded,
           children: [child],
         ),
@@ -1227,10 +1272,7 @@ class _FinanceMini extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                  ),
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
                 ),
                 const SizedBox(height: 4),
                 Text(

@@ -37,6 +37,10 @@ All notable changes to this project will be documented in this file.
   - PDF menampilkan ringkasan produk untuk transaksi pemasukan (hybrid) dan tetap menyertakan detail item agar lebih mudah dibaca owner.
 
 ### Changed
+- Smart backup reminder (versi terkontrol):
+  - menerapkan grace period 3 hari setelah onboarding selesai.
+  - jika auto-backup lokal/cloud aktif, reminder hanya muncul saat backup sangat usang (>7 hari) dan ada perubahan data.
+  - jika auto-backup nonaktif, reminder tetap memakai aturan standar (>3 hari) dan ada perubahan data.
 - Onboarding first-install:
   - warna teks tombol `Lanjut` / `Selesaikan Setup` diperjelas (kontras putih pada tombol utama).
   - setelah setup selesai, baseline metadata backup diinisialisasi agar banner reminder backup tidak langsung muncul di detik pertama penggunaan.

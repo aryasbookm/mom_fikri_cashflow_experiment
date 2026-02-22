@@ -165,6 +165,10 @@ Catatan:
    - Saldo awal dicatat otomatis sebagai transaksi `IN` kategori `Saldo Awal` pada tanggal cut-off.
    - Tombol utama onboarding (`Lanjut` / `Selesaikan Setup`) menggunakan kontras teks putih agar mudah dibaca.
    - Reminder backup diberi grace baseline setelah onboarding selesai agar user baru tidak langsung menerima warning backup pada kunjungan pertama dashboard.
+   - Smart reminder backup (tanpa over-engineering):
+     - grace period 3 hari pasca onboarding,
+     - jika auto-backup lokal/cloud aktif -> warning hanya saat backup stale (>7 hari) dan ada perubahan data,
+     - jika auto-backup nonaktif -> warning standar (>3 hari) dan ada perubahan data.
    - Menu owner `Penyesuaian Saldo Kas` tersedia di tab Akun:
      - input kas fisik saat ini + alasan wajib,
      - sistem menghitung selisih terhadap saldo sistem,

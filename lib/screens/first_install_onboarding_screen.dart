@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../database/database_helper.dart';
 import '../providers/auth_provider.dart';
@@ -130,6 +131,11 @@ class _FirstInstallOnboardingScreenState
       // Set baseline reminder timestamp agar user baru tidak langsung "diserang"
       // warning backup di detik pertama onboarding selesai.
       await BackupService.markBackupSuccess();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(
+        BackupService.onboardingCompletedAtKey,
+        DateTime.now().millisecondsSinceEpoch,
+      );
 
       if (!mounted) {
         return;
