@@ -9,6 +9,7 @@ import '../models/product_model.dart';
 import '../providers/product_provider.dart';
 import '../providers/production_provider.dart';
 import '../providers/transaction_provider.dart';
+import '../services/ai_insight_service.dart';
 import '../services/backup_service.dart';
 import '../services/cloud_drive_service.dart';
 import 'add_transaction_screen.dart';
@@ -30,6 +31,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
   bool _showStockAlert = true;
   bool _showBackupAlert = false;
   bool _isBackingUp = false;
+  bool _isGeneratingAiInsight = false;
   late final ConfettiController _confettiController;
   Future<List<Map<String, dynamic>>>? _topProductsFuture;
   Future<List<Map<String, dynamic>>>? _slowMovingFuture;
@@ -191,6 +193,81 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     setState(() {
       _showStockAlert = value;
     });
+  }
+
+  Future<void> _generateAiInsight(TransactionProvider provider) async {
+    if (_isGeneratingAiInsight) {
+      return;
+    }
+    setState(() {
+      _isGeneratingAiInsight = true;
+    });
+
+    try {
+      final now = DateTime.now();
+      final periodStart = DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).subtract(const Duration(days: 29));
+
+      var income30 = 0;
+      var expense30 = 0;
+      for (final tx in provider.transactions) {
+        final parsed = DateTime.tryParse(tx.date);
+        if (parsed == null || parsed.isBefore(periodStart)) {
+          continue;
+        }
+        if (tx.type == 'IN') {
+          income30 += tx.amount;
+        } else if (tx.type == 'OUT') {
+          expense30 += tx.amount;
+        }
+      }
+      final net30 = income30 - expense30;
+      final slowMoving = await provider.getSlowMovingProducts(
+        limit: 3,
+        days: 30,
+      );
+      final insight = await AiInsightService().generateOwnerInsight(
+        income30: income30,
+        expense30: expense30,
+        net30: net30,
+        slowMovingProducts: slowMoving,
+      );
+
+      if (!mounted) {
+        return;
+      }
+      await showDialog<void>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Insight AI (30 Hari)'),
+            content: SingleChildScrollView(child: Text(insight)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Tutup'),
+              ),
+            ],
+          );
+        },
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memuat insight AI: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGeneratingAiInsight = false;
+        });
+      }
+    }
   }
 
   Future<void> _setDailyTarget(int target) async {
@@ -506,6 +583,27 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                         ),
                       );
                     },
+                  ),
+                  const SizedBox(height: 12),
+                  _ActionCard(
+                    icon: Icons.auto_awesome,
+                    title:
+                        _isGeneratingAiInsight
+                            ? 'Memuat Insight AI...'
+                            : 'Minta Saran AI (Online)',
+                    color: const Color(0xFF6A1B9A),
+                    onTap: () {
+                      if (_isGeneratingAiInsight) {
+                        return;
+                      }
+                      _generateAiInsight(provider);
+                    },
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Fitur ini memerlukan koneksi internet aktif.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12, color: Colors.black54),
                   ),
                   const SizedBox(height: 16),
                   Container(

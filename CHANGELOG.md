@@ -12,6 +12,10 @@ All notable changes to this project will be documented in this file.
 ### Added
 - First-install onboarding wajib (owner account + cut-off date + saldo awal kas), aktif otomatis saat tabel user masih kosong.
 - Owner-only menu **Penyesuaian Saldo Kas** di tab Akun: input kas fisik + alasan, hitung selisih otomatis, simpan transaksi `IN/OUT` kategori `Penyesuaian Saldo`.
+- POC **Insight AI (Owner Dashboard)**:
+  - tombol `Minta Saran AI (Online)` untuk menghasilkan 3 saran bisnis berbasis data 30 hari (pemasukan, pengeluaran, produk kurang laris),
+  - hasil ditampilkan sebagai dialog teks (read-only, tidak mengubah data transaksi),
+  - integrasi via Gemini REST menggunakan `--dart-define=GEMINI_API_KEY=...`.
 - Global Search: search bar di Kasir, Stok, dan Riwayat dengan filtering real-time.
 - Deep Search Riwayat: pencarian juga mencakup nama produk dari transaksi multi-item.
 - Foto produk opsional berbasis filesystem lokal (`product_images/prod_{id}.jpg`) dengan picker galeri/kamera.

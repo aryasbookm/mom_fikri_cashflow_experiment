@@ -157,6 +157,8 @@ Catatan:
 
 9. **Dashboard Owner (Ringkas)**
    - Menampilkan Top Produk (7 hari) untuk keputusan produksi
+   - POC Insight AI (online): tombol `Minta Saran AI` mengirim ringkasan 30 hari ke Gemini dan menampilkan 3 saran bisnis dalam dialog.
+   - Output AI bersifat asistif/read-only (tidak menulis transaksi otomatis).
 
 10. **Onboarding & Penyesuaian Saldo**
    - First-install onboarding (2 langkah):
@@ -248,6 +250,13 @@ Catatan:
   flutter pub get
   flutter pub run flutter_launcher_icons
   ```
+
+## Konfigurasi AI POC
+- Fitur Insight AI membutuhkan internet aktif.
+- API key tidak disimpan di source code; jalankan app dengan:
+  - `--dart-define=GEMINI_API_KEY=<KEY_ANDA>`
+- Opsional ganti model:
+  - `--dart-define=GEMINI_MODEL=gemini-2.5-flash`
 
 ## Reset DB (Hard Reset)
 - DB version: 9

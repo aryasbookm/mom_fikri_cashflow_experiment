@@ -53,6 +53,7 @@ Catatan:
 - **Backup/Restore:** `file_picker` + `share_plus` + `path_provider`.
   - Android picker memakai `FileType.any` + validasi manual `.zip` / `.db`.
   - Cloud Android memakai `google_sign_in` + `googleapis` (folder `appDataFolder`).
+- **AI Insight (POC):** Gemini REST (`http`) via `--dart-define=GEMINI_API_KEY`.
 
 ## 2.1 Quality Gate (Engineering Process)
 Setiap fitur non-trivial dinyatakan siap merge jika lolos:
@@ -131,6 +132,7 @@ Setiap fitur non-trivial dinyatakan siap merge jika lolos:
   - UI PIN mendukung panjang PIN variabel (submit manual).
   - Dialog PIN menyediakan opsi Logout/Ganti Akun (dengan konfirmasi).
 - **Dashboard Owner:** menampilkan Top Produk (7 hari) sebagai info operasional.
+- **Dashboard Owner:** menampilkan Top Produk (7 hari) + tombol `Minta Saran AI (Online)` untuk 3 insight bisnis berbasis data 30 hari.
 
 ## 6. Alur Utama
 - Buka aplikasi:

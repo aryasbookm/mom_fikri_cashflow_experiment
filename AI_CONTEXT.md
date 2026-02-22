@@ -69,6 +69,7 @@ Hard rules for mentor/reviewer AI:
 - Services:
   - `lib/services/backup_service.dart`
   - `lib/services/cloud_drive_service.dart`
+  - `lib/services/ai_insight_service.dart`
   - `lib/services/export_service.dart`
   - `lib/services/pdf_service.dart`
 - Shared widgets:
