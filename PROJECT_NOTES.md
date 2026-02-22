@@ -11,6 +11,7 @@
 - **DB:** SQLite (`sqflite`)
 - **State:** Provider
 - **Release Notes:** lihat `CHANGELOG.md` (timeline v0.9.0 → v1.0.0-rc3)
+- **Release channel map:** `main` = stable, `codex/*` = experimental.
 
 ## SOP Kolaborasi AI (Aktif)
 - **Role boundary:** Gemini = mentor/reviewer, Codex = eksekutor perubahan repo, User = approver final.
@@ -232,6 +233,10 @@ Catatan:
 ## Build & Icon
 - Icon: `assets/icon_toko.png`
 - `flutter_launcher_icons` sudah ada di `pubspec.yaml`
+- Versi branch eksperimen aktif saat ini: `1.1.0-dev+101` (lihat `pubspec.yaml`).
+- Aturan rilis APK:
+  - build untuk user/tester wajib menaikkan `+buildNumber`,
+  - nama file APK harus memuat channel + versi (contoh: `momfiqry-exp-v1.1.0-dev+101.apk`).
 - Jalankan manual:
   ```bash
   flutter pub get

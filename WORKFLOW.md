@@ -43,3 +43,19 @@
 2. Jalankan `flutter run -d chrome --web-port 3010`.
 3. Buka browser profile `Profile-MomFiqry`.
 4. Akses `http://localhost:3010`.
+
+## 9) Release & Build SOP
+- Sebelum build APK yang akan dibagikan ke user/tester:
+  - naikkan `version:` di `pubspec.yaml` (minimal `+buildNumber` wajib naik).
+- Format kanal rilis:
+  - `stable` untuk jalur operasional toko (`main`),
+  - `experimental` untuk jalur uji fitur (`codex/*`).
+- Penamaan file APK setelah build (rename manual):
+  - `momfiqry-stable-v<versionName+build>.apk`
+  - `momfiqry-exp-v<versionName+build>.apk`
+- Contoh:
+  - `momfiqry-stable-v1.0.1+2.apk`
+  - `momfiqry-exp-v1.1.0-dev+101.apk`
+- Catatan:
+  - Android menolak update jika `versionCode` tidak lebih tinggi dari APK terpasang.
+  - Jika build eksperimen dipasang di device operasional, pastikan tahu risikonya karena package sama (tidak bisa side-by-side tanpa ubah identitas aplikasi).

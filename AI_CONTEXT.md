@@ -200,6 +200,17 @@ Output format expected from mentor AI:
 - Merge to `main` only after validation.
 - Keep commits focused and descriptive (`feat:`, `fix:`, `chore:`, `docs:`).
 
+## 8.1) Release Channel Map (Mandatory Reference)
+- Stable channel:
+  - branch: `main`
+  - use case: operasional toko / APK produksi.
+- Experimental channel:
+  - branch: `codex/*` (aktif saat ini: `codex/onboarding-adjustment`)
+  - use case: uji fitur sebelum merge ke `main`.
+- Versioning discipline:
+  - stable dan experimental harus dibedakan lewat `versionName+buildNumber` di `pubspec.yaml`.
+  - jangan rilis dua APK berbeda dengan build number yang sama.
+
 ## 9) Bootstrap for New Projects
 - Use `./init_project.sh <project_name> [destination_dir]`.
 - Script creates Flutter project and auto-copies `AGENTS.md` and `AI_CONTEXT.md` into new project root.

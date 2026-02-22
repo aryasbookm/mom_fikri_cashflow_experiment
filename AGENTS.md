@@ -117,6 +117,13 @@ For cashflow/financial logic, `Verify` is mandatory and must include:
 ## Build / Tooling Notes
 - App icon source: `assets/icon_toko.png` (`flutter_launcher_icons`).
 - Do not run `flutter_launcher_icons` or `flutter pub get` unless requested.
+- Release versioning (mandatory for APK candidates):
+  - setiap kandidat APK untuk testing/user wajib menaikkan `versionCode` (`pubspec.yaml` bagian `+N`),
+  - jangan kirim APK dengan `versionCode` yang sama dengan build sebelumnya,
+  - gunakan penamaan file rilis yang eksplisit, contoh:
+    - `momfiqry-stable-v1.0.1+2.apk`
+    - `momfiqry-exp-v1.1.0-dev+101.apk`
+  - di handoff, wajib sebutkan channel build (`stable`/`experimental`) + `versionName+versionCode`.
 
 ## Validation Scope Policy (Token-Efficient)
 - Tujuan: menjaga kualitas tetap tinggi dengan biaya token/waktu lebih efisien.

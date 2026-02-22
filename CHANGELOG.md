@@ -37,6 +37,7 @@ All notable changes to this project will be documented in this file.
   - PDF menampilkan ringkasan produk untuk transaksi pemasukan (hybrid) dan tetap menyertakan detail item agar lebih mudah dibaca owner.
 
 ### Changed
+- Versioning branch eksperimen dinaikkan ke `1.1.0-dev+101` untuk membedakan kanal build dari rilis stable.
 - Seed install baru tidak lagi membuat akun default (`admin/1234`, `karyawan/0000`); akun owner dibuat lewat onboarding pertama.
 - Kategori sistem diperluas:
   - `Saldo Awal` (IN)
