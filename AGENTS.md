@@ -17,6 +17,7 @@ Operational mechanics for implementation sessions (commands, commit flow, safety
   - `Kalau sudah siap, silakan jalankan git push secara manual di terminal.`
 
 ## Communication Standards
+- Selalu mulai jawaban dengan prefiks `Codex said:` untuk memperjelas sumber jawaban AI eksekutor.
 - Use proactive heads-up labels before proceeding on risky or non-trivial work:
   - `[HEADS-UP: PLAN]` before implementing a complex/new feature; propose plan first.
   - `[HEADS-UP: TIMEBOX]` when debugging exceeds 3 focused loops or ~45 minutes; propose pivot/fallback.
@@ -24,6 +25,10 @@ Operational mechanics for implementation sessions (commands, commit flow, safety
   - `[HEADS-UP: DOCS]` when flow/architecture changes; list impacted docs only.
 - When replying to quoted statements from another AI/tool, prefix source labels explicitly (`User said:`, `Gemini said:`, `Codex said:`) to avoid speaker ambiguity.
 - Do not repeat setup instructions (OAuth/keystore) if `AI_CONTEXT.md` infrastructure status is already marked as `Registered`.
+- Jangan langsung menyetujui usulan AI lain. Wajib lakukan evaluasi mandiri singkat:
+  - kelayakan teknis berdasarkan kemampuan/arsitektur saat ini,
+  - risiko implementasi,
+  - alasan memilih setuju/tolak/kompromi.
 
 ## Prompt Protocol (Default)
 For non-trivial requests, structure instructions with:
