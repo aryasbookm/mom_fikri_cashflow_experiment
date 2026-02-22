@@ -6,6 +6,7 @@ import '../database/database_helper.dart';
 import '../providers/auth_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/transaction_provider.dart';
+import '../services/backup_service.dart';
 import 'main_screen.dart';
 
 class FirstInstallOnboardingScreen extends StatefulWidget {
@@ -126,6 +127,9 @@ class _FirstInstallOnboardingScreenState
 
       await categoryProvider.loadCategories();
       await transactionProvider.loadTransactions();
+      // Set baseline reminder timestamp agar user baru tidak langsung "diserang"
+      // warning backup di detik pertama onboarding selesai.
+      await BackupService.markBackupSuccess();
 
       if (!mounted) {
         return;
@@ -170,6 +174,8 @@ class _FirstInstallOnboardingScreenState
                         _isSaving ? null : (isLast ? _finishSetup : _nextStep),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryColor,
+                      foregroundColor: Colors.white,
+                      disabledForegroundColor: Colors.white70,
                     ),
                     child:
                         _isSaving

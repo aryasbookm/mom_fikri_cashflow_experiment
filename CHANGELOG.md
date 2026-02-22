@@ -37,6 +37,9 @@ All notable changes to this project will be documented in this file.
   - PDF menampilkan ringkasan produk untuk transaksi pemasukan (hybrid) dan tetap menyertakan detail item agar lebih mudah dibaca owner.
 
 ### Changed
+- Onboarding first-install:
+  - warna teks tombol `Lanjut` / `Selesaikan Setup` diperjelas (kontras putih pada tombol utama).
+  - setelah setup selesai, baseline metadata backup diinisialisasi agar banner reminder backup tidak langsung muncul di detik pertama penggunaan.
 - Versioning branch eksperimen dinaikkan ke `1.1.0-dev+101` untuk membedakan kanal build dari rilis stable.
 - Seed install baru tidak lagi membuat akun default (`admin/1234`, `karyawan/0000`); akun owner dibuat lewat onboarding pertama.
 - Kategori sistem diperluas:

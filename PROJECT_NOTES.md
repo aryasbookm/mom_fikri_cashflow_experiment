@@ -163,6 +163,8 @@ Catatan:
      - buat akun owner (username + PIN),
      - pilih tanggal cut-off dan isi saldo awal kas fisik.
    - Saldo awal dicatat otomatis sebagai transaksi `IN` kategori `Saldo Awal` pada tanggal cut-off.
+   - Tombol utama onboarding (`Lanjut` / `Selesaikan Setup`) menggunakan kontras teks putih agar mudah dibaca.
+   - Reminder backup diberi grace baseline setelah onboarding selesai agar user baru tidak langsung menerima warning backup pada kunjungan pertama dashboard.
    - Menu owner `Penyesuaian Saldo Kas` tersedia di tab Akun:
      - input kas fisik saat ini + alasan wajib,
      - sistem menghitung selisih terhadap saldo sistem,
