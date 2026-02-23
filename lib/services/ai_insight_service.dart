@@ -254,17 +254,16 @@ Tanpa kalimat pembuka.
     required int net30,
     required List<Map<String, dynamic>> slowMovingProducts,
   }) {
-    final slowNames =
-        slowMovingProducts
-            .map((item) => '${item['name'] ?? '-'}')
-            .take(2)
-            .join(' dan ');
+    final slowNames = slowMovingProducts
+        .map((item) => '${item['name'] ?? '-'}')
+        .take(2)
+        .join(' dan ');
     final hasSlow = slowMovingProducts.isNotEmpty;
     final margin = income30 == 0 ? 0.0 : (net30 / income30) * 100.0;
     final marginText = margin.isFinite ? margin.toStringAsFixed(1) : '0.0';
 
     return '''
-1) Pantau margin 30 hari Anda: pemasukan Rp $income30, pengeluaran Rp $expense30, selisih Rp $net30 (margin ${marginText}%). Tetapkan batas belanja bahan mingguan.
+1) Pantau margin 30 hari Anda: pemasukan Rp $income30, pengeluaran Rp $expense30, selisih Rp $net30 (margin $marginText%). Tetapkan batas belanja bahan mingguan.
 
 2) ${hasSlow ? 'Fokus promosi untuk $slowNames dalam 7 hari ke depan (bundling/diskon jam tertentu) agar perputaran stok naik.' : 'Belum ada produk sangat lambat, pertahankan ritme produksi sesuai pola penjualan mingguan.'}
 
