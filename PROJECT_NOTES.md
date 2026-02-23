@@ -65,6 +65,7 @@ Catatan:
    - Validasi stok per item
    - Manual input tetap ada
    - Ringkasan total otomatis
+   - Mendukung prefill dari OCR asistif (draft hasil scan catatan) untuk mempercepat migrasi dari buku.
 
 3. **Pengeluaran**
    - Input manual
@@ -169,6 +170,17 @@ Catatan:
      - setelah request sukses, cooldown singkat tetap diterapkan untuk mencegah spam klik.
      - selama cooldown tombol AI nonaktif dan menampilkan hitung mundur agar status transparan ke user.
    - Output AI bersifat asistif/read-only (tidak menulis transaksi otomatis).
+   - OCR Asistif (MVP):
+     - akses dari ikon `Scan Catatan` di AppBar Beranda,
+     - alur: foto/galeri -> AI ekstrak JSON draft -> user konfirmasi -> prefill form transaksi,
+     - fokus 1 transaksi per scan (bukan parsing 1 halaman penuh),
+     - tetap Human-in-the-Loop: data tidak disimpan otomatis, user wajib review dan tekan `Simpan`.
+     - proteksi UX duplikasi: setelah simpan sukses dari form, draft di layar scan dibersihkan dan muncul konfirmasi sukses.
+     - recovery jaringan: jika OCR gagal sementara (mis. `503`), user bisa `Coba Lagi` dengan foto yang sama.
+     - guard anti-halusinasi:
+       - AI wajib menilai `is_transaction` sebelum ekstraksi final,
+       - jika bukan transaksi, proses prefill diblok dan alasan ditampilkan ke user,
+       - validasi app-side tetap berjalan untuk mencegah draft nominal/keterangan tidak valid.
 
 10. **Onboarding & Penyesuaian Saldo**
    - First-install onboarding (2 langkah):

@@ -13,9 +13,24 @@ import '../providers/transaction_provider.dart';
 import '../widgets/product_avatar.dart';
 
 class AddTransactionScreen extends StatefulWidget {
-  const AddTransactionScreen({super.key, this.initialType});
+  const AddTransactionScreen({
+    super.key,
+    this.initialType,
+    this.lockTypeSelection = true,
+    this.initialAmount,
+    this.initialDescription,
+    this.initialCategoryHint,
+    this.initialDate,
+    this.initialManualIncomeInput = false,
+  });
 
   final String? initialType;
+  final bool lockTypeSelection;
+  final String? initialAmount;
+  final String? initialDescription;
+  final String? initialCategoryHint;
+  final DateTime? initialDate;
+  final bool initialManualIncomeInput;
 
   @override
   State<AddTransactionScreen> createState() => _AddTransactionScreenState();
@@ -37,6 +52,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   bool _isCartExpanded = false;
   final List<_CartItem> _cartItems = [];
   String _productSearchQuery = '';
+  bool _initialCategoryHintApplied = false;
 
   int? _preferredManualIncomeCategoryId(List<CategoryModel> categories) {
     final fallbackName = DefaultCategories.incomeFallback.toLowerCase().trim();
@@ -61,6 +77,20 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     if (widget.initialType != null) {
       _type = widget.initialType!;
     }
+    if (widget.initialDate != null) {
+      _selectedDate = widget.initialDate!;
+    }
+    if (widget.initialAmount != null &&
+        widget.initialAmount!.trim().isNotEmpty) {
+      _amountController.text = widget.initialAmount!.trim();
+    }
+    if (widget.initialDescription != null &&
+        widget.initialDescription!.trim().isNotEmpty) {
+      _descriptionController.text = widget.initialDescription!.trim();
+    }
+    if (_type == 'IN' && widget.initialManualIncomeInput) {
+      _manualIncomeInput = true;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       Provider.of<CategoryProvider>(
@@ -70,6 +100,37 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       Provider.of<CategoryProvider>(context, listen: false).loadCategories();
       Provider.of<ProductProvider>(context, listen: false).loadProducts();
     });
+  }
+
+  void _tryApplyInitialCategoryHint(List<CategoryModel> categories) {
+    if (_initialCategoryHintApplied) {
+      return;
+    }
+    final hint = widget.initialCategoryHint?.trim();
+    if (hint == null || hint.isEmpty || categories.isEmpty) {
+      _initialCategoryHintApplied = true;
+      return;
+    }
+
+    final hintLower = hint.toLowerCase();
+    CategoryModel? exact;
+    CategoryModel? contains;
+    for (final category in categories) {
+      final nameLower = category.name.toLowerCase().trim();
+      if (nameLower == hintLower) {
+        exact = category;
+        break;
+      }
+      if (nameLower.contains(hintLower) || hintLower.contains(nameLower)) {
+        contains ??= category;
+      }
+    }
+
+    final target = exact ?? contains;
+    if (target != null && target.id != null) {
+      _selectedCategoryId = target.id;
+    }
+    _initialCategoryHintApplied = true;
   }
 
   @override
@@ -416,12 +477,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _isLoading = false;
     });
 
-    Navigator.of(context).pop();
+    Navigator.of(context).pop(true);
   }
 
   @override
   Widget build(BuildContext context) {
-    final isTypeLocked = widget.initialType != null;
+    final isTypeLocked = widget.initialType != null && widget.lockTypeSelection;
     final bottomSafeInset = MediaQuery.viewPaddingOf(context).bottom;
     final dateLabel = DateFormat('dd MMM yyyy', 'id_ID').format(_selectedDate);
     final currency = NumberFormat.currency(
@@ -503,6 +564,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                             )
                             .toList()
                         : allCategories;
+
+                _tryApplyInitialCategoryHint(categories);
 
                 if (_type == 'IN' &&
                     _manualIncomeInput &&

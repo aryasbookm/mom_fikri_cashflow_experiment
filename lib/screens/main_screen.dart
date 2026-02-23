@@ -6,6 +6,7 @@ import '../widgets/owner_pin_dialog.dart';
 import 'account_screen.dart';
 import 'login_screen.dart';
 import 'owner_dashboard.dart';
+import 'ocr_assist_screen.dart';
 import 'production_screen.dart';
 import 'report_screen.dart';
 
@@ -76,9 +77,9 @@ class _MainScreenState extends State<MainScreen> {
       if (!mounted) {
         return false;
       }
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-      );
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
       return false;
     }
     return result == true;
@@ -116,6 +117,17 @@ class _MainScreenState extends State<MainScreen> {
                 ]
                 : _currentIndex == 0
                 ? [
+                  IconButton(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const OcrAssistScreen(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.document_scanner_outlined),
+                    tooltip: 'Scan Catatan',
+                  ),
                   IconButton(
                     onPressed:
                         ownerState == null
