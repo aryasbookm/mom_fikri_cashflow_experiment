@@ -53,6 +53,12 @@ class OwnerDashboardState extends State<OwnerDashboard> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _notifyAiStateChanged();
+    });
     Provider.of<TransactionProvider>(context, listen: false).loadTransactions();
     Provider.of<ProductProvider>(context, listen: false).loadProducts();
     Provider.of<ProductionProvider>(

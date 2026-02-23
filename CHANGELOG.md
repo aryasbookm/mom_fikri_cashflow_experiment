@@ -32,6 +32,9 @@ All notable changes to this project will be documented in this file.
   - nominal/deskripsi bisa diedit langsung di list sebelum simpan.
   - tombol simpan kini dinamis `Simpan N Transaksi`.
   - batch save menyimpan seluruh item tercentang ke SQLite dengan ringkasan hasil `berhasil/gagal`.
+- AppBar AI trigger:
+  - perbaikan race condition saat pertama login: tombol `Minta Saran AI` kini tidak lagi silent-fail pada klik awal.
+  - jika state dashboard belum siap, user mendapat snackbar feedback (`Beranda belum siap...`) alih-alih tidak ada respons.
 - First-install onboarding wajib (owner account + cut-off date + saldo awal kas), aktif otomatis saat tabel user masih kosong.
 - Owner-only menu **Penyesuaian Saldo Kas** di tab Akun: input kas fisik + alasan, hitung selisih otomatis, simpan transaksi `IN/OUT` kategori `Penyesuaian Saldo`.
 - POC **Insight AI (Owner Dashboard)**:

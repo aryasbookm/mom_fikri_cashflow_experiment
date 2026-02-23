@@ -159,6 +159,9 @@ Catatan:
 9. **Dashboard Owner (Ringkas)**
    - Menampilkan Top Produk (7 hari) untuk keputusan produksi
    - POC Insight AI (online): trigger via ikon `✨` di AppBar kanan atas; mengirim ringkasan 30 hari ke Gemini dan menampilkan 3 saran bisnis dalam dialog.
+   - AppBar AI trigger hardened:
+     - saat state beranda belum siap (sesaat setelah login), klik awal tidak lagi diam tanpa respons;
+     - user menerima snackbar status dan tombol siap dipakai segera setelah state terikat.
    - Konteks AI 30 hari sekarang mencakup dua sisi:
      - produk terlaris (maks 3 item),
      - produk kurang laris (maks 3 item),

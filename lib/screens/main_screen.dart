@@ -129,10 +129,24 @@ class _MainScreenState extends State<MainScreen> {
                     tooltip: 'Scan Catatan',
                   ),
                   IconButton(
-                    onPressed:
-                        ownerState == null
-                            ? null
-                            : () => ownerState.triggerAiInsightFromAppBar(),
+                    onPressed: () async {
+                      final state = _ownerDashboardKey.currentState;
+                      if (state == null) {
+                        if (!mounted) {
+                          return;
+                        }
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Beranda belum siap, coba lagi sebentar.',
+                            ),
+                          ),
+                        );
+                        setState(() {});
+                        return;
+                      }
+                      await state.triggerAiInsightFromAppBar();
+                    },
                     icon:
                         aiLoading
                             ? const SizedBox(
@@ -146,7 +160,7 @@ class _MainScreenState extends State<MainScreen> {
                             : Icon(
                               Icons.auto_awesome,
                               color:
-                                  aiTemporarilyUnavailable
+                                  aiTemporarilyUnavailable || ownerState == null
                                       ? Colors.white70
                                       : Colors.white,
                             ),
