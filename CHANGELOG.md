@@ -10,6 +10,12 @@ All notable changes to this project will be documented in this file.
 *Fokus: Pencarian Global, Reminder Backup, Insight Produk Lambat*
 
 ### Added
+- OCR Asistif MVP (Human-in-the-Loop):
+  - menu `Scan Catatan` (ikon scanner di AppBar Beranda owner),
+  - ambil foto dari kamera / pilih dari galeri,
+  - kirim gambar ke Gemini Vision untuk ekstraksi 1 transaksi menjadi JSON draft (`type`, `amount`, `description`, `category_hint`, `date_iso`, `confidence`, `raw_text`),
+  - tampilkan hasil konfirmasi scan sebelum dipakai,
+  - lanjutkan ke form `Catat Pemasukan/Pengeluaran` dalam mode prefill (user tetap review dan menekan `Simpan` manual).
 - First-install onboarding wajib (owner account + cut-off date + saldo awal kas), aktif otomatis saat tabel user masih kosong.
 - Owner-only menu **Penyesuaian Saldo Kas** di tab Akun: input kas fisik + alasan, hitung selisih otomatis, simpan transaksi `IN/OUT` kategori `Penyesuaian Saldo`.
 - POC **Insight AI (Owner Dashboard)**:
