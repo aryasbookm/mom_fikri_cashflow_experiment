@@ -185,6 +185,11 @@ Catatan:
      - AI OCR service sudah mendukung output daftar transaksi (`transactions[]`),
      - cap item per scan: 30 transaksi,
      - item invalid (nominal <= 0 atau teks tidak jelas) difilter sebelum masuk tahap review UI.
+   - OCR Multi-Batch (UI + save):
+     - hasil scan ditampilkan sebagai list transaksi (bukan 1 item),
+     - checkbox per baris + aksi `Pilih Semua` / `Batal Pilihan`,
+     - nominal dan keterangan dapat diedit cepat di list,
+     - batch save menyimpan item yang dicentang sekaligus, lalu tampilkan ringkasan berhasil/gagal.
 
 10. **Onboarding & Penyesuaian Saldo**
    - First-install onboarding (2 langkah):

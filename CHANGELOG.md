@@ -26,6 +26,12 @@ All notable changes to this project will be documented in this file.
   - service OCR kini mengembalikan batch transaksi (`transactions[]`) alih-alih object tunggal.
   - batas maksimum transaksi per scan ditetapkan **30 item** (`maxItemsPerScan=30`) sesuai konteks buku lapangan.
   - filter server-side: item nominal `<= 0` dan item teks tidak jelas otomatis dibuang sebelum diteruskan ke UI.
+- OCR Multi-Batch (UI + save flow):
+  - panel konfirmasi tunggal diganti menjadi daftar review transaksi hasil scan.
+  - setiap baris punya checkbox, pilihan default dicentang, plus aksi cepat `Pilih Semua` / `Batal Pilihan`.
+  - nominal/deskripsi bisa diedit langsung di list sebelum simpan.
+  - tombol simpan kini dinamis `Simpan N Transaksi`.
+  - batch save menyimpan seluruh item tercentang ke SQLite dengan ringkasan hasil `berhasil/gagal`.
 - First-install onboarding wajib (owner account + cut-off date + saldo awal kas), aktif otomatis saat tabel user masih kosong.
 - Owner-only menu **Penyesuaian Saldo Kas** di tab Akun: input kas fisik + alasan, hitung selisih otomatis, simpan transaksi `IN/OUT` kategori `Penyesuaian Saldo`.
 - POC **Insight AI (Owner Dashboard)**:

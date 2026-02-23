@@ -2,12 +2,14 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
-import '../models/ocr_transaction_draft.dart';
+import '../models/transaction_model.dart';
+import '../providers/auth_provider.dart';
+import '../providers/category_provider.dart';
 import '../services/ai_insight_service.dart';
 import '../services/ai_ocr_service.dart';
-import 'add_transaction_screen.dart';
+import '../providers/transaction_provider.dart';
 
 class OcrAssistScreen extends StatefulWidget {
   const OcrAssistScreen({super.key});
@@ -22,9 +24,11 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
   String? _imagePath;
   List<int>? _imageBytes;
   String? _imageMimeType;
-  OcrTransactionDraft? _draft;
+  final List<_EditableDraftItem> _draftItems = [];
   String? _lastErrorMessage;
   String? _lastRejectedReason;
+
+  int get _selectedCount => _draftItems.where((item) => item.selected).length;
 
   Future<void> _pickAndProcess(ImageSource source) async {
     if (_isLoading) {
@@ -45,7 +49,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
       _imagePath = file.path;
       _imageBytes = null;
       _imageMimeType = null;
-      _draft = null;
+      _clearDraftItems();
       _lastErrorMessage = null;
       _lastRejectedReason = null;
     });
@@ -84,16 +88,29 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     });
 
     try {
-      final draft = await AiOcrService().extractDraftFromImageBytes(
+      final batch = await AiOcrService().extractDraftFromImageBytes(
         imageBytes: bytes,
         mimeType: mimeType,
       );
-      final firstItem = draft.transactions.first;
       if (!mounted) {
         return;
       }
       setState(() {
-        _draft = firstItem;
+        _clearDraftItems();
+        _draftItems.addAll(
+          batch.transactions.map(
+            (item) => _EditableDraftItem(
+              selected: true,
+              type: item.type,
+              amount: item.amount,
+              description: item.description,
+              categoryHint: item.categoryHint,
+              dateIso: item.dateIso,
+              confidence: item.confidence,
+              rawText: item.rawText,
+            ),
+          ),
+        );
         _lastErrorMessage = null;
         _lastRejectedReason = null;
       });
@@ -142,59 +159,265 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     return 'image/jpeg';
   }
 
-  Future<void> _useDraft() async {
-    final draft = _draft;
-    if (draft == null) {
+  int? _resolveCategoryId({
+    required CategoryProvider categoryProvider,
+    required String type,
+    required String hint,
+  }) {
+    final categories =
+        type == 'IN'
+            ? categoryProvider.incomeCategories
+            : categoryProvider.expenseCategories;
+    final valid = categories.where((cat) => cat.id != null).toList();
+    if (valid.isEmpty) {
+      return null;
+    }
+
+    final normalizedHint = hint.toLowerCase().trim();
+    if (normalizedHint.isNotEmpty) {
+      for (final category in valid) {
+        if (category.name.toLowerCase().trim() == normalizedHint) {
+          return category.id;
+        }
+      }
+      for (final category in valid) {
+        final name = category.name.toLowerCase().trim();
+        if (name.contains(normalizedHint) || normalizedHint.contains(name)) {
+          return category.id;
+        }
+      }
+    }
+    return valid.first.id;
+  }
+
+  Future<void> _saveSelectedDrafts() async {
+    if (_isLoading) {
+      return;
+    }
+    final selected = _draftItems.where((item) => item.selected).toList();
+    if (selected.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Pilih minimal 1 transaksi untuk disimpan.'),
+        ),
+      );
       return;
     }
 
-    DateTime? parsedDate;
-    if (draft.dateIso.isNotEmpty) {
-      parsedDate = DateTime.tryParse(draft.dateIso);
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Konfirmasi Simpan'),
+            content: Text(
+              'Simpan $_selectedCount transaksi dari hasil scan ini?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Batal'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Simpan'),
+              ),
+            ],
+          ),
+    );
+    if (!mounted || confirm != true) {
+      return;
     }
 
-    final result = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder:
-            (_) => AddTransactionScreen(
-              initialType: draft.type,
-              lockTypeSelection: false,
-              initialAmount: draft.amount > 0 ? '${draft.amount}' : null,
-              initialDescription:
-                  draft.description.isNotEmpty ? draft.description : null,
-              initialCategoryHint:
-                  draft.categoryHint.isNotEmpty ? draft.categoryHint : null,
-              initialDate: parsedDate,
-              initialManualIncomeInput: draft.type == 'IN',
-            ),
+    setState(() {
+      _isLoading = true;
+    });
+
+    final auth = context.read<AuthProvider>();
+    final categoryProvider = context.read<CategoryProvider>();
+    final transactionProvider = context.read<TransactionProvider>();
+
+    final userId = auth.currentUser?.id;
+    if (userId == null) {
+      setState(() {
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('User belum login.')));
+      return;
+    }
+
+    await categoryProvider.loadCategories();
+
+    var success = 0;
+    var failed = 0;
+    for (final item in selected) {
+      final amount = int.tryParse(item.amountController.text.trim()) ?? 0;
+      final description = item.descriptionController.text.trim();
+      if (amount <= 0 || description.length < 3) {
+        failed += 1;
+        continue;
+      }
+
+      final categoryId = _resolveCategoryId(
+        categoryProvider: categoryProvider,
+        type: item.type,
+        hint: item.categoryHint,
+      );
+      if (categoryId == null) {
+        failed += 1;
+        continue;
+      }
+
+      final parsedDate =
+          item.dateIso.trim().isNotEmpty
+              ? DateTime.tryParse(item.dateIso)
+              : null;
+      final now = DateTime.now();
+      final txDate = DateTime(
+        parsedDate?.year ?? now.year,
+        parsedDate?.month ?? now.month,
+        parsedDate?.day ?? now.day,
+        now.hour,
+        now.minute,
+        now.second,
+      );
+
+      try {
+        await transactionProvider.addTransaction(
+          TransactionModel(
+            type: item.type,
+            amount: amount,
+            categoryId: categoryId,
+            description: description,
+            date: txDate.toIso8601String(),
+            userId: userId,
+          ),
+        );
+        success += 1;
+      } catch (_) {
+        failed += 1;
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = false;
+    });
+
+    if (success > 0 && failed == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Berhasil menyimpan $success transaksi.')),
+      );
+      _clearDraftItems();
+      Navigator.of(context).pop();
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Selesai: berhasil $success, gagal $failed. Periksa data yang belum valid.',
+        ),
       ),
     );
-    if (!mounted || result != true) {
-      return;
-    }
+  }
+
+  void _selectAll(bool selected) {
     setState(() {
-      _draft = null;
-      _lastErrorMessage = null;
-      _lastRejectedReason = null;
+      for (final item in _draftItems) {
+        item.selected = selected;
+      }
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Transaksi berhasil ditambahkan dari draft OCR.'),
+  }
+
+  void _clearDraftItems() {
+    for (final item in _draftItems) {
+      item.dispose();
+    }
+    _draftItems.clear();
+  }
+
+  Widget _buildDraftItemCard(_EditableDraftItem item, int index) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Checkbox(
+                  value: item.selected,
+                  onChanged: (value) {
+                    setState(() {
+                      item.selected = value ?? false;
+                    });
+                  },
+                ),
+                Expanded(
+                  child: Text(
+                    'Transaksi ${index + 1}',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                Text('OCR ${item.confidence}%'),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                ChoiceChip(
+                  label: const Text('IN'),
+                  selected: item.type == 'IN',
+                  onSelected: (_) => setState(() => item.type = 'IN'),
+                ),
+                const SizedBox(width: 8),
+                ChoiceChip(
+                  label: const Text('OUT'),
+                  selected: item.type == 'OUT',
+                  onSelected: (_) => setState(() => item.type = 'OUT'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: item.amountController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Nominal',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: item.descriptionController,
+              decoration: const InputDecoration(
+                labelText: 'Keterangan',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Kategori tebakan: ${item.categoryHint.isEmpty ? '-' : item.categoryHint}',
+                style: const TextStyle(color: Colors.black54),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final draft = _draft;
-    final datePreview =
-        draft != null && draft.dateIso.isNotEmpty
-            ? DateFormat(
-              'dd MMM yyyy',
-              'id_ID',
-            ).format(DateTime.tryParse(draft.dateIso) ?? DateTime.now())
-            : '-';
-
     return Scaffold(
       appBar: AppBar(title: const Text('Scan Catatan (OCR Asistif)')),
       body: ListView(
@@ -208,7 +431,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
               border: Border.all(color: const Color(0xFFFFE8A1)),
             ),
             child: const Text(
-              'Foto 1 transaksi dulu. Hasil scan akan jadi draft dan wajib Anda cek sebelum disimpan.',
+              'Foto 1 halaman catatan. Hasil scan akan jadi daftar draft dan wajib Anda cek sebelum disimpan.',
             ),
           ),
           const SizedBox(height: 12),
@@ -294,7 +517,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
                 ],
               ),
             ),
-          if (draft != null)
+          if (_draftItems.isNotEmpty)
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -305,42 +528,35 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Konfirmasi Hasil Scan',
-                    style: TextStyle(fontWeight: FontWeight.w700),
+                  Text(
+                    'Review Hasil Scan (${_draftItems.length} transaksi)',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    'Jenis: ${draft.type == 'IN' ? 'Pemasukan' : 'Pengeluaran'}',
+                  Row(
+                    children: [
+                      TextButton(
+                        onPressed: _isLoading ? null : () => _selectAll(true),
+                        child: const Text('Pilih Semua'),
+                      ),
+                      TextButton(
+                        onPressed: _isLoading ? null : () => _selectAll(false),
+                        child: const Text('Batal Pilihan'),
+                      ),
+                      const Spacer(),
+                      Text('Dipilih: $_selectedCount'),
+                    ],
                   ),
-                  Text(
-                    'Nominal: Rp ${NumberFormat('#,##0', 'id_ID').format(draft.amount)}',
-                  ),
-                  Text('Tanggal: $datePreview'),
-                  Text(
-                    'Kategori tebakan: ${draft.categoryHint.isEmpty ? '-' : draft.categoryHint}',
-                  ),
-                  Text(
-                    'Keterangan: ${draft.description.isEmpty ? '-' : draft.description}',
-                  ),
-                  Text('Kepercayaan OCR: ${draft.confidence}%'),
                   const SizedBox(height: 8),
-                  const Text(
-                    'Teks terbaca:',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    draft.rawText.isEmpty ? '-' : draft.rawText,
-                    style: const TextStyle(color: Colors.black54),
-                  ),
+                  for (int i = 0; i < _draftItems.length; i++)
+                    _buildDraftItemCard(_draftItems[i], i),
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: _useDraft,
-                      icon: const Icon(Icons.edit_note),
-                      label: const Text('Gunakan Draft ke Form Transaksi'),
+                      onPressed: _isLoading ? null : _saveSelectedDrafts,
+                      icon: const Icon(Icons.save_alt),
+                      label: Text('Simpan $_selectedCount Transaksi'),
                     ),
                   ),
                 ],
@@ -349,5 +565,39 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _clearDraftItems();
+    super.dispose();
+  }
+}
+
+class _EditableDraftItem {
+  _EditableDraftItem({
+    required this.selected,
+    required this.type,
+    required int amount,
+    required String description,
+    required this.categoryHint,
+    required this.dateIso,
+    required this.confidence,
+    required this.rawText,
+  }) : amountController = TextEditingController(text: '$amount'),
+       descriptionController = TextEditingController(text: description);
+
+  bool selected;
+  String type;
+  final TextEditingController amountController;
+  final TextEditingController descriptionController;
+  final String categoryHint;
+  final String dateIso;
+  final int confidence;
+  final String rawText;
+
+  void dispose() {
+    amountController.dispose();
+    descriptionController.dispose();
   }
 }
