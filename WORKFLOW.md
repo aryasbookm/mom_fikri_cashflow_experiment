@@ -31,6 +31,9 @@
 - Variabel wajib:
   - `PORT=3010`
 - Catatan: Flutter web tetap memakai `--web-port` saat run, variabel `PORT` dipakai sebagai konvensi runbook lintas proyek.
+- Variabel opsional (AI POC, jangan commit key):
+  - jalankan dengan `--dart-define=GEMINI_API_KEY=...`
+  - opsional model: `--dart-define=GEMINI_MODEL=gemini-2.5-flash`
 
 ## 7) Quick Verification
 - [ ] Server jalan di `3010`.

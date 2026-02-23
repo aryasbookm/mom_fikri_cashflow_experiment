@@ -157,6 +157,18 @@ Catatan:
 
 9. **Dashboard Owner (Ringkas)**
    - Menampilkan Top Produk (7 hari) untuk keputusan produksi
+   - POC Insight AI (online): trigger via ikon `✨` di AppBar kanan atas; mengirim ringkasan 30 hari ke Gemini dan menampilkan 3 saran bisnis dalam dialog.
+   - Konteks AI 30 hari sekarang mencakup dua sisi:
+     - produk terlaris (maks 3 item),
+     - produk kurang laris (maks 3 item),
+     agar saran tidak hanya fokus pada produk lambat.
+   - Prompt AI dioptimalkan ke bahasa UMKM lokal (tanpa istilah korporat), dengan format tetap 3 poin:
+     `🌟 Bintang Toko`, `🔍 Evaluasi Produk Kurang Laris`, `💰 Pantau Dompet`.
+   - AI rate-limit handling:
+     - jika kena `429`, UI membaca jeda dari `Retry-After` (atau fallback 60 detik) lalu menjalankan cooldown.
+     - setelah request sukses, cooldown singkat tetap diterapkan untuk mencegah spam klik.
+     - selama cooldown tombol AI nonaktif dan menampilkan hitung mundur agar status transparan ke user.
+   - Output AI bersifat asistif/read-only (tidak menulis transaksi otomatis).
 
 10. **Onboarding & Penyesuaian Saldo**
    - First-install onboarding (2 langkah):
@@ -248,6 +260,19 @@ Catatan:
   flutter pub get
   flutter pub run flutter_launcher_icons
   ```
+
+## Konfigurasi AI POC
+- Fitur Insight AI membutuhkan internet aktif.
+- API key tidak disimpan di source code; jalankan app dengan:
+  - `--dart-define=GEMINI_API_KEY=<KEY_ANDA>`
+- Opsional ganti model:
+  - `--dart-define=GEMINI_MODEL=gemini-2.5-flash`
+- Debug verifikasi respons (opsional):
+  - `--dart-define=AI_DEBUG_LOG=true` untuk mencetak prompt AI dan raw response Gemini ke terminal.
+- Verifikasi UI:
+  - Dialog Insight AI menampilkan ringkasan data 30 hari yang dikirim ke AI (pemasukan, pengeluaran, selisih, produk kurang laris) agar user bisa memastikan input AI benar.
+  - Jika output AI belum lengkap (belum memuat poin `1)`, `2)`, `3)`), service akan retry 1x dengan prompt lebih ketat.
+  - Jika retry AI masih tidak lengkap, service fallback ke 3 saran lokal berbasis data agar dialog tidak kosong/terpotong.
 
 ## Reset DB (Hard Reset)
 - DB version: 9

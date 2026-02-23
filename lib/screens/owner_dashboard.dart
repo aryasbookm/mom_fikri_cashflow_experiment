@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:confetti/confetti.dart';
 import 'package:intl/intl.dart';
@@ -9,19 +11,22 @@ import '../models/product_model.dart';
 import '../providers/product_provider.dart';
 import '../providers/production_provider.dart';
 import '../providers/transaction_provider.dart';
+import '../services/ai_insight_service.dart';
 import '../services/backup_service.dart';
 import '../services/cloud_drive_service.dart';
 import 'add_transaction_screen.dart';
 import 'history_screen.dart';
 
 class OwnerDashboard extends StatefulWidget {
-  const OwnerDashboard({super.key});
+  const OwnerDashboard({super.key, this.onAiStateChanged});
+
+  final VoidCallback? onAiStateChanged;
 
   @override
-  State<OwnerDashboard> createState() => _OwnerDashboardState();
+  State<OwnerDashboard> createState() => OwnerDashboardState();
 }
 
-class _OwnerDashboardState extends State<OwnerDashboard> {
+class OwnerDashboardState extends State<OwnerDashboard> {
   static const String _targetKey = 'daily_target_amount';
   static const String _celebratedDateKey = 'daily_target_celebrated_date';
   static const String _showStockAlertKey = 'show_stock_alert';
@@ -30,12 +35,20 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
   bool _showStockAlert = true;
   bool _showBackupAlert = false;
   bool _isBackingUp = false;
+  bool _isGeneratingAiInsight = false;
+  Timer? _aiCooldownTimer;
+  int _aiCooldownSeconds = 0;
   late final ConfettiController _confettiController;
   Future<List<Map<String, dynamic>>>? _topProductsFuture;
   Future<List<Map<String, dynamic>>>? _slowMovingFuture;
   int _lastTxCount = -1;
   int _lastSlowTxCount = -1;
   int _lastSlowProductCount = -1;
+
+  bool get isAiLoading => _isGeneratingAiInsight;
+  int get aiCooldownSeconds => _aiCooldownSeconds;
+  bool get isAiTemporarilyUnavailable =>
+      _isGeneratingAiInsight || _aiCooldownSeconds > 0;
 
   @override
   void initState() {
@@ -56,8 +69,38 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
 
   @override
   void dispose() {
+    _aiCooldownTimer?.cancel();
     _confettiController.dispose();
     super.dispose();
+  }
+
+  void _notifyAiStateChanged() {
+    widget.onAiStateChanged?.call();
+  }
+
+  void _showAiCooldownSnackBar() {
+    if (!mounted || _aiCooldownSeconds <= 0) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'AI sedang istirahat. Coba lagi dalam $_aiCooldownSeconds detik.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> triggerAiInsightFromAppBar() async {
+    if (_isGeneratingAiInsight) {
+      return;
+    }
+    if (_aiCooldownSeconds > 0) {
+      _showAiCooldownSnackBar();
+      return;
+    }
+    final provider = context.read<TransactionProvider>();
+    await _generateAiInsight(provider);
   }
 
   Future<void> _loadDailyTarget() async {
@@ -190,6 +233,162 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     }
     setState(() {
       _showStockAlert = value;
+    });
+  }
+
+  Future<void> _generateAiInsight(TransactionProvider provider) async {
+    if (_isGeneratingAiInsight || _aiCooldownSeconds > 0) {
+      return;
+    }
+    setState(() {
+      _isGeneratingAiInsight = true;
+    });
+    _notifyAiStateChanged();
+
+    try {
+      final now = DateTime.now();
+      final periodStart = DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).subtract(const Duration(days: 29));
+
+      var income30 = 0;
+      var expense30 = 0;
+      for (final tx in provider.transactions) {
+        final parsed = DateTime.tryParse(tx.date);
+        if (parsed == null || parsed.isBefore(periodStart)) {
+          continue;
+        }
+        if (tx.type == 'IN') {
+          income30 += tx.amount;
+        } else if (tx.type == 'OUT') {
+          expense30 += tx.amount;
+        }
+      }
+      final net30 = income30 - expense30;
+      final topProducts = await provider.getTopProducts(limit: 3, days: 30);
+      final slowMoving = await provider.getSlowMovingProducts(
+        limit: 3,
+        days: 30,
+      );
+      final insight = await AiInsightService().generateOwnerInsight(
+        income30: income30,
+        expense30: expense30,
+        net30: net30,
+        topProducts: topProducts,
+        slowMovingProducts: slowMoving,
+      );
+      final topSummary =
+          topProducts.isEmpty
+              ? 'Tidak ada'
+              : topProducts
+                  .map(
+                    (e) => '${e['name'] ?? '-'} (${e['total_qty'] ?? 0} pcs)',
+                  )
+                  .join(', ');
+      final slowSummary =
+          slowMoving.isEmpty
+              ? 'Tidak ada'
+              : slowMoving
+                  .map(
+                    (e) => '${e['name'] ?? '-'} (${e['total_qty'] ?? 0} pcs)',
+                  )
+                  .join(', ');
+
+      if (!mounted) {
+        return;
+      }
+      await showDialog<void>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Insight AI (30 Hari)'),
+            content: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Data terkirim:\n'
+                    '- Pemasukan: Rp ${NumberFormat('#,##0', 'id_ID').format(income30)}\n'
+                    '- Pengeluaran: Rp ${NumberFormat('#,##0', 'id_ID').format(expense30)}\n'
+                    '- Selisih: Rp ${NumberFormat('#,##0', 'id_ID').format(net30)}\n'
+                    '- Produk terlaris: $topSummary\n'
+                    '- Produk kurang laris: $slowSummary',
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(insight),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Tutup'),
+              ),
+            ],
+          );
+        },
+      );
+      _startAiCooldown(20);
+    } on AiRateLimitException catch (error) {
+      _startAiCooldown(error.retryAfterSeconds);
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'AI sedang sibuk. Coba lagi dalam ${error.retryAfterSeconds} detik.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memuat insight AI: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGeneratingAiInsight = false;
+        });
+        _notifyAiStateChanged();
+      }
+    }
+  }
+
+  void _startAiCooldown(int seconds) {
+    final safeSeconds = seconds < 1 ? 1 : seconds;
+    _aiCooldownTimer?.cancel();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _aiCooldownSeconds = safeSeconds;
+    });
+    _notifyAiStateChanged();
+    _aiCooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_aiCooldownSeconds <= 1) {
+        timer.cancel();
+        setState(() {
+          _aiCooldownSeconds = 0;
+        });
+        _notifyAiStateChanged();
+        return;
+      }
+      setState(() {
+        _aiCooldownSeconds -= 1;
+      });
+      _notifyAiStateChanged();
     });
   }
 
@@ -792,13 +991,11 @@ class _StatCard extends StatelessWidget {
     required this.backgroundColor,
     required this.title,
     required this.value,
-    this.valueSize = 20,
   });
 
   final Color backgroundColor;
   final String title;
   final String value;
-  final double valueSize;
 
   @override
   Widget build(BuildContext context) {
@@ -831,7 +1028,7 @@ class _StatCard extends StatelessWidget {
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
-              fontSize: valueSize,
+              fontSize: 20,
             ),
           ),
         ],

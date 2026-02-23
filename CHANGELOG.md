@@ -12,6 +12,10 @@ All notable changes to this project will be documented in this file.
 ### Added
 - First-install onboarding wajib (owner account + cut-off date + saldo awal kas), aktif otomatis saat tabel user masih kosong.
 - Owner-only menu **Penyesuaian Saldo Kas** di tab Akun: input kas fisik + alasan, hitung selisih otomatis, simpan transaksi `IN/OUT` kategori `Penyesuaian Saldo`.
+- POC **Insight AI (Owner Dashboard)**:
+  - tombol `Minta Saran AI (Online)` untuk menghasilkan 3 saran bisnis berbasis data 30 hari (pemasukan, pengeluaran, produk kurang laris),
+  - hasil ditampilkan sebagai dialog teks (read-only, tidak mengubah data transaksi),
+  - integrasi via Gemini REST menggunakan `--dart-define=GEMINI_API_KEY=...`.
 - Global Search: search bar di Kasir, Stok, dan Riwayat dengan filtering real-time.
 - Deep Search Riwayat: pencarian juga mencakup nama produk dari transaksi multi-item.
 - Foto produk opsional berbasis filesystem lokal (`product_images/prod_{id}.jpg`) dengan picker galeri/kamera.
@@ -37,6 +41,27 @@ All notable changes to this project will be documented in this file.
   - PDF menampilkan ringkasan produk untuk transaksi pemasukan (hybrid) dan tetap menyertakan detail item agar lebih mudah dibaca owner.
 
 ### Changed
+- AI Insight POC:
+  - dialog hasil kini menampilkan ringkasan data 30 hari yang benar-benar dikirim ke AI (untuk verifikasi input).
+  - jika respons AI terlalu generik/tidak lengkap (belum memuat poin 1/2/3), sistem melakukan 1x retry dengan prompt lebih ketat.
+  - batas output token AI dinaikkan agar risiko output terpotong berkurang.
+  - jika setelah retry respons masih tidak lengkap, sistem memakai fallback saran lokal (3 poin) agar user tetap mendapat output yang dapat dipakai.
+- AI Insight POC:
+  - status `429` kini ditangani khusus dengan membaca header `Retry-After` (fallback 60 detik) dan menampilkan pesan tunggu yang jelas ke pengguna.
+  - tombol `Minta Saran AI` otomatis cooldown: nonaktif saat loading, nonaktif beberapa detik setelah sukses (anti-spam), dan nonaktif sesuai `Retry-After` saat rate-limit.
+  - ditambahkan hitung mundur di dashboard (`AI sedang istirahat...`) agar pengguna tahu kapan bisa mencoba lagi.
+- AI Insight POC:
+  - konteks AI diperkaya: kini mengirim data `Produk Terlaris (30 Hari)` selain `Produk Kurang Laris (30 Hari)` agar saran lebih seimbang.
+  - prompt AI dirombak ke gaya bahasa UMKM lokal (lebih sederhana, menghindari istilah korporat), dengan format output ketat:
+    `🌟 Bintang Toko`, `🔍 Evaluasi Produk Kurang Laris`, `💰 Pantau Dompet`.
+  - fallback lokal ikut disesuaikan agar output tetap mudah dipahami ketika respons AI tidak memenuhi format.
+  - dialog verifikasi "Data terkirim" sekarang menampilkan produk terlaris dan kurang laris sekaligus.
+- UI AI Dashboard:
+  - kartu besar `Minta Saran AI (Online)` dihapus agar tidak mendominasi beranda.
+  - trigger AI dipindah menjadi ikon kecil `✨` di AppBar kanan atas (fitur sekunder, lebih ringan visual).
+  - saat cooldown, tekan ikon akan menampilkan snackbar sisa waktu tunggu.
+- AI Insight POC: parser response Gemini diperbaiki agar menggabungkan semua `parts.text` (tidak hanya part pertama), sehingga output 3 poin saran tampil utuh.
+- AI Insight POC: ditambahkan debug logging opsional (`--dart-define=AI_DEBUG_LOG=true`) untuk menampilkan prompt terkirim dan raw response ke terminal saat verifikasi.
 - Smart backup reminder (versi terkontrol):
   - menerapkan grace period 3 hari setelah onboarding selesai.
   - jika auto-backup lokal/cloud aktif, reminder hanya muncul saat backup sangat usang (>7 hari) dan ada perubahan data.

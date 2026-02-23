@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:sqflite/sqflite.dart';
@@ -107,8 +106,7 @@ class TransactionProvider extends ChangeNotifier {
       }
     }
 
-    return totals.values.toList()
-      ..sort((a, b) => a.date.compareTo(b.date));
+    return totals.values.toList()..sort((a, b) => a.date.compareTo(b.date));
   }
 
   Future<void> addTransaction(TransactionModel transaction) async {
@@ -207,7 +205,6 @@ class TransactionProvider extends ChangeNotifier {
     required String deletedBy,
     ProductProvider? productProvider,
   }) async {
-    final Database db = await DatabaseHelper.instance.database;
     await DatabaseHelper.instance.insertDeletedTransaction({
       'original_id': transaction.id,
       'type': transaction.type,
@@ -289,7 +286,10 @@ class TransactionProvider extends ChangeNotifier {
     if ((deleted.type == 'IN' || deleted.type == 'WASTE') &&
         deleted.productId != null &&
         deleted.quantity != null) {
-      await productProvider?.updateStock(deleted.productId!, -deleted.quantity!);
+      await productProvider?.updateStock(
+        deleted.productId!,
+        -deleted.quantity!,
+      );
     }
 
     if (deleted.id != null) {
@@ -301,7 +301,9 @@ class TransactionProvider extends ChangeNotifier {
     return true;
   }
 
-  Future<List<TransactionItemModel>> getTransactionItems(int transactionId) async {
+  Future<List<TransactionItemModel>> getTransactionItems(
+    int transactionId,
+  ) async {
     final Database db = await DatabaseHelper.instance.database;
     final rows = await db.query(
       'transaction_items',
@@ -337,10 +339,11 @@ class TransactionProvider extends ChangeNotifier {
   }) async {
     final Database db = await DatabaseHelper.instance.database;
     final DateTime today = DateTime.now();
-    final DateTime start =
-        DateTime(today.year, today.month, today.day).subtract(
-      const Duration(days: 6),
-    );
+    final DateTime start = DateTime(
+      today.year,
+      today.month,
+      today.day,
+    ).subtract(const Duration(days: 6));
     final startIso = start.toIso8601String();
     final rows = await db.rawQuery(
       '''
@@ -359,16 +362,46 @@ class TransactionProvider extends ChangeNotifier {
     return rows;
   }
 
+  Future<List<Map<String, dynamic>>> getTopProducts({
+    int limit = 3,
+    int days = 30,
+  }) async {
+    final Database db = await DatabaseHelper.instance.database;
+    final DateTime today = DateTime.now();
+    final DateTime start = DateTime(
+      today.year,
+      today.month,
+      today.day,
+    ).subtract(Duration(days: days - 1));
+    final startIso = start.toIso8601String();
+    final rows = await db.rawQuery(
+      '''
+        SELECT
+          i.product_name AS name,
+          SUM(i.quantity) AS total_qty
+        FROM transaction_items i
+        JOIN transactions t ON t.id = i.transaction_id
+        WHERE t.type = 'IN' AND t.date >= ?
+        GROUP BY i.product_name
+        ORDER BY total_qty DESC, i.product_name ASC
+        LIMIT ?
+      ''',
+      [startIso, limit],
+    );
+    return rows;
+  }
+
   Future<List<Map<String, dynamic>>> getSlowMovingProducts({
     int limit = 5,
     int days = 30,
   }) async {
     final Database db = await DatabaseHelper.instance.database;
     final DateTime today = DateTime.now();
-    final DateTime start =
-        DateTime(today.year, today.month, today.day).subtract(
-      Duration(days: days - 1),
-    );
+    final DateTime start = DateTime(
+      today.year,
+      today.month,
+      today.day,
+    ).subtract(Duration(days: days - 1));
     final startIso = start.toIso8601String();
     final rows = await db.rawQuery(
       '''
@@ -413,8 +446,10 @@ class TransactionProvider extends ChangeNotifier {
       WHERE t.user_id = ? AND t.date LIKE ? AND t.type != 'WASTE'
       ORDER BY t.date DESC, t.id DESC
     ''';
-    final List<Map<String, dynamic>> result =
-        await db.rawQuery(query, [userId, '$today%']);
+    final List<Map<String, dynamic>> result = await db.rawQuery(query, [
+      userId,
+      '$today%',
+    ]);
 
     _transactions
       ..clear()
@@ -473,8 +508,9 @@ class TransactionProvider extends ChangeNotifier {
       totalsByCategory[name] = (totalsByCategory[name] ?? 0) + tx.amount;
     }
 
-    final entries = totalsByCategory.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    final entries =
+        totalsByCategory.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
 
     return List.generate(entries.length, (index) {
       final entry = entries[index];

@@ -12,6 +12,7 @@ Aplikasi **Point of Sale (POS)** dan **Manajemen Stok** berbasis Flutter yang di
 - **Keamanan Data:** Sistem Backup/Restore `.zip` (database + foto produk) dengan validasi integritas & rollback, tetap kompatibel restore `.db` lama.
 - **Cloud Android:** Backup/Restore paket backup ke Google Drive (`appDataFolder`).
 - **Onboarding Instalasi Pertama:** Buat akun owner + tanggal cut-off + saldo awal kas saat pertama kali aplikasi dipakai.
+- **AI Insight (POC):** Owner bisa meminta 3 saran bisnis berbasis data 30 hari (online-only).
 - **Keamanan Akses:** PIN Guard untuk menu sensitif (Owner) dan isolasi data Staff.
 - **Laporan & Analitik:** Dashboard performa harian, Top Produk, dan ekspor laporan (PDF/Excel).
 
