@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -9,6 +10,7 @@ import '../providers/auth_provider.dart';
 import '../providers/category_provider.dart';
 import '../services/ai_insight_service.dart';
 import '../services/ai_ocr_service.dart';
+import '../services/ai_quota_guard_service.dart';
 import '../providers/transaction_provider.dart';
 
 class OcrAssistScreen extends StatefulWidget {
@@ -27,11 +29,67 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
   final List<_EditableDraftItem> _draftItems = [];
   String? _lastErrorMessage;
   String? _lastRejectedReason;
+  bool _aiBlocked = false;
+  String? _aiBlockedMessage;
+  int _aiBlockedSeconds = 0;
+  Timer? _quotaTimer;
 
   int get _selectedCount => _draftItems.where((item) => item.selected).length;
 
+  @override
+  void initState() {
+    super.initState();
+    _refreshAiQuotaState();
+  }
+
+  Future<void> _refreshAiQuotaState() async {
+    final state = await AiQuotaGuardService.getState();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _aiBlocked = state.isBlocked;
+      _aiBlockedMessage = state.isBlocked ? state.message : null;
+      _aiBlockedSeconds = state.retryAfterSeconds;
+    });
+    _startQuotaTimerIfNeeded();
+  }
+
+  void _startQuotaTimerIfNeeded() {
+    _quotaTimer?.cancel();
+    if (!_aiBlocked || _aiBlockedSeconds <= 0) {
+      return;
+    }
+    _quotaTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_aiBlockedSeconds <= 1) {
+        timer.cancel();
+        await _refreshAiQuotaState();
+        return;
+      }
+      setState(() {
+        _aiBlockedSeconds -= 1;
+        _aiBlockedMessage =
+            'AI sedang istirahat. Coba lagi dalam $_aiBlockedSeconds detik.';
+      });
+    });
+  }
+
   Future<void> _pickAndProcess(ImageSource source) async {
     if (_isLoading) {
+      return;
+    }
+    if (_aiBlocked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _aiBlockedMessage ?? 'Fitur AI sedang tidak tersedia saat ini.',
+          ),
+        ),
+      );
       return;
     }
 
@@ -115,12 +173,17 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
         _lastRejectedReason = null;
       });
     } on AiRateLimitException catch (error) {
+      await AiQuotaGuardService.recordRateLimit(error);
       if (!mounted) {
         return;
       }
       setState(() {
         _lastErrorMessage = error.toString();
       });
+      await _refreshAiQuotaState();
+      if (!mounted) {
+        return;
+      }
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(_lastErrorMessage!)));
@@ -439,7 +502,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed:
-                      _isLoading
+                      _isLoading || _aiBlocked
                           ? null
                           : () => _pickAndProcess(ImageSource.camera),
                   icon: const Icon(Icons.photo_camera_outlined),
@@ -450,7 +513,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed:
-                      _isLoading
+                      _isLoading || _aiBlocked
                           ? null
                           : () => _pickAndProcess(ImageSource.gallery),
                   icon: const Icon(Icons.photo_library_outlined),
@@ -459,6 +522,31 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
               ),
             ],
           ),
+          if (_aiBlocked) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFEBEE),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFFFCDD2)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.info_outline, color: Color(0xFFB71C1C)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _aiBlockedMessage ??
+                          'Fitur AI sedang tidak tersedia. Coba lagi nanti.',
+                      style: const TextStyle(color: Color(0xFFB71C1C)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           if (_isLoading)
             const Center(
@@ -508,7 +596,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton.icon(
-                      onPressed: _processCurrentImage,
+                      onPressed: _aiBlocked ? null : _processCurrentImage,
                       icon: const Icon(Icons.refresh),
                       label: const Text('Coba Lagi'),
                     ),
@@ -568,6 +656,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
 
   @override
   void dispose() {
+    _quotaTimer?.cancel();
     _clearDraftItems();
     super.dispose();
   }

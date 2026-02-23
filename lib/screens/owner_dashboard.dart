@@ -12,6 +12,7 @@ import '../providers/product_provider.dart';
 import '../providers/production_provider.dart';
 import '../providers/transaction_provider.dart';
 import '../services/ai_insight_service.dart';
+import '../services/ai_quota_guard_service.dart';
 import '../services/backup_service.dart';
 import '../services/cloud_drive_service.dart';
 import 'add_transaction_screen.dart';
@@ -360,6 +361,7 @@ class OwnerDashboardState extends State<OwnerDashboard> {
       );
       _startAiCooldown(20);
     } on AiRateLimitException catch (error) {
+      await AiQuotaGuardService.recordRateLimit(error);
       if (error.isDailyLimit) {
         _setAiDailyLimit(error.message ?? error.toString());
       } else {

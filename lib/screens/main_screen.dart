@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/owner_pin_dialog.dart';
 import 'account_screen.dart';
-import 'add_transaction_screen.dart';
 import 'login_screen.dart';
 import 'owner_dashboard.dart';
 import 'ocr_assist_screen.dart';
@@ -55,78 +54,6 @@ class _MainScreenState extends State<MainScreen> {
       default:
         return 'Toko Kue Mom Fiqry';
     }
-  }
-
-  Future<void> _showAddDataSheet() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Tambah Data',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 12),
-                ListTile(
-                  leading: const Icon(Icons.attach_money, color: Colors.green),
-                  title: const Text('Catat Pemasukan'),
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(this.context).push(
-                      MaterialPageRoute(
-                        builder:
-                            (_) =>
-                                const AddTransactionScreen(initialType: 'IN'),
-                      ),
-                    );
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.shopping_basket,
-                    color: Colors.orange,
-                  ),
-                  title: const Text('Catat Pengeluaran'),
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(this.context).push(
-                      MaterialPageRoute(
-                        builder:
-                            (_) =>
-                                const AddTransactionScreen(initialType: 'OUT'),
-                      ),
-                    );
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.document_scanner_outlined,
-                    color: Color(0xFF8D1B3D),
-                  ),
-                  title: const Text('Scan Catatan (AI)'),
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(this.context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const OcrAssistScreen(),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
   }
 
   Future<bool> _ensureOwnerAccess() async {
@@ -238,11 +165,14 @@ class _MainScreenState extends State<MainScreen> {
       floatingActionButton:
           _currentIndex == 0
               ? FloatingActionButton.extended(
-                onPressed: _showAddDataSheet,
+                onPressed:
+                    () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const OcrAssistScreen()),
+                    ),
                 backgroundColor: const Color(0xFF8D1B3D),
-                icon: const Icon(Icons.add, color: Colors.white),
+                icon: const Icon(Icons.document_scanner_outlined, color: Colors.white),
                 label: const Text(
-                  'Tambah Data',
+                  'Scan Catatan',
                   style: TextStyle(color: Colors.white),
                 ),
               )

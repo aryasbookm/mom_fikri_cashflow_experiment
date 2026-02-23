@@ -74,6 +74,13 @@ All notable changes to this project will be documented in this file.
   - PDF menampilkan ringkasan produk untuk transaksi pemasukan (hybrid) dan tetap menyertakan detail item agar lebih mudah dibaca owner.
 
 ### Changed
+- Dashboard input entrypoint disederhanakan:
+  - FAB Beranda kini khusus `Scan Catatan` (AI) saja.
+  - Bottom sheet `Tambah Data` (yang menduplikasi `Catat Pemasukan/Pengeluaran`) dihapus untuk mengurangi kebingungan.
+- OCR Asistif kini melakukan pre-check status kuota sebelum proses scan:
+  - tombol `Ambil Foto` / `Pilih Galeri` otomatis nonaktif saat cooldown/limit harian AI aktif,
+  - pengguna mendapat peringatan dini di layar (tanpa harus ambil foto dulu baru gagal),
+  - status blokir kuota disinkronkan dari trigger AI Dashboard dan OCR agar perilaku konsisten.
 - AI Insight POC:
   - dialog hasil kini menampilkan ringkasan data 30 hari yang benar-benar dikirim ke AI (untuk verifikasi input).
   - jika respons AI terlalu generik/tidak lengkap (belum memuat poin 1/2/3), sistem melakukan 1x retry dengan prompt lebih ketat.
