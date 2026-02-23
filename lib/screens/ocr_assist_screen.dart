@@ -119,8 +119,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
         return;
       }
       setState(() {
-        _lastErrorMessage =
-            'AI sedang sibuk. Coba lagi dalam ${error.retryAfterSeconds} detik.';
+        _lastErrorMessage = error.toString();
       });
       ScaffoldMessenger.of(
         context,

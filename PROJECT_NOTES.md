@@ -172,6 +172,8 @@ Catatan:
      - jika kena `429`, UI membaca jeda dari `Retry-After` (atau fallback 60 detik) lalu menjalankan cooldown.
      - setelah request sukses, cooldown singkat tetap diterapkan untuk mencegah spam klik.
      - selama cooldown tombol AI nonaktif dan menampilkan hitung mundur agar status transparan ke user.
+     - parser 429 diperluas untuk membaca detail quota (`QuotaFailure`/`RetryInfo`) sehingga UI bisa membedakan indikasi RPM/TPM/RPD.
+     - jika terindikasi RPD (limit harian), tombol AI tidak lagi pakai cooldown 60 detik berulang; user diarahkan untuk coba lagi besok.
    - Output AI bersifat asistif/read-only (tidak menulis transaksi otomatis).
    - OCR Asistif (MVP):
      - akses dari ikon `Scan Catatan` di AppBar Beranda,

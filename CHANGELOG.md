@@ -35,6 +35,10 @@ All notable changes to this project will be documented in this file.
 - AppBar AI trigger:
   - perbaikan race condition saat pertama login: tombol `Minta Saran AI` kini tidak lagi silent-fail pada klik awal.
   - jika state dashboard belum siap, user mendapat snackbar feedback (`Beranda belum siap...`) alih-alih tidak ada respons.
+- AI quota error handling:
+  - parser error `429` kini membaca detail `QuotaFailure`/`RetryInfo` dari response Gemini untuk membedakan indikasi RPM/TPM/RPD.
+  - pesan user dibuat lebih spesifik (request per menit, token per menit, atau limit harian).
+  - jika terindikasi limit harian (RPD), dashboard tidak lagi memaksa cooldown 60 detik; status dikunci dengan pesan `coba lagi besok`.
 - First-install onboarding wajib (owner account + cut-off date + saldo awal kas), aktif otomatis saat tabel user masih kosong.
 - Owner-only menu **Penyesuaian Saldo Kas** di tab Akun: input kas fisik + alasan, hitung selisih otomatis, simpan transaksi `IN/OUT` kategori `Penyesuaian Saldo`.
 - POC **Insight AI (Owner Dashboard)**:

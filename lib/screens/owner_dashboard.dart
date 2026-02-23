@@ -38,6 +38,8 @@ class OwnerDashboardState extends State<OwnerDashboard> {
   bool _isGeneratingAiInsight = false;
   Timer? _aiCooldownTimer;
   int _aiCooldownSeconds = 0;
+  bool _aiDailyLimitReached = false;
+  String? _aiDailyLimitMessage;
   late final ConfettiController _confettiController;
   Future<List<Map<String, dynamic>>>? _topProductsFuture;
   Future<List<Map<String, dynamic>>>? _slowMovingFuture;
@@ -48,7 +50,7 @@ class OwnerDashboardState extends State<OwnerDashboard> {
   bool get isAiLoading => _isGeneratingAiInsight;
   int get aiCooldownSeconds => _aiCooldownSeconds;
   bool get isAiTemporarilyUnavailable =>
-      _isGeneratingAiInsight || _aiCooldownSeconds > 0;
+      _isGeneratingAiInsight || _aiCooldownSeconds > 0 || _aiDailyLimitReached;
 
   @override
   void initState() {
@@ -85,7 +87,21 @@ class OwnerDashboardState extends State<OwnerDashboard> {
   }
 
   void _showAiCooldownSnackBar() {
-    if (!mounted || _aiCooldownSeconds <= 0) {
+    if (!mounted) {
+      return;
+    }
+    if (_aiDailyLimitReached) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _aiDailyLimitMessage ??
+                'Limit AI harian sudah habis. Silakan coba lagi besok.',
+          ),
+        ),
+      );
+      return;
+    }
+    if (_aiCooldownSeconds <= 0) {
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
@@ -99,6 +115,10 @@ class OwnerDashboardState extends State<OwnerDashboard> {
 
   Future<void> triggerAiInsightFromAppBar() async {
     if (_isGeneratingAiInsight) {
+      return;
+    }
+    if (_aiDailyLimitReached) {
+      _showAiCooldownSnackBar();
       return;
     }
     if (_aiCooldownSeconds > 0) {
@@ -340,17 +360,17 @@ class OwnerDashboardState extends State<OwnerDashboard> {
       );
       _startAiCooldown(20);
     } on AiRateLimitException catch (error) {
-      _startAiCooldown(error.retryAfterSeconds);
+      if (error.isDailyLimit) {
+        _setAiDailyLimit(error.message ?? error.toString());
+      } else {
+        _startAiCooldown(error.retryAfterSeconds);
+      }
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'AI sedang sibuk. Coba lagi dalam ${error.retryAfterSeconds} detik.',
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
     } catch (error) {
       if (!mounted) {
         return;
@@ -396,6 +416,19 @@ class OwnerDashboardState extends State<OwnerDashboard> {
       });
       _notifyAiStateChanged();
     });
+  }
+
+  void _setAiDailyLimit(String message) {
+    _aiCooldownTimer?.cancel();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _aiCooldownSeconds = 0;
+      _aiDailyLimitReached = true;
+      _aiDailyLimitMessage = message;
+    });
+    _notifyAiStateChanged();
   }
 
   Future<void> _setDailyTarget(int target) async {

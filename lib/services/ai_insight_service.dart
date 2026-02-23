@@ -5,10 +5,19 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
+enum AiQuotaType { rpm, tpm, rpd, unknown }
+
 class AiRateLimitException implements Exception {
-  const AiRateLimitException({required this.retryAfterSeconds, this.message});
+  const AiRateLimitException({
+    required this.retryAfterSeconds,
+    required this.quotaType,
+    required this.isDailyLimit,
+    this.message,
+  });
 
   final int retryAfterSeconds;
+  final AiQuotaType quotaType;
+  final bool isDailyLimit;
   final String? message;
 
   @override
@@ -16,8 +25,131 @@ class AiRateLimitException implements Exception {
     if (message != null && message!.trim().isNotEmpty) {
       return message!;
     }
-    return 'Kuota AI sedang sibuk. Coba lagi dalam $retryAfterSeconds detik.';
+    if (isDailyLimit) {
+      return 'Limit AI harian sudah habis. Silakan coba lagi besok.';
+    }
+    switch (quotaType) {
+      case AiQuotaType.rpm:
+        return 'Terlalu banyak permintaan AI. Coba lagi dalam $retryAfterSeconds detik.';
+      case AiQuotaType.tpm:
+        return 'Batas token AI per menit tercapai. Coba lagi dalam $retryAfterSeconds detik atau kirim data lebih ringkas.';
+      case AiQuotaType.rpd:
+        return 'Limit AI harian sudah habis. Silakan coba lagi besok.';
+      case AiQuotaType.unknown:
+        return 'Kuota AI sedang sibuk. Coba lagi dalam $retryAfterSeconds detik.';
+    }
   }
+}
+
+AiRateLimitException buildAiRateLimitExceptionFromResponse(
+  http.Response response,
+) {
+  const fallbackRetryAfter = 60;
+  final retryAfterHeader = _parseRetryAfterSecondsFromHeader(
+    response.headers['retry-after'],
+  );
+
+  AiQuotaType quotaType = AiQuotaType.unknown;
+  var isDailyLimit = false;
+  var retryAfterSeconds = retryAfterHeader;
+  String? message;
+
+  try {
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final error = body['error'] as Map<String, dynamic>?;
+    final details = error?['details'];
+    if (details is List) {
+      for (final detail in details) {
+        final map =
+            detail is Map<String, dynamic>
+                ? detail
+                : detail is Map
+                ? Map<String, dynamic>.from(detail)
+                : null;
+        if (map == null) {
+          continue;
+        }
+        final type = (map['@type'] ?? '').toString();
+        if (type.contains('google.rpc.QuotaFailure')) {
+          final violations = map['violations'];
+          if (violations is List) {
+            for (final violation in violations) {
+              final vMap =
+                  violation is Map<String, dynamic>
+                      ? violation
+                      : violation is Map
+                      ? Map<String, dynamic>.from(violation)
+                      : null;
+              if (vMap == null) {
+                continue;
+              }
+              final metric =
+                  '${vMap['quotaMetric'] ?? ''} ${vMap['quotaId'] ?? ''} ${vMap['subject'] ?? ''}'
+                      .toLowerCase();
+              if (metric.contains('perday') ||
+                  metric.contains('daily') ||
+                  metric.contains('rpd')) {
+                quotaType = AiQuotaType.rpd;
+                isDailyLimit = true;
+              } else if (metric.contains('token') ||
+                  metric.contains('input_token') ||
+                  metric.contains('output_token') ||
+                  metric.contains('tpm')) {
+                quotaType = AiQuotaType.tpm;
+              } else if (metric.contains('request') ||
+                  metric.contains('rpm') ||
+                  metric.contains('perminute')) {
+                quotaType = AiQuotaType.rpm;
+              }
+            }
+          }
+        } else if (type.contains('google.rpc.RetryInfo')) {
+          final retryDelay = (map['retryDelay'] ?? '').toString();
+          final parsedRetry = _parseRetryDelaySeconds(retryDelay);
+          if (parsedRetry != null) {
+            retryAfterSeconds = parsedRetry;
+          }
+        }
+      }
+    }
+
+    final status = (error?['status'] ?? '').toString().toUpperCase();
+    if (status == 'RESOURCE_EXHAUSTED' && quotaType == AiQuotaType.unknown) {
+      quotaType = AiQuotaType.rpm;
+    }
+    final rawMessage = (error?['message'] ?? '').toString().trim();
+    if (rawMessage.isNotEmpty) {
+      final lower = rawMessage.toLowerCase();
+      if (lower.contains('per day') || lower.contains('daily')) {
+        quotaType = AiQuotaType.rpd;
+        isDailyLimit = true;
+      } else if (lower.contains('token')) {
+        quotaType = AiQuotaType.tpm;
+      } else if (lower.contains('per minute') ||
+          lower.contains('rate limit') ||
+          lower.contains('too many requests')) {
+        quotaType = AiQuotaType.rpm;
+      }
+      message = rawMessage;
+    }
+  } catch (_) {
+    // keep fallback mapping
+  }
+
+  if (retryAfterSeconds <= 0) {
+    retryAfterSeconds = fallbackRetryAfter;
+  }
+  if (isDailyLimit) {
+    retryAfterSeconds = 0;
+    message ??= 'Limit AI harian sudah habis. Silakan coba lagi besok.';
+  }
+
+  return AiRateLimitException(
+    retryAfterSeconds: retryAfterSeconds,
+    quotaType: quotaType,
+    isDailyLimit: isDailyLimit,
+    message: message,
+  );
 }
 
 class AiInsightService {
@@ -197,10 +329,7 @@ Tanpa kalimat pembuka/penutup.
 
     if (response.statusCode >= 400) {
       if (response.statusCode == 429) {
-        final retryAfter = _parseRetryAfterSeconds(
-          response.headers['retry-after'],
-        );
-        throw AiRateLimitException(retryAfterSeconds: retryAfter);
+        throw buildAiRateLimitExceptionFromResponse(response);
       }
       throw Exception('Permintaan AI gagal (${response.statusCode}).');
     }
@@ -314,24 +443,35 @@ Tanpa kalimat pembuka/penutup.
 3) 💰 Pantau Dompet: pemasukan Rp $income30, pengeluaran Rp $expense30, selisih Rp $net30. Tetapkan batas belanja bahan mingguan supaya uang kas tidak cepat habis.
 '''.trim();
   }
+}
 
-  int _parseRetryAfterSeconds(String? retryAfterHeader) {
-    if (retryAfterHeader == null || retryAfterHeader.trim().isEmpty) {
-      return 60;
-    }
-
-    final trimmed = retryAfterHeader.trim();
-    final secondsValue = int.tryParse(trimmed);
-    if (secondsValue != null && secondsValue > 0) {
-      return secondsValue;
-    }
-
-    final dateValue = DateTime.tryParse(trimmed);
-    if (dateValue != null) {
-      final seconds = dateValue.difference(DateTime.now().toUtc()).inSeconds;
-      return seconds > 0 ? seconds : 60;
-    }
-
+int _parseRetryAfterSecondsFromHeader(String? retryAfterHeader) {
+  if (retryAfterHeader == null || retryAfterHeader.trim().isEmpty) {
     return 60;
   }
+
+  final trimmed = retryAfterHeader.trim();
+  final secondsValue = int.tryParse(trimmed);
+  if (secondsValue != null && secondsValue > 0) {
+    return secondsValue;
+  }
+
+  final dateValue = DateTime.tryParse(trimmed);
+  if (dateValue != null) {
+    final seconds = dateValue.difference(DateTime.now().toUtc()).inSeconds;
+    return seconds > 0 ? seconds : 60;
+  }
+  return 60;
+}
+
+int? _parseRetryDelaySeconds(String retryDelay) {
+  final value = retryDelay.trim();
+  if (value.isEmpty) {
+    return null;
+  }
+  final match = RegExp(r'^(\d+)s$').firstMatch(value);
+  if (match != null) {
+    return int.tryParse(match.group(1)!);
+  }
+  return int.tryParse(value);
 }

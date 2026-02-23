@@ -97,10 +97,7 @@ JSON schema:
     }
 
     if (response.statusCode == 429) {
-      final retryAfter = _parseRetryAfterSeconds(
-        response.headers['retry-after'],
-      );
-      throw AiRateLimitException(retryAfterSeconds: retryAfter);
+      throw buildAiRateLimitExceptionFromResponse(response);
     }
     if (response.statusCode >= 400) {
       throw Exception('Permintaan OCR AI gagal (${response.statusCode}).');
@@ -192,22 +189,5 @@ JSON schema:
       throw Exception('Format JSON OCR AI tidak valid.');
     }
     return decoded;
-  }
-
-  int _parseRetryAfterSeconds(String? retryAfterHeader) {
-    if (retryAfterHeader == null || retryAfterHeader.trim().isEmpty) {
-      return 60;
-    }
-    final trimmed = retryAfterHeader.trim();
-    final asInt = int.tryParse(trimmed);
-    if (asInt != null && asInt > 0) {
-      return asInt;
-    }
-    final asDate = DateTime.tryParse(trimmed);
-    if (asDate != null) {
-      final sec = asDate.difference(DateTime.now().toUtc()).inSeconds;
-      return sec > 0 ? sec : 60;
-    }
-    return 60;
   }
 }
