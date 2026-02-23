@@ -53,9 +53,13 @@ All notable changes to this project will be documented in this file.
 - AI Insight POC:
   - konteks AI diperkaya: kini mengirim data `Produk Terlaris (30 Hari)` selain `Produk Kurang Laris (30 Hari)` agar saran lebih seimbang.
   - prompt AI dirombak ke gaya bahasa UMKM lokal (lebih sederhana, menghindari istilah korporat), dengan format output ketat:
-    `🌟 Bintang Toko`, `🔍 Cek Produk Lambat`, `💰 Pantau Dompet`.
+    `🌟 Bintang Toko`, `🔍 Evaluasi Produk Kurang Laris`, `💰 Pantau Dompet`.
   - fallback lokal ikut disesuaikan agar output tetap mudah dipahami ketika respons AI tidak memenuhi format.
   - dialog verifikasi "Data terkirim" sekarang menampilkan produk terlaris dan kurang laris sekaligus.
+- UI AI Dashboard:
+  - kartu besar `Minta Saran AI (Online)` dihapus agar tidak mendominasi beranda.
+  - trigger AI dipindah menjadi ikon kecil `✨` di AppBar kanan atas (fitur sekunder, lebih ringan visual).
+  - saat cooldown, tekan ikon akan menampilkan snackbar sisa waktu tunggu.
 - AI Insight POC: parser response Gemini diperbaiki agar menggabungkan semua `parts.text` (tidak hanya part pertama), sehingga output 3 poin saran tampil utuh.
 - AI Insight POC: ditambahkan debug logging opsional (`--dart-define=AI_DEBUG_LOG=true`) untuk menampilkan prompt terkirim dan raw response ke terminal saat verifikasi.
 - Smart backup reminder (versi terkontrol):

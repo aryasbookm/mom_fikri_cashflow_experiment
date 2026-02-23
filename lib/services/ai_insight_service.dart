@@ -58,7 +58,7 @@ class AiInsightService {
 
     final slowText =
         slowMovingProducts.isEmpty
-            ? '- Tidak ada data produk lambat.'
+            ? '- Tidak ada data produk kurang laris.'
             : slowMovingProducts
                 .map((item) {
                   final name = item['name'] ?? '-';
@@ -83,7 +83,7 @@ $slowText
 
 Format jawaban WAJIB:
 1) 🌟 Bintang Toko: cara sederhana meningkatkan hasil dari produk terlaris.
-2) 🔍 Cek Produk Lambat: dugaan penyebab masuk akal + 1 aksi sederhana 7 hari.
+2) 🔍 Evaluasi Produk Kurang Laris: dugaan penyebab masuk akal + 1 aksi sederhana 7 hari.
 3) 💰 Pantau Dompet: 1 tips praktis menjaga uang kas agar tetap aman.
 Setiap poin maksimal 32 kata.
 Tanpa kalimat pembuka/penutup tambahan.
@@ -113,7 +113,7 @@ Tanpa kalimat pembuka/penutup tambahan.
 Jawaban kamu sebelumnya belum sesuai format.
 Ulangi tepat 3 poin, format ketat:
 1) 🌟 Bintang Toko: ...
-2) 🔍 Cek Produk Lambat: ...
+2) 🔍 Evaluasi Produk Kurang Laris: ...
 3) 💰 Pantau Dompet: ...
 Setiap poin maksimal 28 kata, bahasa sangat sederhana.
 
@@ -309,7 +309,7 @@ Tanpa kalimat pembuka/penutup.
     return '''
 1) 🌟 Bintang Toko: ${hasTop ? '$topNames sedang paling laku. Pastikan stok dan bahan untuk produk ini aman dulu setiap pagi.' : 'Belum ada data produk paling laku. Catat produk yang paling cepat habis minggu ini.'}
 
-2) 🔍 Cek Produk Lambat: ${hasSlow ? '$slowNames masih lambat. Coba tes 1 perubahan kecil selama 7 hari (porsi mini atau bonus topping) lalu lihat apakah penjualan naik.' : 'Belum ada produk yang sangat lambat. Tetap pantau produk yang jarang dibeli agar tidak menumpuk.'}
+2) 🔍 Evaluasi Produk Kurang Laris: ${hasSlow ? '$slowNames masih kurang laris. Coba tes 1 perubahan kecil selama 7 hari (porsi mini atau bonus topping) lalu lihat apakah penjualan naik.' : 'Belum ada produk yang terlihat kurang laris. Tetap pantau produk yang jarang dibeli agar tidak menumpuk.'}
 
 3) 💰 Pantau Dompet: pemasukan Rp $income30, pengeluaran Rp $expense30, selisih Rp $net30. Tetapkan batas belanja bahan mingguan supaya uang kas tidak cepat habis.
 '''.trim();

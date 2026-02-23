@@ -18,13 +18,15 @@ import 'add_transaction_screen.dart';
 import 'history_screen.dart';
 
 class OwnerDashboard extends StatefulWidget {
-  const OwnerDashboard({super.key});
+  const OwnerDashboard({super.key, this.onAiStateChanged});
+
+  final VoidCallback? onAiStateChanged;
 
   @override
-  State<OwnerDashboard> createState() => _OwnerDashboardState();
+  State<OwnerDashboard> createState() => OwnerDashboardState();
 }
 
-class _OwnerDashboardState extends State<OwnerDashboard> {
+class OwnerDashboardState extends State<OwnerDashboard> {
   static const String _targetKey = 'daily_target_amount';
   static const String _celebratedDateKey = 'daily_target_celebrated_date';
   static const String _showStockAlertKey = 'show_stock_alert';
@@ -42,6 +44,11 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
   int _lastTxCount = -1;
   int _lastSlowTxCount = -1;
   int _lastSlowProductCount = -1;
+
+  bool get isAiLoading => _isGeneratingAiInsight;
+  int get aiCooldownSeconds => _aiCooldownSeconds;
+  bool get isAiTemporarilyUnavailable =>
+      _isGeneratingAiInsight || _aiCooldownSeconds > 0;
 
   @override
   void initState() {
@@ -65,6 +72,35 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     _aiCooldownTimer?.cancel();
     _confettiController.dispose();
     super.dispose();
+  }
+
+  void _notifyAiStateChanged() {
+    widget.onAiStateChanged?.call();
+  }
+
+  void _showAiCooldownSnackBar() {
+    if (!mounted || _aiCooldownSeconds <= 0) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'AI sedang istirahat. Coba lagi dalam $_aiCooldownSeconds detik.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> triggerAiInsightFromAppBar() async {
+    if (_isGeneratingAiInsight) {
+      return;
+    }
+    if (_aiCooldownSeconds > 0) {
+      _showAiCooldownSnackBar();
+      return;
+    }
+    final provider = context.read<TransactionProvider>();
+    await _generateAiInsight(provider);
   }
 
   Future<void> _loadDailyTarget() async {
@@ -207,6 +243,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     setState(() {
       _isGeneratingAiInsight = true;
     });
+    _notifyAiStateChanged();
 
     try {
       final now = DateTime.now();
@@ -320,6 +357,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
         setState(() {
           _isGeneratingAiInsight = false;
         });
+        _notifyAiStateChanged();
       }
     }
   }
@@ -333,6 +371,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     setState(() {
       _aiCooldownSeconds = safeSeconds;
     });
+    _notifyAiStateChanged();
     _aiCooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) {
         timer.cancel();
@@ -343,11 +382,13 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
         setState(() {
           _aiCooldownSeconds = 0;
         });
+        _notifyAiStateChanged();
         return;
       }
       setState(() {
         _aiCooldownSeconds -= 1;
       });
+      _notifyAiStateChanged();
     });
   }
 
@@ -665,32 +706,6 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                       );
                     },
                   ),
-                  const SizedBox(height: 12),
-                  _ActionCard(
-                    icon: Icons.auto_awesome,
-                    title:
-                        _isGeneratingAiInsight
-                            ? 'Memuat Insight AI...'
-                            : _aiCooldownSeconds > 0
-                            ? 'AI jeda $_aiCooldownSeconds detik'
-                            : 'Minta Saran AI (Online)',
-                    color: const Color(0xFF6A1B9A),
-                    onTap: () {
-                      if (_isGeneratingAiInsight || _aiCooldownSeconds > 0) {
-                        return;
-                      }
-                      _generateAiInsight(provider);
-                    },
-                    enabled: !_isGeneratingAiInsight && _aiCooldownSeconds == 0,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    _aiCooldownSeconds > 0
-                        ? 'AI sedang istirahat. Coba lagi dalam $_aiCooldownSeconds detik.'
-                        : 'Fitur ini memerlukan koneksi internet aktif.',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 12, color: Colors.black54),
-                  ),
                   const SizedBox(height: 16),
                   Container(
                     padding: const EdgeInsets.all(16),
@@ -976,13 +991,11 @@ class _StatCard extends StatelessWidget {
     required this.backgroundColor,
     required this.title,
     required this.value,
-    this.valueSize = 20,
   });
 
   final Color backgroundColor;
   final String title;
   final String value;
-  final double valueSize;
 
   @override
   Widget build(BuildContext context) {
@@ -1015,7 +1028,7 @@ class _StatCard extends StatelessWidget {
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.bold,
-              fontSize: valueSize,
+              fontSize: 20,
             ),
           ),
         ],
@@ -1030,20 +1043,17 @@ class _ActionCard extends StatelessWidget {
     required this.title,
     required this.color,
     required this.onTap,
-    this.enabled = true,
   });
 
   final IconData icon;
   final String title;
   final Color color;
   final VoidCallback onTap;
-  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
-    final activeColor = enabled ? color : Colors.grey;
     return InkWell(
-      onTap: enabled ? onTap : null,
+      onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Ink(
         padding: const EdgeInsets.all(16),
@@ -1062,17 +1072,11 @@ class _ActionCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             CircleAvatar(
-              backgroundColor: activeColor.withOpacity(0.15),
-              child: Icon(icon, color: activeColor),
+              backgroundColor: color.withOpacity(0.15),
+              child: Icon(icon, color: color),
             ),
             const SizedBox(height: 12),
-            Text(
-              title,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: enabled ? Colors.black87 : Colors.black45,
-              ),
-            ),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
           ],
         ),
       ),

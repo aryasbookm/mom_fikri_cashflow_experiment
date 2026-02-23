@@ -157,13 +157,13 @@ Catatan:
 
 9. **Dashboard Owner (Ringkas)**
    - Menampilkan Top Produk (7 hari) untuk keputusan produksi
-   - POC Insight AI (online): tombol `Minta Saran AI` mengirim ringkasan 30 hari ke Gemini dan menampilkan 3 saran bisnis dalam dialog.
+   - POC Insight AI (online): trigger via ikon `✨` di AppBar kanan atas; mengirim ringkasan 30 hari ke Gemini dan menampilkan 3 saran bisnis dalam dialog.
    - Konteks AI 30 hari sekarang mencakup dua sisi:
      - produk terlaris (maks 3 item),
      - produk kurang laris (maks 3 item),
      agar saran tidak hanya fokus pada produk lambat.
    - Prompt AI dioptimalkan ke bahasa UMKM lokal (tanpa istilah korporat), dengan format tetap 3 poin:
-     `🌟 Bintang Toko`, `🔍 Cek Produk Lambat`, `💰 Pantau Dompet`.
+     `🌟 Bintang Toko`, `🔍 Evaluasi Produk Kurang Laris`, `💰 Pantau Dompet`.
    - AI rate-limit handling:
      - jika kena `429`, UI membaca jeda dari `Retry-After` (atau fallback 60 detik) lalu menjalankan cooldown.
      - setelah request sukses, cooldown singkat tetap diterapkan untuk mencegah spam klik.
