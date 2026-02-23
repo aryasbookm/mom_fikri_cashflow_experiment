@@ -183,8 +183,13 @@ Catatan:
      - jika kena `429`, UI membaca jeda dari `Retry-After` (atau fallback 60 detik) lalu menjalankan cooldown.
      - setelah request sukses, cooldown singkat tetap diterapkan untuk mencegah spam klik.
      - selama cooldown tombol AI nonaktif dan menampilkan hitung mundur agar status transparan ke user.
-     - parser 429 diperluas untuk membaca detail quota (`QuotaFailure`/`RetryInfo`) sehingga UI bisa membedakan indikasi RPM/TPM/RPD.
-     - jika terindikasi RPD (limit harian), tombol AI tidak lagi pakai cooldown 60 detik berulang; user diarahkan untuk coba lagi besok.
+    - parser 429 diperluas untuk membaca detail quota (`QuotaFailure`/`RetryInfo`) sehingga UI bisa membedakan indikasi RPM/TPM/RPD.
+    - jika terindikasi RPD (limit harian), tombol AI tidak lagi pakai cooldown 60 detik berulang; user diarahkan untuk coba lagi besok.
+  - Arsitektur OCR kini fallback-ready:
+    - `AiOcrService` tidak lagi memanggil Gemini secara langsung.
+    - Provider OCR dipisah ke kontrak `AiVisionProvider`.
+    - Routing dilakukan oleh `AiProviderRouter` dengan urutan provider berbasis `--dart-define=AI_PROVIDER_ORDER=...`.
+    - Saat ini provider aktif: `GeminiVisionProvider`; provider kedua dapat ditambahkan tanpa perubahan UI.
    - Output AI bersifat asistif/read-only (tidak menulis transaksi otomatis).
    - OCR Asistif (MVP):
     - akses dari FAB `Scan Catatan` di Beranda,

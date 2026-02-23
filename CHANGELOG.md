@@ -10,6 +10,11 @@ All notable changes to this project will be documented in this file.
 *Fokus: Pencarian Global, Reminder Backup, Insight Produk Lambat*
 
 ### Added
+- Fondasi arsitektur OCR multi-provider (fallback-ready):
+  - `AiVisionProvider` interface sebagai kontrak provider Vision OCR.
+  - `GeminiVisionProvider` untuk isolasi implementasi Gemini dari layer UI/service utama.
+  - `AiProviderRouter` untuk routing provider berurutan (berdasarkan `AI_PROVIDER_ORDER`, default `gemini`) dan auto-fallback saat provider utama terkena limit sementara (`429`) atau error temporary.
+  - `AiOcrService` kini memanggil router (bukan hardcoded Gemini), sehingga siap ditambah provider kedua tanpa ubah UI.
 - OCR Asistif MVP (Human-in-the-Loop):
   - menu `Scan Catatan` (ikon scanner di AppBar Beranda owner),
   - ambil foto dari kamera / pilih dari galeri,
