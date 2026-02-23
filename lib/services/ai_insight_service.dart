@@ -15,6 +15,7 @@ class AiInsightService {
     'AI_DEBUG_LOG',
     defaultValue: false,
   );
+  static const int _maxOutputTokens = 420;
 
   Future<String> generateOwnerInsight({
     required int income30,
@@ -58,9 +59,62 @@ Format jawaban WAJIB:
 Tanpa kalimat pembuka tambahan.
 ''';
 
+    final firstBody = await _requestGemini(prompt, temperature: 0.25);
+    final firstText = _extractJoinedText(firstBody);
+    final firstReasons = _extractFinishReasons(firstBody);
+    final needsRetry =
+        firstText.isEmpty ||
+        !_hasThreeNumberedPoints(firstText) ||
+        _looksTooGeneric(firstText) ||
+        firstReasons.contains('MAX_TOKENS');
+
+    if (!needsRetry) {
+      return firstText;
+    }
+
+    if (_debugLog) {
+      developer.log(
+        'AI response incomplete/generic, running one retry with stricter prompt.',
+        name: 'AI_DEBUG',
+      );
+    }
+
+    final retryPrompt = '''
+Jawaban kamu sebelumnya tidak lengkap.
+Berikan ulang dengan format ketat:
+1) ...
+2) ...
+3) ...
+Setiap poin maksimal 25 kata.
+
+Wajib menyebut angka ini apa adanya:
+- Pemasukan: Rp $income30
+- Pengeluaran: Rp $expense30
+- Selisih: Rp $net30
+- Produk kurang laris:
+$slowText
+
+Tanpa kalimat pembuka.
+''';
+
+    final retryBody = await _requestGemini(retryPrompt, temperature: 0.2);
+    final retryText = _extractJoinedText(retryBody);
+
+    if (retryText.isEmpty || !_hasThreeNumberedPoints(retryText)) {
+      throw Exception('Respons AI terpotong/tidak lengkap. Coba tekan lagi.');
+    }
+
+    return retryText;
+  }
+
+  Future<Map<String, dynamic>> _requestGemini(
+    String prompt, {
+    required double temperature,
+  }) async {
     final uri = Uri.parse(
       'https://generativelanguage.googleapis.com/v1beta/models/$_model:generateContent?key=$_apiKey',
     );
+
     if (_debugLog) {
       developer.log('Prompt sent to Gemini:\n$prompt', name: 'AI_DEBUG');
     }
@@ -79,7 +133,10 @@ Tanpa kalimat pembuka tambahan.
                   ],
                 },
               ],
-              'generationConfig': {'temperature': 0.25, 'maxOutputTokens': 300},
+              'generationConfig': {
+                'temperature': temperature,
+                'maxOutputTokens': _maxOutputTokens,
+              },
             }),
           )
           .timeout(const Duration(seconds: 20));
@@ -97,13 +154,28 @@ Tanpa kalimat pembuka tambahan.
       throw Exception('Permintaan AI gagal (${response.statusCode}).');
     }
 
-    final Map<String, dynamic> body = jsonDecode(response.body);
     if (_debugLog) {
       developer.log('Raw Gemini response:\n${response.body}', name: 'AI_DEBUG');
     }
+
+    final Map<String, dynamic> body = jsonDecode(response.body);
     final candidates = body['candidates'] as List<dynamic>?;
     if (candidates == null || candidates.isEmpty) {
       throw Exception('AI tidak mengembalikan saran.');
+    }
+    if (_debugLog) {
+      developer.log(
+        'Finish reasons: ${_extractFinishReasons(body)}',
+        name: 'AI_DEBUG',
+      );
+    }
+    return body;
+  }
+
+  String _extractJoinedText(Map<String, dynamic> body) {
+    final candidates = body['candidates'] as List<dynamic>?;
+    if (candidates == null || candidates.isEmpty) {
+      return '';
     }
 
     final texts = <String>[];
@@ -128,116 +200,39 @@ Tanpa kalimat pembuka tambahan.
         }
       }
     }
-    if (texts.isEmpty) {
-      throw Exception('Jawaban AI kosong.');
-    }
 
-    final joined = texts.join('\n\n');
-    if (_looksTooGeneric(joined)) {
-      if (_debugLog) {
-        developer.log(
-          'AI response too generic, running one retry with stricter prompt.',
-          name: 'AI_DEBUG',
-        );
-      }
-      return _retryWithStricterPrompt(
-        income30: income30,
-        expense30: expense30,
-        net30: net30,
-        slowText: slowText,
-      );
-    }
-
-    return joined;
+    return texts.join('\n\n').trim();
   }
 
-  bool _looksTooGeneric(String text) {
-    final normalized = text.toLowerCase().trim();
-    final hasNumberedPoints =
-        normalized.contains('1)') &&
-        normalized.contains('2)') &&
-        normalized.contains('3)');
-    if (hasNumberedPoints) {
-      return false;
-    }
-    return normalized.contains('berikut 3 saran praktis');
-  }
-
-  Future<String> _retryWithStricterPrompt({
-    required int income30,
-    required int expense30,
-    required int net30,
-    required String slowText,
-  }) async {
-    final uri = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1beta/models/$_model:generateContent?key=$_apiKey',
-    );
-    final retryPrompt = '''
-Jawaban kamu sebelumnya terlalu umum.
-Berikan ulang dengan format ketat:
-1) ...
-2) ...
-3) ...
-
-Wajib menyebut angka ini apa adanya:
-- Pemasukan: Rp $income30
-- Pengeluaran: Rp $expense30
-- Selisih: Rp $net30
-- Produk kurang laris:
-$slowText
-
-Tanpa kalimat pembuka.
-''';
-
-    final response = await http
-        .post(
-          uri,
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'contents': [
-              {
-                'parts': [
-                  {'text': retryPrompt},
-                ],
-              },
-            ],
-            'generationConfig': {'temperature': 0.2, 'maxOutputTokens': 300},
-          }),
-        )
-        .timeout(const Duration(seconds: 20));
-    if (response.statusCode >= 400) {
-      throw Exception('Permintaan AI gagal (${response.statusCode}).');
-    }
-    final Map<String, dynamic> body = jsonDecode(response.body);
+  Set<String> _extractFinishReasons(Map<String, dynamic> body) {
     final candidates = body['candidates'] as List<dynamic>?;
     if (candidates == null || candidates.isEmpty) {
-      throw Exception('AI tidak mengembalikan saran pada retry.');
+      return <String>{};
     }
-    final texts = <String>[];
+
+    final reasons = <String>{};
     for (final candidate in candidates) {
       final candidateMap =
           candidate is Map<String, dynamic>
               ? candidate
               : Map<String, dynamic>.from(candidate as Map);
-      final content = candidateMap['content'] as Map<String, dynamic>?;
-      final parts = content?['parts'] as List<dynamic>?;
-      if (parts == null) {
-        continue;
-      }
-      for (final part in parts) {
-        final partMap =
-            part is Map<String, dynamic>
-                ? part
-                : Map<String, dynamic>.from(part as Map);
-        final text = partMap['text'];
-        if (text is String && text.trim().isNotEmpty) {
-          texts.add(text.trim());
-        }
+      final finishReason = candidateMap['finishReason'];
+      if (finishReason is String && finishReason.trim().isNotEmpty) {
+        reasons.add(finishReason.trim().toUpperCase());
       }
     }
-    if (texts.isEmpty) {
-      throw Exception('Jawaban AI retry kosong.');
-    }
-    return texts.join('\n\n');
+    return reasons;
+  }
+
+  bool _hasThreeNumberedPoints(String text) {
+    final normalized = text.toLowerCase();
+    return normalized.contains('1)') &&
+        normalized.contains('2)') &&
+        normalized.contains('3)');
+  }
+
+  bool _looksTooGeneric(String text) {
+    final normalized = text.toLowerCase().trim();
+    return normalized.contains('berikut 3 saran praktis');
   }
 }
