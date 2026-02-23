@@ -101,7 +101,18 @@ Tanpa kalimat pembuka.
     final retryText = _extractJoinedText(retryBody);
 
     if (retryText.isEmpty || !_hasThreeNumberedPoints(retryText)) {
-      throw Exception('Respons AI terpotong/tidak lengkap. Coba tekan lagi.');
+      if (_debugLog) {
+        developer.log(
+          'Retry response still incomplete, using local deterministic fallback.',
+          name: 'AI_DEBUG',
+        );
+      }
+      return _buildLocalFallbackInsight(
+        income30: income30,
+        expense30: expense30,
+        net30: net30,
+        slowMovingProducts: slowMovingProducts,
+      );
     }
 
     return retryText;
@@ -226,13 +237,38 @@ Tanpa kalimat pembuka.
 
   bool _hasThreeNumberedPoints(String text) {
     final normalized = text.toLowerCase();
-    return normalized.contains('1)') &&
-        normalized.contains('2)') &&
-        normalized.contains('3)');
+    final has1 = RegExp(r'(^|\n)\s*1[)\.]').hasMatch(normalized);
+    final has2 = RegExp(r'(^|\n)\s*2[)\.]').hasMatch(normalized);
+    final has3 = RegExp(r'(^|\n)\s*3[)\.]').hasMatch(normalized);
+    return has1 && has2 && has3;
   }
 
   bool _looksTooGeneric(String text) {
     final normalized = text.toLowerCase().trim();
     return normalized.contains('berikut 3 saran praktis');
+  }
+
+  String _buildLocalFallbackInsight({
+    required int income30,
+    required int expense30,
+    required int net30,
+    required List<Map<String, dynamic>> slowMovingProducts,
+  }) {
+    final slowNames =
+        slowMovingProducts
+            .map((item) => '${item['name'] ?? '-'}')
+            .take(2)
+            .join(' dan ');
+    final hasSlow = slowMovingProducts.isNotEmpty;
+    final margin = income30 == 0 ? 0.0 : (net30 / income30) * 100.0;
+    final marginText = margin.isFinite ? margin.toStringAsFixed(1) : '0.0';
+
+    return '''
+1) Pantau margin 30 hari Anda: pemasukan Rp $income30, pengeluaran Rp $expense30, selisih Rp $net30 (margin ${marginText}%). Tetapkan batas belanja bahan mingguan.
+
+2) ${hasSlow ? 'Fokus promosi untuk $slowNames dalam 7 hari ke depan (bundling/diskon jam tertentu) agar perputaran stok naik.' : 'Belum ada produk sangat lambat, pertahankan ritme produksi sesuai pola penjualan mingguan.'}
+
+3) Buat target operasional mingguan: minimal 1 evaluasi biaya operasional + 1 aksi peningkatan penjualan, lalu cek hasilnya di akhir minggu.
+'''.trim();
   }
 }
