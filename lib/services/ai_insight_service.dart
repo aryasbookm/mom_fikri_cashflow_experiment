@@ -55,16 +55,14 @@ Format jawaban WAJIB:
 1) ...
 2) ...
 3) ...
+Tanpa kalimat pembuka tambahan.
 ''';
 
     final uri = Uri.parse(
       'https://generativelanguage.googleapis.com/v1beta/models/$_model:generateContent?key=$_apiKey',
     );
     if (_debugLog) {
-      developer.log(
-        'Prompt sent to Gemini:\n$prompt',
-        name: 'AI_DEBUG',
-      );
+      developer.log('Prompt sent to Gemini:\n$prompt', name: 'AI_DEBUG');
     }
 
     http.Response response;
@@ -101,10 +99,7 @@ Format jawaban WAJIB:
 
     final Map<String, dynamic> body = jsonDecode(response.body);
     if (_debugLog) {
-      developer.log(
-        'Raw Gemini response:\n${response.body}',
-        name: 'AI_DEBUG',
-      );
+      developer.log('Raw Gemini response:\n${response.body}', name: 'AI_DEBUG');
     }
     final candidates = body['candidates'] as List<dynamic>?;
     if (candidates == null || candidates.isEmpty) {
@@ -137,6 +132,112 @@ Format jawaban WAJIB:
       throw Exception('Jawaban AI kosong.');
     }
 
+    final joined = texts.join('\n\n');
+    if (_looksTooGeneric(joined)) {
+      if (_debugLog) {
+        developer.log(
+          'AI response too generic, running one retry with stricter prompt.',
+          name: 'AI_DEBUG',
+        );
+      }
+      return _retryWithStricterPrompt(
+        income30: income30,
+        expense30: expense30,
+        net30: net30,
+        slowText: slowText,
+      );
+    }
+
+    return joined;
+  }
+
+  bool _looksTooGeneric(String text) {
+    final normalized = text.toLowerCase().trim();
+    final hasNumberedPoints =
+        normalized.contains('1)') &&
+        normalized.contains('2)') &&
+        normalized.contains('3)');
+    if (hasNumberedPoints) {
+      return false;
+    }
+    return normalized.contains('berikut 3 saran praktis');
+  }
+
+  Future<String> _retryWithStricterPrompt({
+    required int income30,
+    required int expense30,
+    required int net30,
+    required String slowText,
+  }) async {
+    final uri = Uri.parse(
+      'https://generativelanguage.googleapis.com/v1beta/models/$_model:generateContent?key=$_apiKey',
+    );
+    final retryPrompt = '''
+Jawaban kamu sebelumnya terlalu umum.
+Berikan ulang dengan format ketat:
+1) ...
+2) ...
+3) ...
+
+Wajib menyebut angka ini apa adanya:
+- Pemasukan: Rp $income30
+- Pengeluaran: Rp $expense30
+- Selisih: Rp $net30
+- Produk kurang laris:
+$slowText
+
+Tanpa kalimat pembuka.
+''';
+
+    final response = await http
+        .post(
+          uri,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'contents': [
+              {
+                'parts': [
+                  {'text': retryPrompt},
+                ],
+              },
+            ],
+            'generationConfig': {'temperature': 0.2, 'maxOutputTokens': 300},
+          }),
+        )
+        .timeout(const Duration(seconds: 20));
+    if (response.statusCode >= 400) {
+      throw Exception('Permintaan AI gagal (${response.statusCode}).');
+    }
+    final Map<String, dynamic> body = jsonDecode(response.body);
+    final candidates = body['candidates'] as List<dynamic>?;
+    if (candidates == null || candidates.isEmpty) {
+      throw Exception('AI tidak mengembalikan saran pada retry.');
+    }
+    final texts = <String>[];
+    for (final candidate in candidates) {
+      final candidateMap =
+          candidate is Map<String, dynamic>
+              ? candidate
+              : Map<String, dynamic>.from(candidate as Map);
+      final content = candidateMap['content'] as Map<String, dynamic>?;
+      final parts = content?['parts'] as List<dynamic>?;
+      if (parts == null) {
+        continue;
+      }
+      for (final part in parts) {
+        final partMap =
+            part is Map<String, dynamic>
+                ? part
+                : Map<String, dynamic>.from(part as Map);
+        final text = partMap['text'];
+        if (text is String && text.trim().isNotEmpty) {
+          texts.add(text.trim());
+        }
+      }
+    }
+    if (texts.isEmpty) {
+      throw Exception('Jawaban AI retry kosong.');
+    }
     return texts.join('\n\n');
   }
 }

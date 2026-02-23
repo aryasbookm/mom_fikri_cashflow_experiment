@@ -235,6 +235,14 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
         net30: net30,
         slowMovingProducts: slowMoving,
       );
+      final slowSummary =
+          slowMoving.isEmpty
+              ? 'Tidak ada'
+              : slowMoving
+                  .map(
+                    (e) => '${e['name'] ?? '-'} (${e['total_qty'] ?? 0} pcs)',
+                  )
+                  .join(', ');
 
       if (!mounted) {
         return;
@@ -244,7 +252,24 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
         builder: (context) {
           return AlertDialog(
             title: const Text('Insight AI (30 Hari)'),
-            content: SingleChildScrollView(child: Text(insight)),
+            content: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Data terkirim:\n'
+                    '- Pemasukan: Rp ${NumberFormat('#,##0', 'id_ID').format(income30)}\n'
+                    '- Pengeluaran: Rp ${NumberFormat('#,##0', 'id_ID').format(expense30)}\n'
+                    '- Selisih: Rp ${NumberFormat('#,##0', 'id_ID').format(net30)}\n'
+                    '- Produk kurang laris: $slowSummary',
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(insight),
+                ],
+              ),
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),

@@ -259,6 +259,8 @@ Catatan:
   - `--dart-define=GEMINI_MODEL=gemini-2.5-flash`
 - Debug verifikasi respons (opsional):
   - `--dart-define=AI_DEBUG_LOG=true` untuk mencetak prompt AI dan raw response Gemini ke terminal.
+- Verifikasi UI:
+  - Dialog Insight AI menampilkan ringkasan data 30 hari yang dikirim ke AI (pemasukan, pengeluaran, selisih, produk kurang laris) agar user bisa memastikan input AI benar.
 
 ## Reset DB (Hard Reset)
 - DB version: 9
