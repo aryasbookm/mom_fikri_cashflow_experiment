@@ -20,7 +20,10 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
   final ImagePicker _imagePicker = ImagePicker();
   bool _isLoading = false;
   String? _imagePath;
+  List<int>? _imageBytes;
+  String? _imageMimeType;
   OcrTransactionDraft? _draft;
+  String? _lastErrorMessage;
 
   Future<void> _pickAndProcess(ImageSource source) async {
     if (_isLoading) {
@@ -39,12 +42,46 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     setState(() {
       _isLoading = true;
       _imagePath = file.path;
+      _imageBytes = null;
+      _imageMimeType = null;
       _draft = null;
+      _lastErrorMessage = null;
     });
 
     try {
       final bytes = await file.readAsBytes();
-      final mimeType = _detectMimeType(file.path);
+      setState(() {
+        _imageBytes = bytes;
+        _imageMimeType = _detectMimeType(file.path);
+      });
+      await _processCurrentImage();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLoading = false;
+        _lastErrorMessage = 'Gagal membaca file gambar: $error';
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_lastErrorMessage!)));
+    }
+  }
+
+  Future<void> _processCurrentImage() async {
+    final bytes = _imageBytes;
+    final mimeType = _imageMimeType;
+    if (bytes == null || mimeType == null) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _lastErrorMessage = null;
+    });
+
+    try {
       final draft = await AiOcrService().extractDraftFromImageBytes(
         imageBytes: bytes,
         mimeType: mimeType,
@@ -54,25 +91,29 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
       }
       setState(() {
         _draft = draft;
+        _lastErrorMessage = null;
       });
     } on AiRateLimitException catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'AI sedang sibuk. Coba lagi dalam ${error.retryAfterSeconds} detik.',
-          ),
-        ),
-      );
+      setState(() {
+        _lastErrorMessage =
+            'AI sedang sibuk. Coba lagi dalam ${error.retryAfterSeconds} detik.';
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_lastErrorMessage!)));
     } catch (error) {
       if (!mounted) {
         return;
       }
+      setState(() {
+        _lastErrorMessage = 'Gagal memproses scan: $error';
+      });
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Gagal memproses scan: $error')));
+      ).showSnackBar(SnackBar(content: Text(_lastErrorMessage!)));
     } finally {
       if (mounted) {
         setState(() {
@@ -104,7 +145,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
       parsedDate = DateTime.tryParse(draft.dateIso);
     }
 
-    await Navigator.of(context).push(
+    final result = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder:
             (_) => AddTransactionScreen(
@@ -118,6 +159,18 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
               initialDate: parsedDate,
               initialManualIncomeInput: draft.type == 'IN',
             ),
+      ),
+    );
+    if (!mounted || result != true) {
+      return;
+    }
+    setState(() {
+      _draft = null;
+      _lastErrorMessage = null;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Transaksi berhasil ditambahkan dari draft OCR.'),
       ),
     );
   }
@@ -194,6 +247,37 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
             ),
             const SizedBox(height: 16),
           ],
+          if (!_isLoading &&
+              _lastErrorMessage != null &&
+              _imageBytes != null &&
+              _imageMimeType != null)
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFEBEE),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFFFCDD2)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _lastErrorMessage!,
+                    style: const TextStyle(color: Color(0xFFB71C1C)),
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton.icon(
+                      onPressed: _processCurrentImage,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Coba Lagi'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           if (draft != null)
             Container(
               padding: const EdgeInsets.all(12),

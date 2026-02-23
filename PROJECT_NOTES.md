@@ -175,6 +175,8 @@ Catatan:
      - alur: foto/galeri -> AI ekstrak JSON draft -> user konfirmasi -> prefill form transaksi,
      - fokus 1 transaksi per scan (bukan parsing 1 halaman penuh),
      - tetap Human-in-the-Loop: data tidak disimpan otomatis, user wajib review dan tekan `Simpan`.
+     - proteksi UX duplikasi: setelah simpan sukses dari form, draft di layar scan dibersihkan dan muncul konfirmasi sukses.
+     - recovery jaringan: jika OCR gagal sementara (mis. `503`), user bisa `Coba Lagi` dengan foto yang sama.
 
 10. **Onboarding & Penyesuaian Saldo**
    - First-install onboarding (2 langkah):

@@ -477,7 +477,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _isLoading = false;
     });
 
-    Navigator.of(context).pop();
+    Navigator.of(context).pop(true);
   }
 
   @override
