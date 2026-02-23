@@ -8,6 +8,7 @@ import '../providers/auth_provider.dart';
 import '../providers/product_provider.dart';
 import '../providers/transaction_provider.dart';
 import '../services/export_service.dart';
+import 'ocr_assist_screen.dart';
 import 'transaction_detail_screen.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -290,6 +291,56 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     isDense: true,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.menu_book_outlined,
+                        color: Color(0xFF8D1B3D),
+                      ),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Migrasi dari Buku',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Gunakan scan AI untuk bantu input catatan harian.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.black54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
+                        onPressed:
+                            () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const OcrAssistScreen(),
+                              ),
+                            ),
+                        icon: const Icon(Icons.document_scanner_outlined, size: 18),
+                        label: const Text('Scan Catatan'),
+                      ),
+                    ],
                   ),
                 ),
               ),

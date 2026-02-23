@@ -162,8 +162,9 @@ Catatan:
    - AppBar AI trigger hardened:
      - saat state beranda belum siap (sesaat setelah login), klik awal tidak lagi diam tanpa respons;
      - user menerima snackbar status dan tombol siap dipakai segera setelah state terikat.
-  - Entrypoint OCR dipusatkan via FAB:
-    - FAB Beranda khusus `Scan Catatan (AI)` (tanpa duplikasi menu pemasukan/pengeluaran).
+  - Entrypoint OCR ditempatkan sebagai aksi sekunder:
+    - FAB Beranda dihapus untuk menghindari duplikasi aksi input utama.
+    - akses OCR dipindah ke section **Migrasi dari Buku** di layar Riwayat (body) agar kontekstual untuk input historis.
     - ikon scan dipindah dari AppBar agar AppBar tetap fokus ke aksi analisis (AI insight).
    - Konteks AI 30 hari sekarang mencakup dua sisi:
      - produk terlaris (maks 3 item),

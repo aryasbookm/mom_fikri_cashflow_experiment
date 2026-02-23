@@ -75,8 +75,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 - Dashboard input entrypoint disederhanakan:
-  - FAB Beranda kini khusus `Scan Catatan` (AI) saja.
-  - Bottom sheet `Tambah Data` (yang menduplikasi `Catat Pemasukan/Pengeluaran`) dihapus untuk mengurangi kebingungan.
+  - FAB Beranda dihapus agar tidak menduplikasi aksi utama `Catat Pemasukan/Pengeluaran`.
+  - entry OCR dipindah ke section khusus **Migrasi dari Buku** di layar Riwayat (body, bukan AppBar) agar konteks lebih tepat.
 - OCR Asistif kini melakukan pre-check status kuota sebelum proses scan:
   - tombol `Ambil Foto` / `Pilih Galeri` otomatis nonaktif saat cooldown/limit harian AI aktif,
   - pengguna mendapat peringatan dini di layar (tanpa harus ambil foto dulu baru gagal),

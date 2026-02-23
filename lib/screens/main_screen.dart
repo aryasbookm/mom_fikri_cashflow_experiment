@@ -6,7 +6,6 @@ import '../widgets/owner_pin_dialog.dart';
 import 'account_screen.dart';
 import 'login_screen.dart';
 import 'owner_dashboard.dart';
-import 'ocr_assist_screen.dart';
 import 'production_screen.dart';
 import 'report_screen.dart';
 
@@ -162,21 +161,6 @@ class _MainScreenState extends State<MainScreen> {
                 : null,
       ),
       body: IndexedStack(index: _currentIndex, children: _pages),
-      floatingActionButton:
-          _currentIndex == 0
-              ? FloatingActionButton.extended(
-                onPressed:
-                    () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const OcrAssistScreen()),
-                    ),
-                backgroundColor: const Color(0xFF8D1B3D),
-                icon: const Icon(Icons.document_scanner_outlined, color: Colors.white),
-                label: const Text(
-                  'Scan Catatan',
-                  style: TextStyle(color: Colors.white),
-                ),
-              )
-              : null,
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         selectedItemColor: const Color(0xFF8D1B3D),
