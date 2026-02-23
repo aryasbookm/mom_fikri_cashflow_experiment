@@ -74,6 +74,11 @@ All notable changes to this project will be documented in this file.
   - PDF menampilkan ringkasan produk untuk transaksi pemasukan (hybrid) dan tetap menyertakan detail item agar lebih mudah dibaca owner.
 
 ### Changed
+- UX `Catat Pemasukan/Pengeluaran` dirapikan:
+  - padding atas diperkecil agar tidak ada ruang kosong berlebih di awal layar.
+  - area produk diubah ke `CustomScrollView` (sliver) sehingga header `Pilih Produk / Input Manual / Cari produk` ikut scroll saat list digulir.
+  - footer aksi (`Tanggal` + `Simpan`) tetap sticky di bawah namun dibuat lebih compact.
+  - ringkasan keranjang (`cart bar`) otomatis disembunyikan saat scroll turun dan muncul lagi saat scroll naik agar viewport produk lebih luas.
 - Riwayat UX dirapikan:
   - header filter/search/migrasi/ringkasan kini ikut scroll bersama daftar transaksi (tidak lagi menahan area konten terlalu besar).
   - section `Migrasi dari Buku` dibuat lebih compact agar tidak mendominasi layar.

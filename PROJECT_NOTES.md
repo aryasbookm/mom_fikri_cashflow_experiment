@@ -61,11 +61,15 @@ Catatan:
    - Dialog PIN menyediakan opsi Logout/Ganti Akun dengan konfirmasi
 
 2. **Pemasukan (Kasir)**
-   - Grid produk → tambah ke keranjang (multi-item)
-   - Validasi stok per item
-   - Manual input tetap ada
-   - Ringkasan total otomatis
-   - Mendukung prefill dari OCR asistif (draft hasil scan catatan) untuk mempercepat migrasi dari buku.
+  - Grid produk → tambah ke keranjang (multi-item)
+  - Validasi stok per item
+  - Manual input tetap ada
+  - Ringkasan total otomatis
+  - Mendukung prefill dari OCR asistif (draft hasil scan catatan) untuk mempercepat migrasi dari buku.
+  - UX viewport diperluas:
+    - header produk + pencarian ikut scroll (tidak fixed),
+    - footer tanggal/simpan tetap sticky namun lebih ringkas,
+    - cart bar auto-hide saat scroll turun dan auto-show saat scroll naik.
 
 3. **Pengeluaran**
    - Input manual
