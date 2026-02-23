@@ -88,11 +88,12 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
         imageBytes: bytes,
         mimeType: mimeType,
       );
+      final firstItem = draft.transactions.first;
       if (!mounted) {
         return;
       }
       setState(() {
-        _draft = draft;
+        _draft = firstItem;
         _lastErrorMessage = null;
         _lastRejectedReason = null;
       });

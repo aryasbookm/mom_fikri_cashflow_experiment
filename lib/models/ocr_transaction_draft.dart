@@ -59,3 +59,44 @@ class OcrTransactionDraft {
     );
   }
 }
+
+class OcrBatchDraft {
+  const OcrBatchDraft({
+    required this.isTransaction,
+    required this.reason,
+    required this.transactions,
+  });
+
+  final bool isTransaction;
+  final String reason;
+  final List<OcrTransactionDraft> transactions;
+
+  factory OcrBatchDraft.fromJson(Map<String, dynamic> json) {
+    final isTransactionValue = json['is_transaction'];
+    final isTransaction =
+        isTransactionValue is bool
+            ? isTransactionValue
+            : (isTransactionValue ?? '').toString().toLowerCase().trim() ==
+                'true';
+
+    final itemsRaw = json['transactions'];
+    final itemsList = itemsRaw is List ? itemsRaw : const [];
+
+    final transactions = <OcrTransactionDraft>[];
+    for (final item in itemsList) {
+      if (item is Map<String, dynamic>) {
+        transactions.add(OcrTransactionDraft.fromJson(item));
+      } else if (item is Map) {
+        transactions.add(
+          OcrTransactionDraft.fromJson(Map<String, dynamic>.from(item)),
+        );
+      }
+    }
+
+    return OcrBatchDraft(
+      isTransaction: isTransaction,
+      reason: (json['reason'] ?? '').toString().trim(),
+      transactions: transactions,
+    );
+  }
+}

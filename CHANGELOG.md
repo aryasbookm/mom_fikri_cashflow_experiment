@@ -22,6 +22,10 @@ All notable changes to this project will be documented in this file.
     - AI sekarang mengembalikan `is_transaction` + `reason`,
     - foto yang bukan transaksi ditolak sebelum prefill form,
     - validasi lokal diperketat (`amount > 0`, `description/raw_text` cukup jelas) untuk menekan false positive.
+- OCR Multi-Batch (backend checkpoint):
+  - service OCR kini mengembalikan batch transaksi (`transactions[]`) alih-alih object tunggal.
+  - batas maksimum transaksi per scan ditetapkan **30 item** (`maxItemsPerScan=30`) sesuai konteks buku lapangan.
+  - filter server-side: item nominal `<= 0` dan item teks tidak jelas otomatis dibuang sebelum diteruskan ke UI.
 - First-install onboarding wajib (owner account + cut-off date + saldo awal kas), aktif otomatis saat tabel user masih kosong.
 - Owner-only menu **Penyesuaian Saldo Kas** di tab Akun: input kas fisik + alasan, hitung selisih otomatis, simpan transaksi `IN/OUT` kategori `Penyesuaian Saldo`.
 - POC **Insight AI (Owner Dashboard)**:
