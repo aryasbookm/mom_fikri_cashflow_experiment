@@ -24,6 +24,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
   String? _imageMimeType;
   OcrTransactionDraft? _draft;
   String? _lastErrorMessage;
+  String? _lastRejectedReason;
 
   Future<void> _pickAndProcess(ImageSource source) async {
     if (_isLoading) {
@@ -46,6 +47,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
       _imageMimeType = null;
       _draft = null;
       _lastErrorMessage = null;
+      _lastRejectedReason = null;
     });
 
     try {
@@ -92,6 +94,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
       setState(() {
         _draft = draft;
         _lastErrorMessage = null;
+        _lastRejectedReason = null;
       });
     } on AiRateLimitException catch (error) {
       if (!mounted) {
@@ -110,6 +113,10 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
       }
       setState(() {
         _lastErrorMessage = 'Gagal memproses scan: $error';
+        _lastRejectedReason =
+            _lastErrorMessage!.toLowerCase().contains('bukan catatan transaksi')
+                ? _lastErrorMessage
+                : null;
       });
       ScaffoldMessenger.of(
         context,
@@ -167,6 +174,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     setState(() {
       _draft = null;
       _lastErrorMessage = null;
+      _lastRejectedReason = null;
     });
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -266,6 +274,13 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
                     _lastErrorMessage!,
                     style: const TextStyle(color: Color(0xFFB71C1C)),
                   ),
+                  if (_lastRejectedReason != null) ...[
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Tip: pastikan foto memuat tulisan transaksi + nominal yang jelas.',
+                      style: TextStyle(color: Colors.black54),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   Align(
                     alignment: Alignment.centerRight,

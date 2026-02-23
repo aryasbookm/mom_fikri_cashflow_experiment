@@ -177,6 +177,10 @@ Catatan:
      - tetap Human-in-the-Loop: data tidak disimpan otomatis, user wajib review dan tekan `Simpan`.
      - proteksi UX duplikasi: setelah simpan sukses dari form, draft di layar scan dibersihkan dan muncul konfirmasi sukses.
      - recovery jaringan: jika OCR gagal sementara (mis. `503`), user bisa `Coba Lagi` dengan foto yang sama.
+     - guard anti-halusinasi:
+       - AI wajib menilai `is_transaction` sebelum ekstraksi final,
+       - jika bukan transaksi, proses prefill diblok dan alasan ditampilkan ke user,
+       - validasi app-side tetap berjalan untuk mencegah draft nominal/keterangan tidak valid.
 
 10. **Onboarding & Penyesuaian Saldo**
    - First-install onboarding (2 langkah):

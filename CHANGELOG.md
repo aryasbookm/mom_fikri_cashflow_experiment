@@ -18,6 +18,10 @@ All notable changes to this project will be documented in this file.
   - lanjutkan ke form `Catat Pemasukan/Pengeluaran` dalam mode prefill (user tetap review dan menekan `Simpan` manual).
   - setelah transaksi OCR berhasil disimpan, layar scan menampilkan snackbar sukses dan membersihkan draft agar tidak mudah terjadi submit ganda.
   - saat scan gagal (contoh `503`), layar scan menyediakan tombol `Coba Lagi` untuk memproses ulang foto terakhir tanpa ambil foto ulang.
+  - guard non-transaksi ditambahkan:
+    - AI sekarang mengembalikan `is_transaction` + `reason`,
+    - foto yang bukan transaksi ditolak sebelum prefill form,
+    - validasi lokal diperketat (`amount > 0`, `description/raw_text` cukup jelas) untuk menekan false positive.
 - First-install onboarding wajib (owner account + cut-off date + saldo awal kas), aktif otomatis saat tabel user masih kosong.
 - Owner-only menu **Penyesuaian Saldo Kas** di tab Akun: input kas fisik + alasan, hitung selisih otomatis, simpan transaksi `IN/OUT` kategori `Penyesuaian Saldo`.
 - POC **Insight AI (Owner Dashboard)**:

@@ -1,5 +1,7 @@
 class OcrTransactionDraft {
   const OcrTransactionDraft({
+    required this.isTransaction,
+    required this.reason,
     required this.type,
     required this.amount,
     required this.description,
@@ -9,6 +11,8 @@ class OcrTransactionDraft {
     required this.rawText,
   });
 
+  final bool isTransaction;
+  final String reason;
   final String type;
   final int amount;
   final String description;
@@ -35,8 +39,16 @@ class OcrTransactionDraft {
                 0;
 
     final dateIso = (json['date_iso'] ?? '').toString().trim();
+    final isTransactionValue = json['is_transaction'];
+    final isTransaction =
+        isTransactionValue is bool
+            ? isTransactionValue
+            : (isTransactionValue ?? '').toString().toLowerCase().trim() ==
+                'true';
 
     return OcrTransactionDraft(
+      isTransaction: isTransaction,
+      reason: (json['reason'] ?? '').toString().trim(),
       type: type,
       amount: amount < 0 ? 0 : amount,
       description: (json['description'] ?? '').toString().trim(),

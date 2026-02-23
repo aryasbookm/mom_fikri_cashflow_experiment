@@ -29,6 +29,8 @@ Kamu mengekstrak 1 transaksi dari foto catatan buku keuangan UMKM.
 Balas HANYA JSON object valid (tanpa markdown, tanpa teks tambahan).
 
 Aturan:
+- is_transaction: true jika foto berisi catatan transaksi keuangan yang masuk akal, false jika bukan transaksi.
+- reason: wajib diisi singkat saat is_transaction=false (contoh: "foto tidak berisi catatan transaksi yang jelas").
 - type: "IN" atau "OUT".
 - amount: integer rupiah tanpa titik/koma (contoh 15000).
 - description: ringkas.
@@ -39,6 +41,8 @@ Aturan:
 
 JSON schema:
 {
+  "is_transaction": true,
+  "reason": "",
   "type": "IN|OUT",
   "amount": 0,
   "description": "",
@@ -103,9 +107,26 @@ JSON schema:
 
     final parsed = _parseJsonObject(text);
     final draft = OcrTransactionDraft.fromJson(parsed);
+    if (!draft.isTransaction) {
+      final reason =
+          draft.reason.isNotEmpty
+              ? draft.reason
+              : 'Foto ini sepertinya bukan catatan transaksi.';
+      throw Exception(reason);
+    }
     if (draft.amount <= 0) {
       throw Exception(
         'Nominal tidak terbaca dengan jelas. Coba foto lebih dekat.',
+      );
+    }
+    if (draft.rawText.trim().length < 3) {
+      throw Exception(
+        'Teks transaksi tidak terbaca jelas. Coba foto lebih terang.',
+      );
+    }
+    if (draft.description.trim().length < 3) {
+      throw Exception(
+        'Keterangan transaksi kurang jelas. Coba foto lebih fokus.',
       );
     }
     return draft;
