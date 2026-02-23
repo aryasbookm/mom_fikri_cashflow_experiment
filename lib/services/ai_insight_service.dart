@@ -7,6 +7,11 @@ import 'package:http/http.dart' as http;
 
 enum AiQuotaType { rpm, tpm, rpd, unknown }
 
+const bool _aiDebugLog = bool.fromEnvironment(
+  'AI_DEBUG_LOG',
+  defaultValue: false,
+);
+
 class AiRateLimitException implements Exception {
   const AiRateLimitException({
     required this.retryAfterSeconds,
@@ -25,19 +30,11 @@ class AiRateLimitException implements Exception {
     if (message != null && message!.trim().isNotEmpty) {
       return message!;
     }
-    if (isDailyLimit) {
-      return 'Limit AI harian sudah habis. Silakan coba lagi besok.';
-    }
-    switch (quotaType) {
-      case AiQuotaType.rpm:
-        return 'Terlalu banyak permintaan AI. Coba lagi dalam $retryAfterSeconds detik.';
-      case AiQuotaType.tpm:
-        return 'Batas token AI per menit tercapai. Coba lagi dalam $retryAfterSeconds detik atau kirim data lebih ringkas.';
-      case AiQuotaType.rpd:
-        return 'Limit AI harian sudah habis. Silakan coba lagi besok.';
-      case AiQuotaType.unknown:
-        return 'Kuota AI sedang sibuk. Coba lagi dalam $retryAfterSeconds detik.';
-    }
+    return _friendlyQuotaMessage(
+      quotaType: quotaType,
+      retryAfterSeconds: retryAfterSeconds,
+      isDailyLimit: isDailyLimit,
+    );
   }
 }
 
@@ -130,7 +127,9 @@ AiRateLimitException buildAiRateLimitExceptionFromResponse(
           lower.contains('too many requests')) {
         quotaType = AiQuotaType.rpm;
       }
-      message = rawMessage;
+      if (_aiDebugLog) {
+        developer.log('Gemini 429 raw message: $rawMessage');
+      }
     }
   } catch (_) {
     // keep fallback mapping
@@ -152,16 +151,33 @@ AiRateLimitException buildAiRateLimitExceptionFromResponse(
   );
 }
 
+String _friendlyQuotaMessage({
+  required AiQuotaType quotaType,
+  required int retryAfterSeconds,
+  required bool isDailyLimit,
+}) {
+  if (isDailyLimit || quotaType == AiQuotaType.rpd) {
+    return 'Batas AI hari ini habis. Coba lagi besok.';
+  }
+  switch (quotaType) {
+    case AiQuotaType.rpm:
+      return 'Terlalu sering meminta AI. Coba lagi dalam $retryAfterSeconds detik.';
+    case AiQuotaType.tpm:
+      return 'Data scan terlalu berat untuk saat ini. Coba lagi dalam $retryAfterSeconds detik.';
+    case AiQuotaType.rpd:
+      return 'Batas AI hari ini habis. Coba lagi besok.';
+    case AiQuotaType.unknown:
+      return 'AI sedang sibuk. Coba lagi dalam $retryAfterSeconds detik.';
+  }
+}
+
 class AiInsightService {
   static const String _apiKey = String.fromEnvironment('GEMINI_API_KEY');
   static const String _model = String.fromEnvironment(
     'GEMINI_MODEL',
     defaultValue: 'gemini-2.5-flash',
   );
-  static const bool _debugLog = bool.fromEnvironment(
-    'AI_DEBUG_LOG',
-    defaultValue: false,
-  );
+  static const bool _debugLog = _aiDebugLog;
   static const int _maxOutputTokens = 420;
 
   Future<String> generateOwnerInsight({
