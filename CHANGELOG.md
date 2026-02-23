@@ -35,6 +35,10 @@ All notable changes to this project will be documented in this file.
 - AppBar AI trigger:
   - perbaikan race condition saat pertama login: tombol `Minta Saran AI` kini tidak lagi silent-fail pada klik awal.
   - jika state dashboard belum siap, user mendapat snackbar feedback (`Beranda belum siap...`) alih-alih tidak ada respons.
+- Dashboard input entrypoint:
+  - ikon `Scan` di AppBar Beranda dipindah agar area analisis lebih bersih.
+  - ditambahkan FAB `Tambah Data` di Beranda dengan bottom sheet 3 opsi:
+    `Catat Pemasukan`, `Catat Pengeluaran`, `Scan Catatan (AI)`.
 - AI quota error handling:
   - parser error `429` kini membaca detail `QuotaFailure`/`RetryInfo` dari response Gemini untuk membedakan indikasi RPM/TPM/RPD.
   - pesan user dibuat lebih spesifik (request per menit, token per menit, atau limit harian).

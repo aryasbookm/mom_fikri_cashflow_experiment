@@ -162,6 +162,10 @@ Catatan:
    - AppBar AI trigger hardened:
      - saat state beranda belum siap (sesaat setelah login), klik awal tidak lagi diam tanpa respons;
      - user menerima snackbar status dan tombol siap dipakai segera setelah state terikat.
+   - Entrypoint input dipusatkan via FAB:
+     - FAB `Tambah Data` di Beranda membuka bottom sheet:
+       `Catat Pemasukan`, `Catat Pengeluaran`, `Scan Catatan (AI)`.
+     - ikon scan dipindah dari AppBar agar AppBar tetap fokus ke aksi analisis (AI insight).
    - Konteks AI 30 hari sekarang mencakup dua sisi:
      - produk terlaris (maks 3 item),
      - produk kurang laris (maks 3 item),
