@@ -257,6 +257,8 @@ Catatan:
   - `--dart-define=GEMINI_API_KEY=<KEY_ANDA>`
 - Opsional ganti model:
   - `--dart-define=GEMINI_MODEL=gemini-2.5-flash`
+- Debug verifikasi respons (opsional):
+  - `--dart-define=AI_DEBUG_LOG=true` untuk mencetak prompt AI dan raw response Gemini ke terminal.
 
 ## Reset DB (Hard Reset)
 - DB version: 9

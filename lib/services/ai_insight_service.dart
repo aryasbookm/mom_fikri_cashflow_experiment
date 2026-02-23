@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
@@ -9,6 +10,10 @@ class AiInsightService {
   static const String _model = String.fromEnvironment(
     'GEMINI_MODEL',
     defaultValue: 'gemini-2.5-flash',
+  );
+  static const bool _debugLog = bool.fromEnvironment(
+    'AI_DEBUG_LOG',
+    defaultValue: false,
   );
 
   Future<String> generateOwnerInsight({
@@ -55,6 +60,12 @@ Format jawaban WAJIB:
     final uri = Uri.parse(
       'https://generativelanguage.googleapis.com/v1beta/models/$_model:generateContent?key=$_apiKey',
     );
+    if (_debugLog) {
+      developer.log(
+        'Prompt sent to Gemini:\n$prompt',
+        name: 'AI_DEBUG',
+      );
+    }
 
     http.Response response;
     try {
@@ -89,18 +100,43 @@ Format jawaban WAJIB:
     }
 
     final Map<String, dynamic> body = jsonDecode(response.body);
+    if (_debugLog) {
+      developer.log(
+        'Raw Gemini response:\n${response.body}',
+        name: 'AI_DEBUG',
+      );
+    }
     final candidates = body['candidates'] as List<dynamic>?;
     if (candidates == null || candidates.isEmpty) {
       throw Exception('AI tidak mengembalikan saran.');
     }
 
-    final content = candidates.first['content'] as Map<String, dynamic>?;
-    final parts = content?['parts'] as List<dynamic>?;
-    final text = parts != null && parts.isNotEmpty ? parts.first['text'] : null;
-    if (text is! String || text.trim().isEmpty) {
+    final texts = <String>[];
+    for (final candidate in candidates) {
+      final candidateMap =
+          candidate is Map<String, dynamic>
+              ? candidate
+              : Map<String, dynamic>.from(candidate as Map);
+      final content = candidateMap['content'] as Map<String, dynamic>?;
+      final parts = content?['parts'] as List<dynamic>?;
+      if (parts == null || parts.isEmpty) {
+        continue;
+      }
+      for (final part in parts) {
+        final partMap =
+            part is Map<String, dynamic>
+                ? part
+                : Map<String, dynamic>.from(part as Map);
+        final text = partMap['text'];
+        if (text is String && text.trim().isNotEmpty) {
+          texts.add(text.trim());
+        }
+      }
+    }
+    if (texts.isEmpty) {
       throw Exception('Jawaban AI kosong.');
     }
 
-    return text.trim();
+    return texts.join('\n\n');
   }
 }
