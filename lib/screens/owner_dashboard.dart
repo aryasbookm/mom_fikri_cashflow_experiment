@@ -378,7 +378,9 @@ class OwnerDashboardState extends State<OwnerDashboard> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal memuat insight AI: $error')),
+        const SnackBar(
+          content: Text('Gagal memuat insight AI. Periksa internet lalu coba lagi.'),
+        ),
       );
     } finally {
       if (mounted) {

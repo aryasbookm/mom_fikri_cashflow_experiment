@@ -74,6 +74,10 @@ All notable changes to this project will be documented in this file.
   - PDF menampilkan ringkasan produk untuk transaksi pemasukan (hybrid) dan tetap menyertakan detail item agar lebih mudah dibaca owner.
 
 ### Changed
+- Riwayat UX dirapikan:
+  - header filter/search/migrasi/ringkasan kini ikut scroll bersama daftar transaksi (tidak lagi menahan area konten terlalu besar).
+  - section `Migrasi dari Buku` dibuat lebih compact agar tidak mendominasi layar.
+  - section migrasi menampilkan status AI langsung (`AI siap dipakai` / pesan limit) sebelum user menekan scan.
 - Dashboard input entrypoint disederhanakan:
   - FAB Beranda dihapus agar tidak menduplikasi aksi utama `Catat Pemasukan/Pengeluaran`.
   - entry OCR dipindah ke section khusus **Migrasi dari Buku** di layar Riwayat (body, bukan AppBar) agar konteks lebih tepat.
@@ -81,6 +85,9 @@ All notable changes to this project will be documented in this file.
   - tombol `Ambil Foto` / `Pilih Galeri` otomatis nonaktif saat cooldown/limit harian AI aktif,
   - pengguna mendapat peringatan dini di layar (tanpa harus ambil foto dulu baru gagal),
   - status blokir kuota disinkronkan dari trigger AI Dashboard dan OCR agar perilaku konsisten.
+- Error handling AI/OCR diperhalus:
+  - fallback error yang bersifat teknis/mentah tidak lagi ditampilkan ke user.
+  - pesan di UI disederhanakan menjadi kalimat ringkas dan actionable.
 - AI Insight POC:
   - dialog hasil kini menampilkan ringkasan data 30 hari yang benar-benar dikirim ke AI (untuk verifikasi input).
   - jika respons AI terlalu generik/tidak lengkap (belum memuat poin 1/2/3), sistem melakukan 1x retry dengan prompt lebih ketat.

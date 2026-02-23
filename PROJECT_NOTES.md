@@ -166,6 +166,9 @@ Catatan:
     - FAB Beranda dihapus untuk menghindari duplikasi aksi input utama.
     - akses OCR dipindah ke section **Migrasi dari Buku** di layar Riwayat (body) agar kontekstual untuk input historis.
     - ikon scan dipindah dari AppBar agar AppBar tetap fokus ke aksi analisis (AI insight).
+  - Riwayat memakai pola scroll penuh:
+    - filter, search, migrasi, dan ringkasan tidak lagi mengunci viewport list.
+    - area daftar transaksi jadi lebih longgar pada layar HP kecil.
    - Konteks AI 30 hari sekarang mencakup dua sisi:
      - produk terlaris (maks 3 item),
      - produk kurang laris (maks 3 item),
@@ -187,6 +190,8 @@ Catatan:
      - proteksi UX duplikasi: setelah simpan sukses dari form, draft di layar scan dibersihkan dan muncul konfirmasi sukses.
     - recovery jaringan: jika OCR gagal sementara (mis. `503`), user bisa `Coba Lagi` dengan foto yang sama.
     - pre-check kuota: jika cooldown/limit harian aktif, tombol kamera/galeri dinonaktifkan dan user diberi pesan dini.
+    - kartu migrasi di Riwayat menampilkan status kuota AI langsung, sehingga user tahu kondisi AI sebelum masuk ke layar scan.
+    - fallback error OCR disederhanakan agar tidak menampilkan teks teknis mentah dari provider AI.
      - guard anti-halusinasi:
        - AI wajib menilai `is_transaction` sebelum ekstraksi final,
        - jika bukan transaksi, proses prefill diblok dan alasan ditampilkan ke user,

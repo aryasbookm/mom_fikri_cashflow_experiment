@@ -78,6 +78,26 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     });
   }
 
+  String _toUserFacingOcrError(Object error) {
+    final raw = error.toString().toLowerCase();
+    if (raw.contains('internet') || raw.contains('socket')) {
+      return 'Tidak ada koneksi internet. Coba lagi.';
+    }
+    if (raw.contains('timeout')) {
+      return 'Proses scan AI timeout. Coba lagi.';
+    }
+    if (raw.contains('503') || raw.contains('server')) {
+      return 'Server AI sedang sibuk. Coba lagi sebentar.';
+    }
+    if (raw.contains('bukan catatan transaksi')) {
+      return 'Foto ini bukan catatan transaksi yang jelas.';
+    }
+    if (raw.contains('api key')) {
+      return 'Konfigurasi AI belum siap. Hubungi admin aplikasi.';
+    }
+    return 'Gagal memproses scan. Coba lagi.';
+  }
+
   Future<void> _pickAndProcess(ImageSource source) async {
     if (_isLoading) {
       return;
@@ -125,7 +145,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
       }
       setState(() {
         _isLoading = false;
-        _lastErrorMessage = 'Gagal membaca file gambar: $error';
+        _lastErrorMessage = _toUserFacingOcrError(error);
       });
       ScaffoldMessenger.of(
         context,
@@ -192,7 +212,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
         return;
       }
       setState(() {
-        _lastErrorMessage = 'Gagal memproses scan: $error';
+        _lastErrorMessage = _toUserFacingOcrError(error);
         _lastRejectedReason =
             _lastErrorMessage!.toLowerCase().contains('bukan catatan transaksi')
                 ? _lastErrorMessage
