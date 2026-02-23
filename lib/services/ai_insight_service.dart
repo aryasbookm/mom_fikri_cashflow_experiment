@@ -5,6 +5,21 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
+class AiRateLimitException implements Exception {
+  const AiRateLimitException({required this.retryAfterSeconds, this.message});
+
+  final int retryAfterSeconds;
+  final String? message;
+
+  @override
+  String toString() {
+    if (message != null && message!.trim().isNotEmpty) {
+      return message!;
+    }
+    return 'Kuota AI sedang sibuk. Coba lagi dalam $retryAfterSeconds detik.';
+  }
+}
+
 class AiInsightService {
   static const String _apiKey = String.fromEnvironment('GEMINI_API_KEY');
   static const String _model = String.fromEnvironment(
@@ -21,6 +36,7 @@ class AiInsightService {
     required int income30,
     required int expense30,
     required int net30,
+    required List<Map<String, dynamic>> topProducts,
     required List<Map<String, dynamic>> slowMovingProducts,
   }) async {
     if (_apiKey.trim().isEmpty) {
@@ -28,6 +44,17 @@ class AiInsightService {
         'API key Gemini belum diset. Jalankan app dengan --dart-define=GEMINI_API_KEY=... ',
       );
     }
+
+    final topText =
+        topProducts.isEmpty
+            ? '- Tidak ada data produk terlaris.'
+            : topProducts
+                .map((item) {
+                  final name = item['name'] ?? '-';
+                  final qty = item['total_qty'] ?? 0;
+                  return '- $name: terjual $qty pcs';
+                })
+                .join('\n');
 
     final slowText =
         slowMovingProducts.isEmpty
@@ -42,21 +69,24 @@ class AiInsightService {
                 .join('\n');
 
     final prompt = '''
-Kamu adalah asisten bisnis untuk UMKM toko kue.
-Berikan tepat 3 saran praktis, singkat, dan dapat dieksekusi.
-Gunakan Bahasa Indonesia yang sederhana.
+Kamu adalah mentor bisnis toko kue lokal UMKM.
+Gunakan bahasa sehari-hari yang ringan dan mudah dipahami pemilik toko.
+DILARANG memakai istilah korporat/teknis seperti: margin, evaluasi operasional, perputaran stok, optimize, leverage.
 Jangan mengarang angka baru, gunakan hanya data berikut:
 - Pemasukan 30 hari: Rp $income30
 - Pengeluaran 30 hari: Rp $expense30
 - Selisih bersih 30 hari: Rp $net30
+- Produk terlaris:
+$topText
 - Produk kurang laris:
 $slowText
 
 Format jawaban WAJIB:
-1) ...
-2) ...
-3) ...
-Tanpa kalimat pembuka tambahan.
+1) 🌟 Bintang Toko: cara sederhana meningkatkan hasil dari produk terlaris.
+2) 🔍 Cek Produk Lambat: dugaan penyebab masuk akal + 1 aksi sederhana 7 hari.
+3) 💰 Pantau Dompet: 1 tips praktis menjaga uang kas agar tetap aman.
+Setiap poin maksimal 32 kata.
+Tanpa kalimat pembuka/penutup tambahan.
 ''';
 
     final firstBody = await _requestGemini(prompt, temperature: 0.25);
@@ -80,21 +110,24 @@ Tanpa kalimat pembuka tambahan.
     }
 
     final retryPrompt = '''
-Jawaban kamu sebelumnya tidak lengkap.
-Berikan ulang dengan format ketat:
-1) ...
-2) ...
-3) ...
-Setiap poin maksimal 25 kata.
+Jawaban kamu sebelumnya belum sesuai format.
+Ulangi tepat 3 poin, format ketat:
+1) 🌟 Bintang Toko: ...
+2) 🔍 Cek Produk Lambat: ...
+3) 💰 Pantau Dompet: ...
+Setiap poin maksimal 28 kata, bahasa sangat sederhana.
 
 Wajib menyebut angka ini apa adanya:
 - Pemasukan: Rp $income30
 - Pengeluaran: Rp $expense30
 - Selisih: Rp $net30
+- Produk terlaris:
+$topText
 - Produk kurang laris:
 $slowText
 
-Tanpa kalimat pembuka.
+Jangan pakai istilah korporat.
+Tanpa kalimat pembuka/penutup.
 ''';
 
     final retryBody = await _requestGemini(retryPrompt, temperature: 0.2);
@@ -111,6 +144,7 @@ Tanpa kalimat pembuka.
         income30: income30,
         expense30: expense30,
         net30: net30,
+        topProducts: topProducts,
         slowMovingProducts: slowMovingProducts,
       );
     }
@@ -162,6 +196,12 @@ Tanpa kalimat pembuka.
     }
 
     if (response.statusCode >= 400) {
+      if (response.statusCode == 429) {
+        final retryAfter = _parseRetryAfterSeconds(
+          response.headers['retry-after'],
+        );
+        throw AiRateLimitException(retryAfterSeconds: retryAfter);
+      }
       throw Exception('Permintaan AI gagal (${response.statusCode}).');
     }
 
@@ -252,22 +292,46 @@ Tanpa kalimat pembuka.
     required int income30,
     required int expense30,
     required int net30,
+    required List<Map<String, dynamic>> topProducts,
     required List<Map<String, dynamic>> slowMovingProducts,
   }) {
+    final topNames = topProducts
+        .map((item) => '${item['name'] ?? '-'}')
+        .take(2)
+        .join(' dan ');
+    final hasTop = topProducts.isNotEmpty;
     final slowNames = slowMovingProducts
         .map((item) => '${item['name'] ?? '-'}')
         .take(2)
         .join(' dan ');
     final hasSlow = slowMovingProducts.isNotEmpty;
-    final margin = income30 == 0 ? 0.0 : (net30 / income30) * 100.0;
-    final marginText = margin.isFinite ? margin.toStringAsFixed(1) : '0.0';
 
     return '''
-1) Pantau margin 30 hari Anda: pemasukan Rp $income30, pengeluaran Rp $expense30, selisih Rp $net30 (margin $marginText%). Tetapkan batas belanja bahan mingguan.
+1) 🌟 Bintang Toko: ${hasTop ? '$topNames sedang paling laku. Pastikan stok dan bahan untuk produk ini aman dulu setiap pagi.' : 'Belum ada data produk paling laku. Catat produk yang paling cepat habis minggu ini.'}
 
-2) ${hasSlow ? 'Fokus promosi untuk $slowNames dalam 7 hari ke depan (bundling/diskon jam tertentu) agar perputaran stok naik.' : 'Belum ada produk sangat lambat, pertahankan ritme produksi sesuai pola penjualan mingguan.'}
+2) 🔍 Cek Produk Lambat: ${hasSlow ? '$slowNames masih lambat. Coba tes 1 perubahan kecil selama 7 hari (porsi mini atau bonus topping) lalu lihat apakah penjualan naik.' : 'Belum ada produk yang sangat lambat. Tetap pantau produk yang jarang dibeli agar tidak menumpuk.'}
 
-3) Buat target operasional mingguan: minimal 1 evaluasi biaya operasional + 1 aksi peningkatan penjualan, lalu cek hasilnya di akhir minggu.
+3) 💰 Pantau Dompet: pemasukan Rp $income30, pengeluaran Rp $expense30, selisih Rp $net30. Tetapkan batas belanja bahan mingguan supaya uang kas tidak cepat habis.
 '''.trim();
+  }
+
+  int _parseRetryAfterSeconds(String? retryAfterHeader) {
+    if (retryAfterHeader == null || retryAfterHeader.trim().isEmpty) {
+      return 60;
+    }
+
+    final trimmed = retryAfterHeader.trim();
+    final secondsValue = int.tryParse(trimmed);
+    if (secondsValue != null && secondsValue > 0) {
+      return secondsValue;
+    }
+
+    final dateValue = DateTime.tryParse(trimmed);
+    if (dateValue != null) {
+      final seconds = dateValue.difference(DateTime.now().toUtc()).inSeconds;
+      return seconds > 0 ? seconds : 60;
+    }
+
+    return 60;
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:confetti/confetti.dart';
 import 'package:intl/intl.dart';
@@ -32,6 +34,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
   bool _showBackupAlert = false;
   bool _isBackingUp = false;
   bool _isGeneratingAiInsight = false;
+  Timer? _aiCooldownTimer;
+  int _aiCooldownSeconds = 0;
   late final ConfettiController _confettiController;
   Future<List<Map<String, dynamic>>>? _topProductsFuture;
   Future<List<Map<String, dynamic>>>? _slowMovingFuture;
@@ -58,6 +62,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
 
   @override
   void dispose() {
+    _aiCooldownTimer?.cancel();
     _confettiController.dispose();
     super.dispose();
   }
@@ -196,7 +201,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
   }
 
   Future<void> _generateAiInsight(TransactionProvider provider) async {
-    if (_isGeneratingAiInsight) {
+    if (_isGeneratingAiInsight || _aiCooldownSeconds > 0) {
       return;
     }
     setState(() {
@@ -225,6 +230,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
         }
       }
       final net30 = income30 - expense30;
+      final topProducts = await provider.getTopProducts(limit: 3, days: 30);
       final slowMoving = await provider.getSlowMovingProducts(
         limit: 3,
         days: 30,
@@ -233,8 +239,17 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
         income30: income30,
         expense30: expense30,
         net30: net30,
+        topProducts: topProducts,
         slowMovingProducts: slowMoving,
       );
+      final topSummary =
+          topProducts.isEmpty
+              ? 'Tidak ada'
+              : topProducts
+                  .map(
+                    (e) => '${e['name'] ?? '-'} (${e['total_qty'] ?? 0} pcs)',
+                  )
+                  .join(', ');
       final slowSummary =
           slowMoving.isEmpty
               ? 'Tidak ada'
@@ -262,6 +277,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                     '- Pemasukan: Rp ${NumberFormat('#,##0', 'id_ID').format(income30)}\n'
                     '- Pengeluaran: Rp ${NumberFormat('#,##0', 'id_ID').format(expense30)}\n'
                     '- Selisih: Rp ${NumberFormat('#,##0', 'id_ID').format(net30)}\n'
+                    '- Produk terlaris: $topSummary\n'
                     '- Produk kurang laris: $slowSummary',
                     style: const TextStyle(fontSize: 12, color: Colors.black54),
                   ),
@@ -279,6 +295,19 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
           );
         },
       );
+      _startAiCooldown(20);
+    } on AiRateLimitException catch (error) {
+      _startAiCooldown(error.retryAfterSeconds);
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'AI sedang sibuk. Coba lagi dalam ${error.retryAfterSeconds} detik.',
+          ),
+        ),
+      );
     } catch (error) {
       if (!mounted) {
         return;
@@ -293,6 +322,33 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
         });
       }
     }
+  }
+
+  void _startAiCooldown(int seconds) {
+    final safeSeconds = seconds < 1 ? 1 : seconds;
+    _aiCooldownTimer?.cancel();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _aiCooldownSeconds = safeSeconds;
+    });
+    _aiCooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_aiCooldownSeconds <= 1) {
+        timer.cancel();
+        setState(() {
+          _aiCooldownSeconds = 0;
+        });
+        return;
+      }
+      setState(() {
+        _aiCooldownSeconds -= 1;
+      });
+    });
   }
 
   Future<void> _setDailyTarget(int target) async {
@@ -615,20 +671,25 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                     title:
                         _isGeneratingAiInsight
                             ? 'Memuat Insight AI...'
+                            : _aiCooldownSeconds > 0
+                            ? 'AI jeda $_aiCooldownSeconds detik'
                             : 'Minta Saran AI (Online)',
                     color: const Color(0xFF6A1B9A),
                     onTap: () {
-                      if (_isGeneratingAiInsight) {
+                      if (_isGeneratingAiInsight || _aiCooldownSeconds > 0) {
                         return;
                       }
                       _generateAiInsight(provider);
                     },
+                    enabled: !_isGeneratingAiInsight && _aiCooldownSeconds == 0,
                   ),
                   const SizedBox(height: 6),
-                  const Text(
-                    'Fitur ini memerlukan koneksi internet aktif.',
+                  Text(
+                    _aiCooldownSeconds > 0
+                        ? 'AI sedang istirahat. Coba lagi dalam $_aiCooldownSeconds detik.'
+                        : 'Fitur ini memerlukan koneksi internet aktif.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12, color: Colors.black54),
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
                   ),
                   const SizedBox(height: 16),
                   Container(
@@ -969,17 +1030,20 @@ class _ActionCard extends StatelessWidget {
     required this.title,
     required this.color,
     required this.onTap,
+    this.enabled = true,
   });
 
   final IconData icon;
   final String title;
   final Color color;
   final VoidCallback onTap;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
+    final activeColor = enabled ? color : Colors.grey;
     return InkWell(
-      onTap: onTap,
+      onTap: enabled ? onTap : null,
       borderRadius: BorderRadius.circular(12),
       child: Ink(
         padding: const EdgeInsets.all(16),
@@ -998,11 +1062,17 @@ class _ActionCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             CircleAvatar(
-              backgroundColor: color.withOpacity(0.15),
-              child: Icon(icon, color: color),
+              backgroundColor: activeColor.withOpacity(0.15),
+              child: Icon(icon, color: activeColor),
             ),
             const SizedBox(height: 12),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+            Text(
+              title,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: enabled ? Colors.black87 : Colors.black45,
+              ),
+            ),
           ],
         ),
       ),

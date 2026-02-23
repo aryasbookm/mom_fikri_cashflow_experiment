@@ -46,6 +46,16 @@ All notable changes to this project will be documented in this file.
   - jika respons AI terlalu generik/tidak lengkap (belum memuat poin 1/2/3), sistem melakukan 1x retry dengan prompt lebih ketat.
   - batas output token AI dinaikkan agar risiko output terpotong berkurang.
   - jika setelah retry respons masih tidak lengkap, sistem memakai fallback saran lokal (3 poin) agar user tetap mendapat output yang dapat dipakai.
+- AI Insight POC:
+  - status `429` kini ditangani khusus dengan membaca header `Retry-After` (fallback 60 detik) dan menampilkan pesan tunggu yang jelas ke pengguna.
+  - tombol `Minta Saran AI` otomatis cooldown: nonaktif saat loading, nonaktif beberapa detik setelah sukses (anti-spam), dan nonaktif sesuai `Retry-After` saat rate-limit.
+  - ditambahkan hitung mundur di dashboard (`AI sedang istirahat...`) agar pengguna tahu kapan bisa mencoba lagi.
+- AI Insight POC:
+  - konteks AI diperkaya: kini mengirim data `Produk Terlaris (30 Hari)` selain `Produk Kurang Laris (30 Hari)` agar saran lebih seimbang.
+  - prompt AI dirombak ke gaya bahasa UMKM lokal (lebih sederhana, menghindari istilah korporat), dengan format output ketat:
+    `🌟 Bintang Toko`, `🔍 Cek Produk Lambat`, `💰 Pantau Dompet`.
+  - fallback lokal ikut disesuaikan agar output tetap mudah dipahami ketika respons AI tidak memenuhi format.
+  - dialog verifikasi "Data terkirim" sekarang menampilkan produk terlaris dan kurang laris sekaligus.
 - AI Insight POC: parser response Gemini diperbaiki agar menggabungkan semua `parts.text` (tidak hanya part pertama), sehingga output 3 poin saran tampil utuh.
 - AI Insight POC: ditambahkan debug logging opsional (`--dart-define=AI_DEBUG_LOG=true`) untuk menampilkan prompt terkirim dan raw response ke terminal saat verifikasi.
 - Smart backup reminder (versi terkontrol):
