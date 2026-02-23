@@ -159,6 +159,13 @@ Catatan:
 9. **Dashboard Owner (Ringkas)**
    - Menampilkan Top Produk (7 hari) untuk keputusan produksi
    - POC Insight AI (online): trigger via ikon `✨` di AppBar kanan atas; mengirim ringkasan 30 hari ke Gemini dan menampilkan 3 saran bisnis dalam dialog.
+   - AppBar AI trigger hardened:
+     - saat state beranda belum siap (sesaat setelah login), klik awal tidak lagi diam tanpa respons;
+     - user menerima snackbar status dan tombol siap dipakai segera setelah state terikat.
+  - Entrypoint OCR ditempatkan sebagai aksi sekunder:
+    - FAB Beranda dihapus untuk menghindari duplikasi aksi input utama.
+    - akses OCR dipindah ke section **Migrasi dari Buku** di layar Riwayat (body) agar kontekstual untuk input historis.
+    - ikon scan dipindah dari AppBar agar AppBar tetap fokus ke aksi analisis (AI insight).
    - Konteks AI 30 hari sekarang mencakup dua sisi:
      - produk terlaris (maks 3 item),
      - produk kurang laris (maks 3 item),
@@ -169,18 +176,30 @@ Catatan:
      - jika kena `429`, UI membaca jeda dari `Retry-After` (atau fallback 60 detik) lalu menjalankan cooldown.
      - setelah request sukses, cooldown singkat tetap diterapkan untuk mencegah spam klik.
      - selama cooldown tombol AI nonaktif dan menampilkan hitung mundur agar status transparan ke user.
+     - parser 429 diperluas untuk membaca detail quota (`QuotaFailure`/`RetryInfo`) sehingga UI bisa membedakan indikasi RPM/TPM/RPD.
+     - jika terindikasi RPD (limit harian), tombol AI tidak lagi pakai cooldown 60 detik berulang; user diarahkan untuk coba lagi besok.
    - Output AI bersifat asistif/read-only (tidak menulis transaksi otomatis).
    - OCR Asistif (MVP):
-     - akses dari ikon `Scan Catatan` di AppBar Beranda,
+    - akses dari FAB `Scan Catatan` di Beranda,
      - alur: foto/galeri -> AI ekstrak JSON draft -> user konfirmasi -> prefill form transaksi,
      - fokus 1 transaksi per scan (bukan parsing 1 halaman penuh),
      - tetap Human-in-the-Loop: data tidak disimpan otomatis, user wajib review dan tekan `Simpan`.
      - proteksi UX duplikasi: setelah simpan sukses dari form, draft di layar scan dibersihkan dan muncul konfirmasi sukses.
-     - recovery jaringan: jika OCR gagal sementara (mis. `503`), user bisa `Coba Lagi` dengan foto yang sama.
+    - recovery jaringan: jika OCR gagal sementara (mis. `503`), user bisa `Coba Lagi` dengan foto yang sama.
+    - pre-check kuota: jika cooldown/limit harian aktif, tombol kamera/galeri dinonaktifkan dan user diberi pesan dini.
      - guard anti-halusinasi:
        - AI wajib menilai `is_transaction` sebelum ekstraksi final,
        - jika bukan transaksi, proses prefill diblok dan alasan ditampilkan ke user,
        - validasi app-side tetap berjalan untuk mencegah draft nominal/keterangan tidak valid.
+   - OCR Multi-Batch (WIP backend):
+     - AI OCR service sudah mendukung output daftar transaksi (`transactions[]`),
+     - cap item per scan: 30 transaksi,
+     - item invalid (nominal <= 0 atau teks tidak jelas) difilter sebelum masuk tahap review UI.
+   - OCR Multi-Batch (UI + save):
+     - hasil scan ditampilkan sebagai list transaksi (bukan 1 item),
+     - checkbox per baris + aksi `Pilih Semua` / `Batal Pilihan`,
+     - nominal dan keterangan dapat diedit cepat di list,
+     - batch save menyimpan item yang dicentang sekaligus, lalu tampilkan ringkasan berhasil/gagal.
 
 10. **Onboarding & Penyesuaian Saldo**
    - First-install onboarding (2 langkah):

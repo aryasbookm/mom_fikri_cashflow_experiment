@@ -22,6 +22,27 @@ All notable changes to this project will be documented in this file.
     - AI sekarang mengembalikan `is_transaction` + `reason`,
     - foto yang bukan transaksi ditolak sebelum prefill form,
     - validasi lokal diperketat (`amount > 0`, `description/raw_text` cukup jelas) untuk menekan false positive.
+- OCR Multi-Batch (backend checkpoint):
+  - service OCR kini mengembalikan batch transaksi (`transactions[]`) alih-alih object tunggal.
+  - batas maksimum transaksi per scan ditetapkan **30 item** (`maxItemsPerScan=30`) sesuai konteks buku lapangan.
+  - filter server-side: item nominal `<= 0` dan item teks tidak jelas otomatis dibuang sebelum diteruskan ke UI.
+- OCR Multi-Batch (UI + save flow):
+  - panel konfirmasi tunggal diganti menjadi daftar review transaksi hasil scan.
+  - setiap baris punya checkbox, pilihan default dicentang, plus aksi cepat `Pilih Semua` / `Batal Pilihan`.
+  - nominal/deskripsi bisa diedit langsung di list sebelum simpan.
+  - tombol simpan kini dinamis `Simpan N Transaksi`.
+  - batch save menyimpan seluruh item tercentang ke SQLite dengan ringkasan hasil `berhasil/gagal`.
+- AppBar AI trigger:
+  - perbaikan race condition saat pertama login: tombol `Minta Saran AI` kini tidak lagi silent-fail pada klik awal.
+  - jika state dashboard belum siap, user mendapat snackbar feedback (`Beranda belum siap...`) alih-alih tidak ada respons.
+- Dashboard input entrypoint:
+  - ikon `Scan` di AppBar Beranda dipindah agar area analisis lebih bersih.
+  - ditambahkan FAB `Tambah Data` di Beranda dengan bottom sheet 3 opsi:
+    `Catat Pemasukan`, `Catat Pengeluaran`, `Scan Catatan (AI)`.
+- AI quota error handling:
+  - parser error `429` kini membaca detail `QuotaFailure`/`RetryInfo` dari response Gemini untuk membedakan indikasi RPM/TPM/RPD.
+  - pesan user dibuat lebih spesifik (request per menit, token per menit, atau limit harian).
+  - jika terindikasi limit harian (RPD), dashboard tidak lagi memaksa cooldown 60 detik; status dikunci dengan pesan `coba lagi besok`.
 - First-install onboarding wajib (owner account + cut-off date + saldo awal kas), aktif otomatis saat tabel user masih kosong.
 - Owner-only menu **Penyesuaian Saldo Kas** di tab Akun: input kas fisik + alasan, hitung selisih otomatis, simpan transaksi `IN/OUT` kategori `Penyesuaian Saldo`.
 - POC **Insight AI (Owner Dashboard)**:
@@ -53,6 +74,13 @@ All notable changes to this project will be documented in this file.
   - PDF menampilkan ringkasan produk untuk transaksi pemasukan (hybrid) dan tetap menyertakan detail item agar lebih mudah dibaca owner.
 
 ### Changed
+- Dashboard input entrypoint disederhanakan:
+  - FAB Beranda dihapus agar tidak menduplikasi aksi utama `Catat Pemasukan/Pengeluaran`.
+  - entry OCR dipindah ke section khusus **Migrasi dari Buku** di layar Riwayat (body, bukan AppBar) agar konteks lebih tepat.
+- OCR Asistif kini melakukan pre-check status kuota sebelum proses scan:
+  - tombol `Ambil Foto` / `Pilih Galeri` otomatis nonaktif saat cooldown/limit harian AI aktif,
+  - pengguna mendapat peringatan dini di layar (tanpa harus ambil foto dulu baru gagal),
+  - status blokir kuota disinkronkan dari trigger AI Dashboard dan OCR agar perilaku konsisten.
 - AI Insight POC:
   - dialog hasil kini menampilkan ringkasan data 30 hari yang benar-benar dikirim ke AI (untuk verifikasi input).
   - jika respons AI terlalu generik/tidak lengkap (belum memuat poin 1/2/3), sistem melakukan 1x retry dengan prompt lebih ketat.

@@ -6,7 +6,6 @@ import '../widgets/owner_pin_dialog.dart';
 import 'account_screen.dart';
 import 'login_screen.dart';
 import 'owner_dashboard.dart';
-import 'ocr_assist_screen.dart';
 import 'production_screen.dart';
 import 'report_screen.dart';
 
@@ -118,21 +117,24 @@ class _MainScreenState extends State<MainScreen> {
                 : _currentIndex == 0
                 ? [
                   IconButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const OcrAssistScreen(),
-                        ),
-                      );
+                    onPressed: () async {
+                      final state = _ownerDashboardKey.currentState;
+                      if (state == null) {
+                        if (!mounted) {
+                          return;
+                        }
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Beranda belum siap, coba lagi sebentar.',
+                            ),
+                          ),
+                        );
+                        setState(() {});
+                        return;
+                      }
+                      await state.triggerAiInsightFromAppBar();
                     },
-                    icon: const Icon(Icons.document_scanner_outlined),
-                    tooltip: 'Scan Catatan',
-                  ),
-                  IconButton(
-                    onPressed:
-                        ownerState == null
-                            ? null
-                            : () => ownerState.triggerAiInsightFromAppBar(),
                     icon:
                         aiLoading
                             ? const SizedBox(
@@ -146,7 +148,7 @@ class _MainScreenState extends State<MainScreen> {
                             : Icon(
                               Icons.auto_awesome,
                               color:
-                                  aiTemporarilyUnavailable
+                                  aiTemporarilyUnavailable || ownerState == null
                                       ? Colors.white70
                                       : Colors.white,
                             ),

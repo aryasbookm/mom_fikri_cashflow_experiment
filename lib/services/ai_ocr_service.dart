@@ -8,13 +8,14 @@ import '../models/ocr_transaction_draft.dart';
 import 'ai_insight_service.dart';
 
 class AiOcrService {
+  static const int maxItemsPerScan = 30;
   static const String _apiKey = String.fromEnvironment('GEMINI_API_KEY');
   static const String _model = String.fromEnvironment(
     'GEMINI_MODEL',
     defaultValue: 'gemini-2.5-flash',
   );
 
-  Future<OcrTransactionDraft> extractDraftFromImageBytes({
+  Future<OcrBatchDraft> extractDraftFromImageBytes({
     required List<int> imageBytes,
     required String mimeType,
   }) async {
@@ -25,31 +26,37 @@ class AiOcrService {
     }
 
     final prompt = '''
-Kamu mengekstrak 1 transaksi dari foto catatan buku keuangan UMKM.
+Kamu mengekstrak daftar transaksi dari foto catatan buku keuangan UMKM.
 Balas HANYA JSON object valid (tanpa markdown, tanpa teks tambahan).
 
 Aturan:
-- is_transaction: true jika foto berisi catatan transaksi keuangan yang masuk akal, false jika bukan transaksi.
+- is_transaction: true jika foto berisi catatan transaksi keuangan yang masuk akal, false jika bukan transaksi jelas.
 - reason: wajib diisi singkat saat is_transaction=false (contoh: "foto tidak berisi catatan transaksi yang jelas").
-- type: "IN" atau "OUT".
-- amount: integer rupiah tanpa titik/koma (contoh 15000).
-- description: ringkas.
-- category_hint: kata pendek kategori (contoh "Bahan Baku", "Operasional", "Penjualan Kue", "Pemasukan Lain").
-- date_iso: format yyyy-MM-dd jika terbaca, jika tidak isi string kosong.
-- confidence: 0..100.
-- raw_text: hasil bacaan OCR singkat.
+- Maksimal kembalikan $maxItemsPerScan transaksi yang paling jelas terbaca.
+- Field tiap item transaksi:
+  - type: "IN" atau "OUT"
+  - amount: integer rupiah tanpa titik/koma (contoh 15000)
+  - description: ringkas
+  - category_hint: kata pendek kategori (contoh "Bahan Baku", "Operasional", "Penjualan Kue", "Pemasukan Lain")
+  - date_iso: format yyyy-MM-dd jika terbaca, jika tidak isi string kosong
+  - confidence: 0..100
+  - raw_text: hasil bacaan OCR singkat item tersebut
 
 JSON schema:
 {
   "is_transaction": true,
   "reason": "",
-  "type": "IN|OUT",
-  "amount": 0,
-  "description": "",
-  "category_hint": "",
-  "date_iso": "",
-  "confidence": 0,
-  "raw_text": ""
+  "transactions": [
+    {
+      "type": "IN|OUT",
+      "amount": 0,
+      "description": "",
+      "category_hint": "",
+      "date_iso": "",
+      "confidence": 0,
+      "raw_text": ""
+    }
+  ]
 }
 ''';
 
@@ -90,10 +97,7 @@ JSON schema:
     }
 
     if (response.statusCode == 429) {
-      final retryAfter = _parseRetryAfterSeconds(
-        response.headers['retry-after'],
-      );
-      throw AiRateLimitException(retryAfterSeconds: retryAfter);
+      throw buildAiRateLimitExceptionFromResponse(response);
     }
     if (response.statusCode >= 400) {
       throw Exception('Permintaan OCR AI gagal (${response.statusCode}).');
@@ -106,30 +110,33 @@ JSON schema:
     }
 
     final parsed = _parseJsonObject(text);
-    final draft = OcrTransactionDraft.fromJson(parsed);
-    if (!draft.isTransaction) {
+    final batch = OcrBatchDraft.fromJson(parsed);
+    if (!batch.isTransaction) {
       final reason =
-          draft.reason.isNotEmpty
-              ? draft.reason
+          batch.reason.isNotEmpty
+              ? batch.reason
               : 'Foto ini sepertinya bukan catatan transaksi.';
       throw Exception(reason);
     }
-    if (draft.amount <= 0) {
+
+    final filtered =
+        batch.transactions
+            .where((item) => item.amount > 0)
+            .where((item) => item.description.trim().length >= 3)
+            .where((item) => item.rawText.trim().length >= 3)
+            .take(maxItemsPerScan)
+            .toList();
+
+    if (filtered.isEmpty) {
       throw Exception(
-        'Nominal tidak terbaca dengan jelas. Coba foto lebih dekat.',
+        'Transaksi valid tidak ditemukan. Coba foto lebih jelas atau lebih fokus.',
       );
     }
-    if (draft.rawText.trim().length < 3) {
-      throw Exception(
-        'Teks transaksi tidak terbaca jelas. Coba foto lebih terang.',
-      );
-    }
-    if (draft.description.trim().length < 3) {
-      throw Exception(
-        'Keterangan transaksi kurang jelas. Coba foto lebih fokus.',
-      );
-    }
-    return draft;
+    return OcrBatchDraft(
+      isTransaction: true,
+      reason: '',
+      transactions: filtered,
+    );
   }
 
   String _extractJoinedText(Map<String, dynamic> body) {
@@ -182,22 +189,5 @@ JSON schema:
       throw Exception('Format JSON OCR AI tidak valid.');
     }
     return decoded;
-  }
-
-  int _parseRetryAfterSeconds(String? retryAfterHeader) {
-    if (retryAfterHeader == null || retryAfterHeader.trim().isEmpty) {
-      return 60;
-    }
-    final trimmed = retryAfterHeader.trim();
-    final asInt = int.tryParse(trimmed);
-    if (asInt != null && asInt > 0) {
-      return asInt;
-    }
-    final asDate = DateTime.tryParse(trimmed);
-    if (asDate != null) {
-      final sec = asDate.difference(DateTime.now().toUtc()).inSeconds;
-      return sec > 0 ? sec : 60;
-    }
-    return 60;
   }
 }
