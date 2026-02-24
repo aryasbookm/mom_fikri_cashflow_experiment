@@ -76,6 +76,11 @@ All notable changes to this project will be documented in this file.
   - Phase 1 inferensi tanggal: item mendukung metadata `date_source` (`explicit|inferred|unknown`) dan aturan deterministik `inferred => needs_review=true`.
   - layar review menampilkan banner peringatan saat data terdeteksi parsial/inferensi (`is_partial_day`, `missing_opening_block`, `missing_closing_total`, `inference_notes`).
   - Phase 2 smart parser: nominal gabungan seperti `10.000 + 5.000` dihitung deterministik oleh parser lokal, deskripsi dibersihkan dari ekor nominal, dan baris non-transaksi (`Total/Uang Bersih/Saldo`) difilter ke `ignored_lines`.
+  - Phase 3 audit & anti-duplication:
+    - hash import chat (`import_hash`) dibawa dari service ke layar review,
+    - sebelum simpan, sistem mendeteksi hash yang sama pada riwayat lokal (72 jam) dan meminta konfirmasi ulang jika terduplikasi,
+    - transaksi dari jalur chat import diberi tag audit sumber di deskripsi (`[chat_import:<hash8>]`),
+    - audit ringkas penyimpanan chat import dicatat lokal untuk tracking hash/jumlah/nominal.
 - Payload AI kini menyertakan agregat kategori 30 hari (pemasukan/pengeluaran) untuk Insight dan Chatbot agar jawaban lebih spesifik.
 - Fondasi service chatbot finansial ditambahkan (`AiChatbotService`):
   - bounded context (hanya jawab konteks keuangan toko),

@@ -10,6 +10,7 @@ import '../models/chat_import_draft.dart';
 import '../models/transaction_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/category_provider.dart';
+import '../services/chat_import_audit_service.dart';
 import '../services/ai_insight_service.dart';
 import '../services/ai_ocr_service.dart';
 import '../services/ocr_learning_dictionary_service.dart';
@@ -40,6 +41,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
   bool _isPartialDayImport = false;
   bool _missingOpeningBlock = false;
   bool _missingClosingTotal = false;
+  String _chatImportHash = '';
   String? _lastErrorMessage;
   String? _lastRejectedReason;
   bool _aiBlocked = false;
@@ -302,6 +304,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
       _providerTrail
         ..clear()
         ..add('chat-import');
+      _chatImportHash = draft.importHash.trim();
       _lastErrorMessage = null;
       _lastRejectedReason = null;
       _isLoading = false;
@@ -419,6 +422,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
       _imageMimeType = null;
       _clearDraftItems();
       _providerTrail.clear();
+      _chatImportHash = '';
       _detectedDate = '';
       _notesFound.clear();
       _ignoredLines.clear();
@@ -527,6 +531,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
         _isPartialDayImport = false;
         _missingOpeningBlock = false;
         _missingClosingTotal = false;
+        _chatImportHash = '';
         _lastErrorMessage = null;
         _lastRejectedReason = null;
       });
@@ -630,6 +635,42 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
       return;
     }
 
+    if (_providerTrail.contains('chat-import')) {
+      final duplicate = await ChatImportAuditService.findRecentDuplicate(
+        _chatImportHash,
+      );
+      if (duplicate != null && mounted) {
+        final proceed = await showDialog<bool>(
+          context: context,
+          builder:
+              (context) => AlertDialog(
+                title: const Text('Draf Mirip Terdeteksi'),
+                content: Text(
+                  'Draf chat import dengan hash yang sama terdeteksi pernah disimpan pada '
+                  '${DateFormat('d MMM y HH:mm', 'id_ID').format(duplicate.savedAt)} '
+                  '(${duplicate.itemCount} transaksi). Lanjut simpan ulang?',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('Batal'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: const Text('Lanjut Simpan'),
+                  ),
+                ],
+              ),
+        );
+        if (!mounted || proceed != true) {
+          return;
+        }
+      }
+    }
+    if (!mounted) {
+      return;
+    }
+
     final confirm = await showDialog<bool>(
       context: context,
       builder:
@@ -677,6 +718,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
 
     var success = 0;
     var failed = 0;
+    var savedAmountTotal = 0;
     final learningPairs = <String, String>{};
     for (final item in selected) {
       final amount = _parseAmountInput(item.amountController.text);
@@ -685,6 +727,8 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
         failed += 1;
         continue;
       }
+
+      final auditedDescription = _applyChatImportAuditTag(description);
 
       final categoryId = _resolveCategoryId(
         categoryProvider: categoryProvider,
@@ -716,12 +760,13 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
             type: item.type,
             amount: amount,
             categoryId: categoryId,
-            description: description,
+            description: auditedDescription,
             date: txDate.toIso8601String(),
             userId: userId,
           ),
         );
         success += 1;
+        savedAmountTotal += amount;
         if (item.originalDescription.trim().isNotEmpty &&
             description.isNotEmpty &&
             item.originalDescription.trim() != description) {
@@ -734,6 +779,13 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
 
     if (success > 0 && learningPairs.isNotEmpty) {
       await OcrLearningDictionaryService.learnFromEdits(learningPairs);
+    }
+    if (success > 0 && _providerTrail.contains('chat-import')) {
+      await ChatImportAuditService.recordSaved(
+        hash: _chatImportHash,
+        itemCount: success,
+        totalAmount: savedAmountTotal,
+      );
     }
 
     if (!mounted) {
@@ -865,6 +917,21 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
       return 0;
     }
     return int.tryParse(digitsOnly) ?? 0;
+  }
+
+  String _applyChatImportAuditTag(String description) {
+    final clean = description.trim();
+    if (!_providerTrail.contains('chat-import')) {
+      return clean;
+    }
+    final suffix =
+        _chatImportHash.isEmpty
+            ? '[chat_import]'
+            : '[chat_import:${_chatImportHash.substring(0, 8)}]';
+    if (clean.toLowerCase().contains('[chat_import')) {
+      return clean;
+    }
+    return '$clean $suffix'.trim();
   }
 
   DateTime _parseDateOrNow(String iso) {

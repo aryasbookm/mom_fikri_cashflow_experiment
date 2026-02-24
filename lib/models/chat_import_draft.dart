@@ -128,6 +128,7 @@ class ChatImportDraft {
   const ChatImportDraft({
     required this.intent,
     required this.source,
+    required this.importHash,
     required this.transactions,
     required this.notesFound,
     required this.ignoredLines,
@@ -140,6 +141,7 @@ class ChatImportDraft {
 
   final String intent;
   final String source;
+  final String importHash;
   final List<ChatImportDraftItem> transactions;
   final List<String> notesFound;
   final List<String> ignoredLines;
@@ -148,6 +150,34 @@ class ChatImportDraft {
   final bool missingOpeningBlock;
   final bool missingClosingTotal;
   final List<String> inferenceNotes;
+
+  ChatImportDraft copyWith({
+    String? intent,
+    String? source,
+    String? importHash,
+    List<ChatImportDraftItem>? transactions,
+    List<String>? notesFound,
+    List<String>? ignoredLines,
+    int? confidence,
+    bool? isPartialDay,
+    bool? missingOpeningBlock,
+    bool? missingClosingTotal,
+    List<String>? inferenceNotes,
+  }) {
+    return ChatImportDraft(
+      intent: intent ?? this.intent,
+      source: source ?? this.source,
+      importHash: importHash ?? this.importHash,
+      transactions: transactions ?? this.transactions,
+      notesFound: notesFound ?? this.notesFound,
+      ignoredLines: ignoredLines ?? this.ignoredLines,
+      confidence: confidence ?? this.confidence,
+      isPartialDay: isPartialDay ?? this.isPartialDay,
+      missingOpeningBlock: missingOpeningBlock ?? this.missingOpeningBlock,
+      missingClosingTotal: missingClosingTotal ?? this.missingClosingTotal,
+      inferenceNotes: inferenceNotes ?? this.inferenceNotes,
+    );
+  }
 
   factory ChatImportDraft.fromJson(Map<String, dynamic> json) {
     final notesFound =
@@ -238,6 +268,7 @@ class ChatImportDraft {
     return ChatImportDraft(
       intent: (json['intent'] ?? '').toString().trim(),
       source: (json['source'] ?? '').toString().trim(),
+      importHash: (json['import_hash'] ?? '').toString().trim(),
       transactions: transactions.take(30).toList(),
       notesFound: notesFound,
       ignoredLines: ignoredLines,

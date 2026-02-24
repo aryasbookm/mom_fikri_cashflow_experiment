@@ -358,7 +358,13 @@ $question
     if (draft == null || !draft.isValid) {
       return null;
     }
-    return _ActionIntentResult(draft: draft, providerId: response.providerId);
+    final importHash =
+        sha256.convert(utf8.encode(question.trim().toLowerCase())).toString();
+    final enriched = draft.copyWith(importHash: importHash);
+    return _ActionIntentResult(
+      draft: enriched,
+      providerId: response.providerId,
+    );
   }
 
   String _buildActionIntentPrompt({

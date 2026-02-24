@@ -139,4 +139,6 @@
   - pastikan banner parsial/inferensi tampil jika `is_partial_day` / `missing_*` / `inference_notes` terisi
   - uji nominal gabungan (`10.000 + 5.000`) dan pastikan parser lokal menghitung total dengan benar
   - uji baris non-transaksi (`Total`, `Uang Bersih`, `Saldo`) dan pastikan tidak masuk daftar transaksi tersimpan
+  - uji anti-duplikasi: simpan draf yang sama 2x dalam 72 jam, pastikan muncul dialog konfirmasi duplikasi hash
+  - pastikan transaksi dari jalur chat import tersimpan dengan tag audit sumber (`[chat_import:<hash8>]`)
   - simpan dari layar review dan validasi jumlah transaksi tersimpan sesuai item terpilih.
