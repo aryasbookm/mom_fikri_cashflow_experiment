@@ -122,6 +122,10 @@ All notable changes to this project will be documented in this file.
   - tersedia aksi `Tanggal Baru dari Sini` untuk menyisipkan grup tanggal baru dan menerapkan tanggal ke seluruh item di bawahnya.
   - setiap baris transaksi punya kontrol edit tanggal individual + terapkan ke bawah.
   - item tanpa tanggal ditandai sebagai `perlu review` sebelum simpan.
+- Review OCR kini menampilkan ringkasan total:
+  - total nominal otomatis dihitung dari item yang dipilih user.
+  - jika ditemukan baris total pada catatan non-transaksi, aplikasi membandingkan dengan total kalkulasi.
+  - ketika tidak cocok, ditampilkan warning selisih agar user cek ulang sebelum simpan.
 - OCR provider error observability ditingkatkan:
   - pesan 4xx OCR kini menyertakan label provider (`[Gemini]` / `[Groq]`) dan detail message dari body response jika tersedia,
   - mempermudah identifikasi akar masalah nyata (model/key/request schema) dibanding pesan generik.

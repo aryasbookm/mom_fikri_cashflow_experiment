@@ -43,6 +43,60 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
   int get _reviewCount => _draftItems.where((item) => item.needsReview).length;
   int get _missingDateCount =>
       _draftItems.where((item) => item.dateIso.trim().isEmpty).length;
+  int get _selectedTotalAmount {
+    var sum = 0;
+    for (final item in _draftItems) {
+      if (!item.selected) {
+        continue;
+      }
+      sum += _parseAmountInput(item.amountController.text);
+    }
+    return sum;
+  }
+
+  int? get _detectedGrandTotalFromNotes {
+    final lines = <String>[
+      ..._notesFound,
+      ..._ignoredLines,
+    ];
+    final candidates = <int>[];
+    for (final raw in lines) {
+      final line = raw.toLowerCase();
+      final isTotalLine =
+          line.contains('total') ||
+          line.contains('jumlah') ||
+          line.contains('grand total');
+      final isExcluded =
+          line.contains('uang bersih') ||
+          line.contains('saldo') ||
+          line.contains('modal');
+      if (!isTotalLine || isExcluded) {
+        continue;
+      }
+      final values = _extractAmountCandidates(raw);
+      candidates.addAll(values.where((v) => v > 0));
+    }
+    if (candidates.isEmpty) {
+      return null;
+    }
+    candidates.sort();
+    return candidates.last;
+  }
+
+  List<int> _extractAmountCandidates(String text) {
+    final matches = RegExp(r'\d[\d\.\,\s]{1,}')
+        .allMatches(text)
+        .map((m) => m.group(0) ?? '')
+        .toList();
+    final values = <int>[];
+    for (final raw in matches) {
+      final parsed = _parseAmountInput(raw);
+      if (parsed > 0) {
+        values.add(parsed);
+      }
+    }
+    return values;
+  }
 
   String get _providerTrailText {
     if (_providerTrail.isEmpty) {
@@ -425,7 +479,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     var success = 0;
     var failed = 0;
     for (final item in selected) {
-      final amount = int.tryParse(item.amountController.text.trim()) ?? 0;
+      final amount = _parseAmountInput(item.amountController.text);
       final description = item.descriptionController.text.trim();
       if (amount <= 0 || description.length < 3) {
         failed += 1;
@@ -515,6 +569,14 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
       item.dispose();
     }
     _draftItems.clear();
+  }
+
+  int _parseAmountInput(String text) {
+    final digitsOnly = text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digitsOnly.isEmpty) {
+      return 0;
+    }
+    return int.tryParse(digitsOnly) ?? 0;
   }
 
   DateTime _parseDateOrNow(String iso) {
@@ -891,7 +953,18 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
               ),
             ),
           if (_draftItems.isNotEmpty)
-            Container(
+            Builder(
+              builder: (context) {
+                final selectedTotal = _selectedTotalAmount;
+                final detectedTotal = _detectedGrandTotalFromNotes;
+                final hasMismatch =
+                    detectedTotal != null && detectedTotal != selectedTotal;
+                final currency = NumberFormat.currency(
+                  locale: 'id_ID',
+                  symbol: 'Rp ',
+                  decimalDigits: 0,
+                );
+                return Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -983,6 +1056,53 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
                       _buildDateGroupHeader(i),
                     _buildDraftItemCard(_draftItems[i], i),
                   ],
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color:
+                          hasMismatch
+                              ? const Color(0xFFFFEBEE)
+                              : const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color:
+                            hasMismatch
+                                ? const Color(0xFFFFCDD2)
+                                : const Color(0xFFE5E7EB),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Total kalkulasi AI (dipilih): ${currency.format(selectedTotal)}',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        if (detectedTotal != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Total terdeteksi di catatan: ${currency.format(detectedTotal)}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.black54,
+                            ),
+                          ),
+                          if (hasMismatch) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              'Ada selisih total. Mohon cek nominal per baris sebelum simpan.',
+                              style: const TextStyle(
+                                color: Color(0xFFB71C1C),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
@@ -994,6 +1114,8 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
                   ),
                 ],
               ),
+            );
+              },
             ),
         ],
       ),
