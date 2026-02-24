@@ -15,6 +15,7 @@ import '../services/ai_insight_service.dart';
 import '../services/ai_quota_guard_service.dart';
 import '../services/backup_service.dart';
 import '../services/cloud_drive_service.dart';
+import 'ai_chatbot_screen.dart';
 import 'add_transaction_screen.dart';
 import 'history_screen.dart';
 
@@ -306,6 +307,14 @@ class OwnerDashboardState extends State<OwnerDashboard> {
         topProducts: topProducts,
         slowMovingProducts: slowMoving,
       );
+      final financeSnapshot = _buildFinanceSnapshot(
+        provider: provider,
+        income30: income30,
+        expense30: expense30,
+        net30: net30,
+        topProducts: topProducts,
+        slowMoving: slowMoving,
+      );
       final topSummary =
           topProducts.isEmpty
               ? 'Tidak ada'
@@ -326,7 +335,7 @@ class OwnerDashboardState extends State<OwnerDashboard> {
       if (!mounted) {
         return;
       }
-      await showDialog<void>(
+      final openFollowup = await showDialog<bool>(
         context: context,
         builder: (context) {
           return AlertDialog(
@@ -352,7 +361,11 @@ class OwnerDashboardState extends State<OwnerDashboard> {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Tanya Lanjutan'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
                 child: const Text('Tutup'),
               ),
             ],
@@ -360,6 +373,18 @@ class OwnerDashboardState extends State<OwnerDashboard> {
         },
       );
       _startAiCooldown(insightResult.suggestedCooldownSeconds);
+      if (openFollowup == true && mounted) {
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder:
+                (_) => AiChatbotScreen(
+                  financeSnapshot: financeSnapshot,
+                  initialQuestion:
+                      'Apa 2 aksi prioritas paling realistis minggu ini?',
+                ),
+          ),
+        );
+      }
     } on AiRateLimitException catch (error) {
       await AiQuotaGuardService.recordRateLimit(error);
       if (error.isDailyLimit) {
@@ -444,6 +469,81 @@ class OwnerDashboardState extends State<OwnerDashboard> {
       _aiDailyLimitMessage = message;
     });
     _notifyAiStateChanged();
+  }
+
+  List<Map<String, dynamic>> _buildFinanceSnapshot({
+    required TransactionProvider provider,
+    required int income30,
+    required int expense30,
+    required int net30,
+    required List<Map<String, dynamic>> topProducts,
+    required List<Map<String, dynamic>> slowMoving,
+  }) {
+    final snapshot = <Map<String, dynamic>>[
+      {
+        'type': 'summary_30_days',
+        'income': income30,
+        'expense': expense30,
+        'net': net30,
+      },
+    ];
+
+    snapshot.addAll(
+      topProducts
+          .take(5)
+          .map(
+            (row) => {
+              'type': 'top_product',
+              'name': row['name'],
+              'total_qty': row['total_qty'],
+              'stock': row['stock'],
+            },
+          ),
+    );
+    snapshot.addAll(
+      slowMoving
+          .take(5)
+          .map(
+            (row) => {
+              'type': 'slow_product',
+              'name': row['name'],
+              'total_qty': row['total_qty'],
+              'stock': row['stock'],
+            },
+          ),
+    );
+
+    final now = DateTime.now();
+    final periodStart = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).subtract(const Duration(days: 29));
+
+    final daily = <String, Map<String, dynamic>>{};
+    for (final tx in provider.transactions) {
+      final parsed = DateTime.tryParse(tx.date);
+      if (parsed == null || parsed.isBefore(periodStart)) {
+        continue;
+      }
+      final dayKey = DateFormat('yyyy-MM-dd').format(parsed);
+      final current =
+          daily[dayKey] ??
+          {'type': 'daily_summary', 'date': dayKey, 'income': 0, 'expense': 0};
+      if (tx.type == 'IN') {
+        current['income'] = (current['income'] as int) + tx.amount;
+      } else if (tx.type == 'OUT') {
+        current['expense'] = (current['expense'] as int) + tx.amount;
+      }
+      daily[dayKey] = current;
+    }
+
+    final dailyList =
+        daily.values.toList()..sort(
+          (a, b) => (a['date'] as String).compareTo((b['date'] as String)),
+        );
+    snapshot.addAll(dailyList);
+    return snapshot;
   }
 
   Future<void> _setDailyTarget(int target) async {

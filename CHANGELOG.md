@@ -58,6 +58,7 @@ All notable changes to this project will be documented in this file.
   - tombol `Minta Saran AI (Online)` untuk menghasilkan 3 saran bisnis berbasis data 30 hari (pemasukan, pengeluaran, produk kurang laris),
   - hasil ditampilkan sebagai dialog teks (read-only, tidak mengubah data transaksi),
   - integrasi via Gemini REST menggunakan `--dart-define=GEMINI_API_KEY=...`.
+- Layar **Chat AI Keuangan** (`AiChatbotScreen`) ditambahkan dan terhubung dari tombol `Tanya Lanjutan` pada dialog Insight.
 - Fondasi service chatbot finansial ditambahkan (`AiChatbotService`):
   - bounded context (hanya jawab konteks keuangan toko),
   - history window terbatas (maks 8 pesan),
