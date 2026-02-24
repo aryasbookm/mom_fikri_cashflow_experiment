@@ -46,6 +46,25 @@
   - opsional model fallback:
     - `--dart-define=GROQ_VISION_MODEL=meta-llama/llama-4-scout-17b-16e-instruct`
 
+## 6.1) AI Build Profiles (Gunakan Konsisten)
+- `ocr_gemini_only`
+  - `--dart-define=GEMINI_API_KEY=...`
+  - `--dart-define=AI_PROVIDER_ORDER=gemini`
+  - `--dart-define=GEMINI_OCR_MODEL_CHAIN=gemini-2.5-flash,gemini-3-flash,gemini-2.5-flash-lite`
+- `ocr_chain_with_groq`
+  - profile `ocr_gemini_only` + `--dart-define=GROQ_API_KEY=...`
+  - `--dart-define=AI_PROVIDER_ORDER=gemini,groq`
+- `insight_text_only`
+  - `--dart-define=GROQ_API_KEY=...`
+  - `--dart-define=AI_INSIGHT_PROVIDER_ORDER=groq`
+  - opsional fallback Gemini text-only: `--dart-define=AI_INSIGHT_PROVIDER_ORDER=groq,gemini --dart-define=GEMINI_INSIGHT_MODEL=gemma-3-12b`
+
+## 6.2) AI Preflight Check (Wajib Sebelum Build/Test)
+- [ ] Key untuk provider aktif sudah di-pass via `--dart-define`.
+- [ ] Route OCR/Insight sesuai target test (`AI_PROVIDER_ORDER` vs `AI_INSIGHT_PROVIDER_ORDER`).
+- [ ] Model OCR chain dan model Insight tidak tertukar (vision vs text-only).
+- [ ] Jika tujuan hanya uji UI, gunakan mock/fixture lokal dulu (hindari burn kuota API).
+
 ## 7) Quick Verification
 - [ ] Server jalan di `3010`.
 - [ ] Login/auth tidak bentrok dengan proyek lain.

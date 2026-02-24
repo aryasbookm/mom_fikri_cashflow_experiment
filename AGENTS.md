@@ -146,6 +146,23 @@ For cashflow/financial logic, `Verify` is mandatory and must include:
   - fokus pada error/regression baru dari patch saat ini,
   - jangan membuka refactor lint massal kecuali diminta user.
 
+## AI Integration Efficiency Rules (Mandatory)
+- Pisahkan jalur AI per fitur:
+  - OCR: model/provider vision only.
+  - Insight/chat teks: model/provider text-first; jangan memakan kuota vision kecuali fallback eksplisit.
+- Preflight check wajib sebelum build yang melibatkan AI:
+  - cek `--dart-define` key yang dibutuhkan (`GEMINI_API_KEY`, `GROQ_API_KEY`),
+  - cek route variabel (`AI_PROVIDER_ORDER`, `AI_INSIGHT_PROVIDER_ORDER`),
+  - cek model/chain aktif (`GEMINI_OCR_MODEL_CHAIN`, `GEMINI_INSIGHT_MODEL`).
+- Build profile wajib terdokumentasi dan dipakai konsisten:
+  - `ocr_gemini_only`, `ocr_chain_with_groq`, `insight_text_only`.
+- Friendly Error Mapping:
+  - error teknis (HTTP/status/provider detail) tetap dicatat untuk debug,
+  - pesan UI ke user wajib ringkas, human-readable, dan actionable (tanpa jargon teknis mentah).
+- Mock Mode untuk iterasi UI:
+  - sebelum burn kuota API, prioritaskan uji UI dengan data dummy/fixture lokal,
+  - panggil API asli hanya saat verifikasi integrasi final.
+
 ## Mobile UI Safe-Area Rule (Mandatory)
 - Semua layar Android dengan aksi utama di area bawah (mis. tombol `Simpan`, `Bagikan`, CTA form) wajib menghormati safe area bawah.
 - Gunakan `SafeArea(bottom: true)` atau tambahkan `MediaQuery.viewPaddingOf(context).bottom` ke padding bawah konten.
