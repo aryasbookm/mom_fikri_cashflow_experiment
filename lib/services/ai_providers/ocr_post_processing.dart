@@ -108,6 +108,7 @@ class OcrPostProcessor {
           description: item.description,
           categoryHint: item.categoryHint,
           dateIso: item.dateIso,
+          dateSource: item.dateSource,
           confidence: item.confidence,
           rawText: item.rawText,
           needsReview: needsReview,
@@ -160,11 +161,12 @@ class OcrPostProcessor {
       return true;
     }
 
-    final words = description
-        .split(RegExp(r'\s+|,'))
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toList();
+    final words =
+        description
+            .split(RegExp(r'\s+|,'))
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
 
     if (words.isEmpty) {
       return true;
@@ -186,9 +188,9 @@ class OcrPostProcessor {
   }
 
   static int? _computeCompoundAmount(String source) {
-    final match = RegExp(r'(\d[\d., ]*(?:\+\s*\d[\d., ]*)+)').firstMatch(
-      source,
-    );
+    final match = RegExp(
+      r'(\d[\d., ]*(?:\+\s*\d[\d., ]*)+)',
+    ).firstMatch(source);
     if (match == null) {
       return null;
     }

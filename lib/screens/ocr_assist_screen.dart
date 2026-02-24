@@ -506,7 +506,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
               originalDescription: item.description,
               categoryHint: item.categoryHint,
               dateIso: item.dateIso,
-              dateSource: item.dateIso.trim().isEmpty ? 'unknown' : 'explicit',
+              dateSource: item.dateSource,
               confidence: item.confidence,
               rawText: item.rawText,
               needsReview: item.needsReview,

@@ -144,6 +144,8 @@
   - simpan dari layar review dan validasi jumlah transaksi tersimpan sesuai item terpilih.
 - [ ] Jalankan regression test otomatis Phase 4:
   - `flutter test test/chat_import_draft_model_test.dart test/chat_import_audit_service_test.dart`
+- [ ] Jalankan regression test OCR parity Phase 1:
+  - `flutter test test/ocr_transaction_draft_model_test.dart`
 
 ## 12) Lessons Learned (Codex Fast Path)
 - Kasus import package test sempat gagal karena typo nama package.

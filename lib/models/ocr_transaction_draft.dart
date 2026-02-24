@@ -7,6 +7,7 @@ class OcrTransactionDraft {
     required this.description,
     required this.categoryHint,
     required this.dateIso,
+    required this.dateSource,
     required this.confidence,
     required this.rawText,
     required this.needsReview,
@@ -20,6 +21,7 @@ class OcrTransactionDraft {
   final String description;
   final String categoryHint;
   final String dateIso;
+  final String dateSource; // explicit | inferred | unknown
   final int confidence;
   final String rawText;
   final bool needsReview;
@@ -43,6 +45,9 @@ class OcrTransactionDraft {
                 0;
 
     final dateIso = (json['date_iso'] ?? '').toString().trim();
+    final dateSource = _normalizeDateSource(
+      (json['date_source'] ?? '').toString(),
+    );
     final isTransactionValue = json['is_transaction'];
     final isTransaction =
         isTransactionValue is bool
@@ -50,11 +55,20 @@ class OcrTransactionDraft {
             : (isTransactionValue ?? '').toString().toLowerCase().trim() ==
                 'true';
     final needsReviewValue = json['needs_review'];
-    final needsReview =
+    final rawNeedsReview =
         needsReviewValue is bool
             ? needsReviewValue
             : (needsReviewValue ?? '').toString().toLowerCase().trim() ==
                 'true';
+    final rawWarning = (json['warning'] ?? '').toString().trim();
+    final needsReview = rawNeedsReview || dateSource == 'inferred';
+    final warning =
+        dateSource == 'inferred'
+            ? _mergeWarnings(
+              rawWarning,
+              'Tanggal diinferensi dari konteks, mohon konfirmasi manual.',
+            )
+            : rawWarning;
 
     return OcrTransactionDraft(
       isTransaction: isTransaction,
@@ -64,11 +78,34 @@ class OcrTransactionDraft {
       description: (json['description'] ?? '').toString().trim(),
       categoryHint: (json['category_hint'] ?? '').toString().trim(),
       dateIso: dateIso,
+      dateSource: dateSource,
       confidence: confidence,
       rawText: (json['raw_text'] ?? '').toString().trim(),
       needsReview: needsReview,
-      warning: (json['warning'] ?? '').toString().trim(),
+      warning: warning,
     );
+  }
+
+  static String _normalizeDateSource(String value) {
+    final normalized = value.trim().toLowerCase();
+    if (normalized == 'explicit' ||
+        normalized == 'inferred' ||
+        normalized == 'unknown') {
+      return normalized;
+    }
+    return 'unknown';
+  }
+
+  static String _mergeWarnings(String original, String extra) {
+    final o = original.trim();
+    final e = extra.trim();
+    if (o.isEmpty) {
+      return e;
+    }
+    if (o.toLowerCase().contains(e.toLowerCase())) {
+      return o;
+    }
+    return '$o $e';
   }
 }
 

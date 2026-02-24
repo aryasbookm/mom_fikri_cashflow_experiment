@@ -56,10 +56,13 @@ Aturan:
   - description: ringkas
   - category_hint: kata pendek kategori (contoh "Bahan Baku", "Operasional", "Penjualan Kue", "Pemasukan Lain")
   - date_iso: format yyyy-MM-dd jika terbaca, jika tidak isi string kosong
+  - date_source: "explicit" | "inferred" | "unknown"
   - confidence: 0..100
   - raw_text: hasil bacaan OCR singkat item tersebut
   - needs_review: true jika kata/nominal ambigu, typo, atau sulit dibaca
   - warning: alasan singkat jika needs_review=true
+- Jika tanggal item ditebak dari konteks (bukan tertulis jelas), set date_source="inferred" dan WAJIB needs_review=true.
+- Gunakan date_source="explicit" hanya jika tanggal tertulis jelas pada catatan.
 
 JSON schema:
 {
@@ -77,6 +80,7 @@ JSON schema:
       "description": "",
       "category_hint": "",
       "date_iso": "",
+      "date_source": "explicit|inferred|unknown",
       "confidence": 0,
       "raw_text": "",
       "needs_review": false,

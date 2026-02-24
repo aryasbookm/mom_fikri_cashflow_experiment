@@ -51,10 +51,13 @@ Aturan:
   - description: ringkas
   - category_hint: kata pendek kategori
   - date_iso: format yyyy-MM-dd jika terbaca, jika tidak isi string kosong
+  - date_source: "explicit" | "inferred" | "unknown"
   - confidence: 0..100
   - raw_text: hasil bacaan OCR singkat item tersebut
   - needs_review: true jika ada kemungkinan typo/tidak yakin
   - warning: alasan singkat jika needs_review=true
+- Jika tanggal item ditebak dari konteks (bukan tertulis jelas), set date_source="inferred" dan WAJIB needs_review=true.
+- Gunakan date_source="explicit" hanya jika tanggal tertulis jelas pada catatan.
 - Sertakan summary:
   - date_detected: tanggal yang terbaca (boleh kosong)
   - notes_found: info non-transaksi penting (mis. Uang Bersih/Total)

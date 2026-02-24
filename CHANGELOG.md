@@ -84,6 +84,11 @@ All notable changes to this project will be documented in this file.
   - Phase 4 automated tests:
     - unit test `chat_import_draft_model_test.dart` menutup rule inferensi tanggal deterministik, smart math parser, dan filter baris non-transaksi.
     - unit test `chat_import_audit_service_test.dart` menutup deteksi duplikasi hash dalam window dan validasi abaikan record di luar window.
+- OCR parity Phase 1:
+  - `OcrTransactionDraft` kini mendukung `date_source` formal (`explicit|inferred|unknown`) dengan rule deterministik `inferred => needs_review=true`.
+  - prompt OCR Gemini/Groq diperketat agar mengisi `date_source` dan mewajibkan review saat tanggal hasil inferensi.
+  - layar review OCR kini menggunakan `date_source` asli dari hasil OCR (bukan fallback turunan `date_iso`).
+  - unit test baru `ocr_transaction_draft_model_test.dart` ditambahkan untuk validasi normalisasi `date_source` + deterministic review.
 - Payload AI kini menyertakan agregat kategori 30 hari (pemasukan/pengeluaran) untuk Insight dan Chatbot agar jawaban lebih spesifik.
 - Fondasi service chatbot finansial ditambahkan (`AiChatbotService`):
   - bounded context (hanya jawab konteks keuangan toko),
