@@ -81,6 +81,9 @@ All notable changes to this project will be documented in this file.
     - sebelum simpan, sistem mendeteksi hash yang sama pada riwayat lokal (72 jam) dan meminta konfirmasi ulang jika terduplikasi,
     - transaksi dari jalur chat import diberi tag audit sumber di deskripsi (`[chat_import:<hash8>]`),
     - audit ringkas penyimpanan chat import dicatat lokal untuk tracking hash/jumlah/nominal.
+  - Phase 4 automated tests:
+    - unit test `chat_import_draft_model_test.dart` menutup rule inferensi tanggal deterministik, smart math parser, dan filter baris non-transaksi.
+    - unit test `chat_import_audit_service_test.dart` menutup deteksi duplikasi hash dalam window dan validasi abaikan record di luar window.
 - Payload AI kini menyertakan agregat kategori 30 hari (pemasukan/pengeluaran) untuk Insight dan Chatbot agar jawaban lebih spesifik.
 - Fondasi service chatbot finansial ditambahkan (`AiChatbotService`):
   - bounded context (hanya jawab konteks keuangan toko),
