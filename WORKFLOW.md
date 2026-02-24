@@ -33,7 +33,12 @@
 - Catatan: Flutter web tetap memakai `--web-port` saat run, variabel `PORT` dipakai sebagai konvensi runbook lintas proyek.
 - Variabel opsional (AI POC, jangan commit key):
   - jalankan dengan `--dart-define=GEMINI_API_KEY=...`
+  - provider fallback (opsional):
+    - `--dart-define=GROQ_API_KEY=...`
+    - `--dart-define=AI_PROVIDER_ORDER=gemini,groq`
   - opsional model: `--dart-define=GEMINI_MODEL=gemini-2.5-flash`
+  - opsional model fallback:
+    - `--dart-define=GROQ_VISION_MODEL=llama-3.2-11b-vision-preview`
 
 ## 7) Quick Verification
 - [ ] Server jalan di `3010`.
