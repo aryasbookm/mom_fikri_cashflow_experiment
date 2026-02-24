@@ -25,6 +25,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   DateTime? _rangeStart;
   DateTime? _rangeEnd;
   DateTime? _customMonth;
+  int _customMonthYear = DateTime.now().year;
   bool _isExporting = false;
   int _lastSeenEpoch = 0;
   final TextEditingController _searchController = TextEditingController();
@@ -38,7 +39,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   final List<String> _filters = [
     'Hari Ini',
-    '7 Hari',
+    '7 Hari Terakhir',
     'Bulan Ini',
     'Semua',
   ];
@@ -129,25 +130,84 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Future<void> _pickCustomMonth() async {
-    final initial = _customMonth ?? DateTime.now();
-    final picked = await showDatePicker(
+    int tempMonth = (_customMonth ?? DateTime.now()).month;
+    int tempYear = _customMonthYear;
+    await showDialog<void>(
       context: context,
-      initialDate: initial,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
-      helpText: 'Pilih bulan (pilih tanggal apa saja di bulan target)',
+      builder:
+          (dialogContext) => StatefulBuilder(
+            builder: (context, setStateDialog) {
+              return AlertDialog(
+                title: const Text('Pilih Bulan'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<int>(
+                      value: tempMonth,
+                      decoration: const InputDecoration(labelText: 'Bulan'),
+                      items: List.generate(12, (index) {
+                        final month = index + 1;
+                        final label = DateFormat(
+                          'MMMM',
+                          'id_ID',
+                        ).format(DateTime(2024, month, 1));
+                        return DropdownMenuItem<int>(
+                          value: month,
+                          child: Text(label),
+                        );
+                      }),
+                      onChanged: (value) {
+                        if (value == null) {
+                          return;
+                        }
+                        setStateDialog(() => tempMonth = value);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<int>(
+                      value: tempYear,
+                      decoration: const InputDecoration(labelText: 'Tahun'),
+                      items: List.generate(11, (index) {
+                        final year = DateTime.now().year - 5 + index;
+                        return DropdownMenuItem<int>(
+                          value: year,
+                          child: Text('$year'),
+                        );
+                      }),
+                      onChanged: (value) {
+                        if (value == null) {
+                          return;
+                        }
+                        setStateDialog(() => tempYear = value);
+                      },
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: const Text('Batal'),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      final monthStart = DateTime(tempYear, tempMonth, 1);
+                      final monthEnd = DateTime(tempYear, tempMonth + 1, 0);
+                      setState(() {
+                        _customMonth = monthStart;
+                        _customMonthYear = tempYear;
+                        _rangeStart = monthStart;
+                        _rangeEnd = monthEnd;
+                        _filter = 'Bulan Pilihan';
+                      });
+                      Navigator.of(dialogContext).pop();
+                    },
+                    child: const Text('Terapkan'),
+                  ),
+                ],
+              );
+            },
+          ),
     );
-    if (picked == null || !mounted) {
-      return;
-    }
-    final monthStart = DateTime(picked.year, picked.month, 1);
-    final monthEnd = DateTime(picked.year, picked.month + 1, 0);
-    setState(() {
-      _customMonth = monthStart;
-      _rangeStart = monthStart;
-      _rangeEnd = monthEnd;
-      _filter = 'Bulan Pilihan';
-    });
   }
 
   Future<void> _openAdvancedFilterSheet() async {
@@ -233,7 +293,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       case 'Kemarin':
         final yesterday = today.subtract(const Duration(days: 1));
         return _isSameDate(target, yesterday);
-      case '7 Hari':
+      case '7 Hari Terakhir':
         final start = today.subtract(const Duration(days: 6));
         return !target.isBefore(start) && !target.isAfter(today);
       case 'Bulan Ini':
@@ -965,7 +1025,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       case 'Kemarin':
         final yesterday = now.subtract(const Duration(days: 1));
         return DateFormat('d MMMM y', 'id_ID').format(yesterday);
-      case '7 Hari':
+      case '7 Hari Terakhir':
         final start = now.subtract(const Duration(days: 6));
         final startLabel = DateFormat('d MMM', 'id_ID').format(start);
         final endLabel = DateFormat('d MMM y', 'id_ID').format(now);

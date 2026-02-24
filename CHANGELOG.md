@@ -171,7 +171,9 @@ All notable changes to this project will be documented in this file.
   - mode `Rentang` untuk melihat transaksi dari tanggal awal sampai akhir pilihan user.
   - hasil filter kustom tetap terintegrasi dengan pencarian transaksi yang sudah ada.
   - tampilan filter disederhanakan ke chips utama (`Hari Ini`, `7 Hari`, `Bulan Ini`, `Semua`) + menu `Filter Lanjutan`.
+  - label chip diperjelas menjadi `7 Hari Terakhir` agar selaras dengan logika rolling window.
   - menu `Filter Lanjutan` menampung `Tanggal`, `Rentang`, dan `Pilih Bulan` cepat.
+  - `Pilih Bulan` kini memakai month-year picker langsung (tanpa memilih tanggal sembarang di bulan tersebut).
 - Dashboard input entrypoint disederhanakan:
   - FAB Beranda dihapus agar tidak menduplikasi aksi utama `Catat Pemasukan/Pengeluaran`.
   - entry OCR dipindah ke section khusus **Migrasi dari Buku** di layar Riwayat (body, bukan AppBar) agar konteks lebih tepat.
