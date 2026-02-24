@@ -10,6 +10,7 @@ import 'ai_vision_provider.dart';
 
 class GroqVisionProvider implements AiVisionProvider {
   static const int maxItemsPerScan = 30;
+  static const int _maxOutputTokens = 2500;
   static const String _apiKey = String.fromEnvironment('GROQ_API_KEY');
   static const String _defaultVisionModel =
       'meta-llama/llama-4-scout-17b-16e-instruct';
@@ -70,7 +71,7 @@ Aturan:
             body: jsonEncode({
               'model': _model,
               'temperature': 0.1,
-              'max_tokens': 420,
+              'max_tokens': _maxOutputTokens,
               'messages': [
                 {
                   'role': 'user',
@@ -85,7 +86,7 @@ Aturan:
               ],
             }),
           )
-          .timeout(const Duration(seconds: 25));
+          .timeout(const Duration(seconds: 35));
     } on SocketException {
       throw const AiProviderTemporaryException('Tidak ada koneksi internet.');
     } on TimeoutException {

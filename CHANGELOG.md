@@ -106,6 +106,9 @@ All notable changes to this project will be documented in this file.
 - Default model OCR Groq diperbarui dari model vision lama yang sudah deprecated ke `meta-llama/llama-4-scout-17b-16e-instruct`.
 - Parsing OCR JSON diperkeras untuk kasus respons terpotong:
   - `FormatException` dari JSON decode kini ditangkap dan diubah ke pesan user-friendly (`respons OCR terpotong/tidak lengkap`) agar tidak tampil raw error parser.
+- Kapasitas output OCR dinaikkan:
+  - `maxOutputTokens` (Gemini) dan `max_tokens` (Groq) dinaikkan dari 420 ke 2500.
+  - timeout request OCR dinaikkan dari 25 detik ke 35 detik untuk mengurangi respons terpotong pada halaman catatan panjang (target hingga ~30 transaksi).
 - UX `Catat Pemasukan/Pengeluaran` dirapikan:
   - padding atas diperkecil agar tidak ada ruang kosong berlebih di awal layar.
   - area produk diubah ke `CustomScrollView` (sliver) sehingga header `Pilih Produk / Input Manual / Cari produk` ikut scroll saat list digulir.

@@ -10,6 +10,7 @@ import 'ai_vision_provider.dart';
 
 class GeminiVisionProvider implements AiVisionProvider {
   static const int maxItemsPerScan = 30;
+  static const int _maxOutputTokens = 2500;
   static const String _apiKey = String.fromEnvironment('GEMINI_API_KEY');
   static const String _model = String.fromEnvironment(
     'GEMINI_MODEL',
@@ -96,10 +97,13 @@ JSON schema:
                   ],
                 },
               ],
-              'generationConfig': {'temperature': 0.1, 'maxOutputTokens': 420},
+              'generationConfig': {
+                'temperature': 0.1,
+                'maxOutputTokens': _maxOutputTokens,
+              },
             }),
           )
-          .timeout(const Duration(seconds: 25));
+          .timeout(const Duration(seconds: 35));
     } on SocketException {
       throw const AiProviderTemporaryException('Tidak ada koneksi internet.');
     } on TimeoutException {
