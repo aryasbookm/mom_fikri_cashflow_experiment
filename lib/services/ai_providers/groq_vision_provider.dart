@@ -103,19 +103,28 @@ Aturan:
           'Server AI sedang sibuk (${response.statusCode}).',
         );
       }
+      final detail = _extractErrorDetail(response.body);
       switch (response.statusCode) {
         case 400:
           throw Exception(
-            'Permintaan OCR ditolak (400). Periksa format file (JPG/PNG/WEBP), ukuran gambar, atau konfigurasi model.',
+            '[Groq] Permintaan OCR ditolak (400). ${detail.isNotEmpty ? detail : 'Periksa format file (JPG/PNG/WEBP), ukuran gambar, atau konfigurasi model.'}',
           );
         case 401:
-          throw Exception('API key AI tidak valid atau belum benar.');
+          throw Exception(
+            '[Groq] API key AI tidak valid atau belum benar. ${detail.isNotEmpty ? detail : ''}'.trim(),
+          );
         case 403:
-          throw Exception('Akses OCR AI ditolak. Periksa API key/kuota.');
+          throw Exception(
+            '[Groq] Akses OCR AI ditolak. ${detail.isNotEmpty ? detail : 'Periksa API key/kuota.'}',
+          );
         case 404:
-          throw Exception('Model OCR AI tidak ditemukan.');
+          throw Exception(
+            '[Groq] Model OCR AI tidak ditemukan. ${detail.isNotEmpty ? detail : ''}'.trim(),
+          );
         default:
-          throw Exception('Permintaan OCR AI gagal (${response.statusCode}).');
+          throw Exception(
+            '[Groq] Permintaan OCR AI gagal (${response.statusCode}). ${detail.isNotEmpty ? detail : ''}'.trim(),
+          );
       }
     }
 
@@ -218,5 +227,21 @@ Aturan:
       );
     }
     return decoded;
+  }
+
+  String _extractErrorDetail(String responseBody) {
+    try {
+      final decoded = jsonDecode(responseBody);
+      if (decoded is Map) {
+        final error = decoded['error'];
+        if (error is Map) {
+          final message = (error['message'] ?? '').toString().trim();
+          if (message.isNotEmpty) {
+            return message;
+          }
+        }
+      }
+    } catch (_) {}
+    return '';
   }
 }

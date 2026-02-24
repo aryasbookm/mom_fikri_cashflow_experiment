@@ -100,6 +100,9 @@ All notable changes to this project will be documented in this file.
   - hasil scan menampilkan ringkasan `X transaksi, Y perlu review`.
   - metadata non-transaksi dipisah dari transaksi (`date_detected`, `notes_found`, `ignored_lines`) agar catatan seperti tanggal/total/uang bersih tidak mencemari draft transaksi.
   - baris `needs_review` diberi penanda visual (warna kuning + warning) agar user mengedit manual sebelum simpan.
+- OCR provider error observability ditingkatkan:
+  - pesan 4xx OCR kini menyertakan label provider (`[Gemini]` / `[Groq]`) dan detail message dari body response jika tersedia,
+  - mempermudah identifikasi akar masalah nyata (model/key/request schema) dibanding pesan generik.
 - UX `Catat Pemasukan/Pengeluaran` dirapikan:
   - padding atas diperkecil agar tidak ada ruang kosong berlebih di awal layar.
   - area produk diubah ke `CustomScrollView` (sliver) sehingga header `Pilih Produk / Input Manual / Cari produk` ikut scroll saat list digulir.

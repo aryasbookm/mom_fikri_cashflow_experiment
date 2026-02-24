@@ -208,6 +208,8 @@ Catatan:
     - transaksi hasil scan mendukung `needs_review` + `warning` untuk kandidat typo/ambigu.
     - UI review menampilkan ringkasan jumlah transaksi dan jumlah item yang perlu review manual.
     - metadata non-transaksi dipisah (`date_detected`, `notes_found`, `ignored_lines`) agar baris seperti tanggal/uang bersih/total tidak otomatis masuk sebagai transaksi barang.
+   - Observability OCR provider:
+    - error 4xx dari provider sekarang menampilkan sumber provider (`Gemini/Groq`) dan detail body response jika ada, sehingga troubleshooting request/model menjadi lebih presisi.
    - Output AI bersifat asistif/read-only (tidak menulis transaksi otomatis).
    - OCR Asistif (MVP):
     - akses dari FAB `Scan Catatan` di Beranda,
