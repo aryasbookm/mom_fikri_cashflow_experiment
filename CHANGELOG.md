@@ -112,6 +112,8 @@ All notable changes to this project will be documented in this file.
 - OCR salvage mode:
   - jika provider menandai `is_transaction=false` tetapi tetap mengembalikan kandidat transaksi, aplikasi tidak lagi gagal total.
   - kandidat tetap ditampilkan sebagai draft dengan `needs_review=true` + warning, agar user bisa edit manual.
+- OCR provider trail:
+  - layar scan kini menampilkan jejak provider yang dicoba per request (mis. `Gemini -> Groq`) untuk transparansi fallback saat testing/demo.
 - UX `Catat Pemasukan/Pengeluaran` dirapikan:
   - padding atas diperkecil agar tidak ada ruang kosong berlebih di awal layar.
   - area produk diubah ke `CustomScrollView` (sliver) sehingga header `Pilih Produk / Input Manual / Cari produk` ikut scroll saat list digulir.

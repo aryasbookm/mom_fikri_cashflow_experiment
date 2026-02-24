@@ -218,6 +218,8 @@ Catatan:
    - OCR salvage behavior:
     - ketika model mengembalikan `is_transaction=false` namun tetap ada kandidat item+nominal, hasil tidak lagi dibuang.
     - item dipaksa masuk mode review (`needs_review=true`) agar user tetap mendapat draft editable, bukan halaman error kosong.
+   - OCR provider-trace visibility:
+    - UI scan menampilkan urutan provider yang dicoba pada request aktif (contoh `Gemini -> Groq`) agar verifikasi fallback tidak perlu menebak dari hasil/error saja.
    - Output AI bersifat asistif/read-only (tidak menulis transaksi otomatis).
    - OCR Asistif (MVP):
     - akses dari FAB `Scan Catatan` di Beranda,

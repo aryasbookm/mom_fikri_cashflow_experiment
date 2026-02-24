@@ -13,6 +13,8 @@ class AiProviderRouter {
   Future<OcrBatchDraft> extractDraftFromImageBytes({
     required List<int> imageBytes,
     required String mimeType,
+    void Function(String providerId, String status, String? detail)?
+    onProviderEvent,
   }) async {
     if (_providers.isEmpty) {
       throw Exception('Provider AI belum dikonfigurasi.');
@@ -23,22 +25,36 @@ class AiProviderRouter {
     for (var i = 0; i < _providers.length; i++) {
       final provider = _providers[i];
       final hasNext = i < _providers.length - 1;
+      onProviderEvent?.call(provider.providerId, 'try', null);
       try {
-        return await provider.extractDraftFromImageBytes(
+        final result = await provider.extractDraftFromImageBytes(
           imageBytes: imageBytes,
           mimeType: mimeType,
         );
+        onProviderEvent?.call(provider.providerId, 'ok', null);
+        return result;
       } on AiRateLimitException catch (error) {
+        onProviderEvent?.call(
+          provider.providerId,
+          'rate_limit',
+          error.toString(),
+        );
         lastFallbackError = error;
         if (!hasNext) {
           rethrow;
         }
       } on AiProviderTemporaryException catch (error) {
+        onProviderEvent?.call(
+          provider.providerId,
+          'temporary',
+          error.toString(),
+        );
         lastFallbackError = error;
         if (!hasNext) {
           rethrow;
         }
       } catch (error) {
+        onProviderEvent?.call(provider.providerId, 'error', error.toString());
         // Keep trying next provider for OCR robustness (format/provider mismatch, etc).
         lastFallbackError = error;
         if (!hasNext) {

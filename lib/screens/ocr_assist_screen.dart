@@ -27,6 +27,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
   List<int>? _imageBytes;
   String? _imageMimeType;
   final List<_EditableDraftItem> _draftItems = [];
+  final List<String> _providerTrail = [];
   String _detectedDate = '';
   final List<String> _notesFound = [];
   final List<String> _ignoredLines = [];
@@ -39,6 +40,30 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
 
   int get _selectedCount => _draftItems.where((item) => item.selected).length;
   int get _reviewCount => _draftItems.where((item) => item.needsReview).length;
+
+  String get _providerTrailText {
+    if (_providerTrail.isEmpty) {
+      return '';
+    }
+    final ordered = <String>[];
+    for (final id in _providerTrail) {
+      if (!ordered.contains(id)) {
+        ordered.add(id);
+      }
+    }
+    return ordered
+        .map((id) {
+          switch (id) {
+            case 'gemini':
+              return 'Gemini';
+            case 'groq':
+              return 'Groq';
+            default:
+              return id;
+          }
+        })
+        .join(' -> ');
+  }
 
   @override
   void initState() {
@@ -155,6 +180,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
       _imageBytes = null;
       _imageMimeType = null;
       _clearDraftItems();
+      _providerTrail.clear();
       _detectedDate = '';
       _notesFound.clear();
       _ignoredLines.clear();
@@ -199,12 +225,23 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     setState(() {
       _isLoading = true;
       _lastErrorMessage = null;
+      _providerTrail.clear();
     });
 
     try {
       final batch = await AiOcrService().extractDraftFromImageBytes(
         imageBytes: bytes,
         mimeType: mimeType,
+        onProviderEvent: (providerId, status, detail) {
+          if (!mounted) {
+            return;
+          }
+          setState(() {
+            if (status == 'try' && !_providerTrail.contains(providerId)) {
+              _providerTrail.add(providerId);
+            }
+          });
+        },
       );
       if (!mounted) {
         return;
@@ -643,6 +680,28 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
             ),
           ],
           const SizedBox(height: 16),
+          if (_providerTrail.isNotEmpty)
+            Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3F4F6),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.alt_route, size: 16, color: Colors.black54),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Provider dicoba: $_providerTrailText',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           if (_isLoading)
             const Center(
               child: Padding(
