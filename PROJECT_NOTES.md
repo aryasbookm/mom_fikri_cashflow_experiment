@@ -210,6 +210,7 @@ Catatan:
     - metadata non-transaksi dipisah (`date_detected`, `notes_found`, `ignored_lines`) agar baris seperti tanggal/uang bersih/total tidak otomatis masuk sebagai transaksi barang.
    - Observability OCR provider:
     - error 4xx dari provider sekarang menampilkan sumber provider (`Gemini/Groq`) dan detail body response jika ada, sehingga troubleshooting request/model menjadi lebih presisi.
+   - Default OCR Groq model disetel ke `meta-llama/llama-4-scout-17b-16e-instruct` karena model vision Groq lama (`llama-3.2-11b-vision-preview`) sudah decommissioned.
    - Output AI bersifat asistif/read-only (tidak menulis transaksi otomatis).
    - OCR Asistif (MVP):
     - akses dari FAB `Scan Catatan` di Beranda,

@@ -11,9 +11,11 @@ import 'ai_vision_provider.dart';
 class GroqVisionProvider implements AiVisionProvider {
   static const int maxItemsPerScan = 30;
   static const String _apiKey = String.fromEnvironment('GROQ_API_KEY');
+  static const String _defaultVisionModel =
+      'meta-llama/llama-4-scout-17b-16e-instruct';
   static const String _model = String.fromEnvironment(
     'GROQ_VISION_MODEL',
-    defaultValue: 'llama-3.2-11b-vision-preview',
+    defaultValue: _defaultVisionModel,
   );
 
   @override
@@ -107,11 +109,13 @@ Aturan:
       switch (response.statusCode) {
         case 400:
           throw Exception(
-            '[Groq] Permintaan OCR ditolak (400). ${detail.isNotEmpty ? detail : 'Periksa format file (JPG/PNG/WEBP), ukuran gambar, atau konfigurasi model.'}',
+            '[Groq] Permintaan OCR ditolak (400). ${detail.isNotEmpty ? detail : 'Periksa format file (JPG/PNG/WEBP), ukuran gambar, atau konfigurasi model.'}'
+            '${detail.toLowerCase().contains('decommissioned') ? ' Set GROQ_VISION_MODEL ke $_defaultVisionModel.' : ''}',
           );
         case 401:
           throw Exception(
-            '[Groq] API key AI tidak valid atau belum benar. ${detail.isNotEmpty ? detail : ''}'.trim(),
+            '[Groq] API key AI tidak valid atau belum benar. ${detail.isNotEmpty ? detail : ''}'
+                .trim(),
           );
         case 403:
           throw Exception(
@@ -119,11 +123,13 @@ Aturan:
           );
         case 404:
           throw Exception(
-            '[Groq] Model OCR AI tidak ditemukan. ${detail.isNotEmpty ? detail : ''}'.trim(),
+            '[Groq] Model OCR AI tidak ditemukan. ${detail.isNotEmpty ? detail : ''}'
+                .trim(),
           );
         default:
           throw Exception(
-            '[Groq] Permintaan OCR AI gagal (${response.statusCode}). ${detail.isNotEmpty ? detail : ''}'.trim(),
+            '[Groq] Permintaan OCR AI gagal (${response.statusCode}). ${detail.isNotEmpty ? detail : ''}'
+                .trim(),
           );
       }
     }
