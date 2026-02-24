@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../screens/ocr_assist_screen.dart';
 import '../services/ai_chatbot_service.dart';
 import '../services/ai_insight_service.dart';
 
@@ -210,8 +211,18 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         _messages.add(AiChatMessage(role: 'assistant', text: reply.text));
       });
       await _persistChat();
+      if (!mounted) {
+        return;
+      }
       _startCooldown(reply.suggestedCooldownSeconds);
       _scrollToBottom();
+      if (reply.actionDraft != null) {
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => OcrAssistScreen(chatImportDraft: reply.actionDraft),
+          ),
+        );
+      }
     } on AiRateLimitException catch (error) {
       if (!mounted) {
         return;

@@ -100,3 +100,41 @@
 - Catatan:
   - Android menolak update jika `versionCode` tidak lebih tinggi dari APK terpasang.
   - Jika build eksperimen dipasang di device operasional, pastikan tahu risikonya karena package sama (tidak bisa side-by-side tanpa ubah identitas aplikasi).
+
+## 10) Final APK Test Checklist (Wajib Sebelum Share)
+- [ ] `pubspec.yaml` sudah naik `versionName+buildNumber` dibanding APK terakhir.
+- [ ] Jalankan build sesuai channel:
+  - `stable` dari branch `main`
+  - `experimental` dari branch `codex/*`
+- [ ] Verifikasi login owner/staff berhasil.
+- [ ] Verifikasi alur inti transaksi:
+  - tambah pemasukan/pengeluaran sukses
+  - histori dan saldo berubah sesuai nominal
+- [ ] Verifikasi backup-restore dasar (local/cloud sesuai target test) dan app tetap bisa dibuka setelah restore.
+- [ ] Verifikasi export (Excel/PDF) bisa dibuat tanpa crash.
+- [ ] Verifikasi AI preflight (key + provider order + model route) sesuai profil build.
+- [ ] Rename artefak APK dengan format kanal:
+  - `momfiqry-stable-v<versionName+build>.apk`
+  - `momfiqry-exp-v<versionName+build>.apk`
+
+## 11) Chatbot Quality Checklist (Data Real)
+- [ ] Uji 5 pertanyaan kategori spesifik (contoh: bahan baku/operasional) dan pastikan jawaban menyebut kategori yang ditanya.
+- [ ] Uji 3 pertanyaan di luar konteks finansial; respons harus kalimat guardrail standar.
+- [ ] Uji 3 pertanyaan saat data kategori minim; respons harus menyebut `data tambahan dibutuhkan`.
+- [ ] Uji konsistensi dasar data:
+  - nominal ringkasan 30 hari di jawaban harus konsisten dengan dashboard
+  - tidak boleh menukar `stock_now` dengan `total_qty`
+- [ ] Uji retry format:
+  - paksa prompt ambigu 2x
+  - pastikan app tetap mengembalikan jawaban terstruktur (fallback lokal jika perlu).
+- [ ] Uji memory lokal chatbot:
+  - set nama/sapaan eksplisit, lalu tanyakan finansial dan pastikan sapaan dipakai natural (maks 1x)
+  - minta "apa yang kamu ingat tentang saya" untuk verifikasi data tersimpan
+  - ganti nama berbeda dan pastikan bot meminta konfirmasi overwrite
+  - minta "lupakan saya" dan pastikan memori terhapus.
+- [ ] Uji chat action import transaksi:
+  - kirim perintah "tambahkan transaksi..." berisi daftar item, pastikan app membuka layar review OCR (bukan auto-save)
+  - pastikan item ambigu ditandai `needs_review`
+  - pastikan item dengan `date_source=inferred` otomatis `needs_review=true`
+  - pastikan banner parsial/inferensi tampil jika `is_partial_day` / `missing_*` / `inference_notes` terisi
+  - simpan dari layar review dan validasi jumlah transaksi tersimpan sesuai item terpilih.

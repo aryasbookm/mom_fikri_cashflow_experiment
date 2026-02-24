@@ -65,6 +65,16 @@ All notable changes to this project will be documented in this file.
   - aksi clear chat dari AppBar.
 - Konteks chatbot diperluas dengan `product_catalog` (stok semua produk) agar jawaban produk tidak hanya bertumpu pada sampel top/slow.
 - Riwayat chatbot kini disimpan lokal (dengan guard hash snapshot data) agar sesi bisa dilanjutkan jika user kembali ke layar chat pada konteks data yang sama.
+- Chatbot kini mendukung memory lokal ringan (opt-in) untuk personalisasi:
+  - menyimpan `preferred_name`, `preferred_salutation`, `tone` via `SharedPreferences`,
+  - command lokal didukung: lihat memori, ubah nama/sapaan, ubah tone, dan lupakan memori,
+  - update nama berbeda memerlukan konfirmasi (`ya` / `tidak`) sebelum overwrite.
+- Chatbot kini mendukung `chat_action_intent` untuk import draf transaksi via chat:
+  - perintah seperti "tambahkan transaksi..." diparse ke JSON draft ketat (`import_transactions_draft`),
+  - hasil valid otomatis diarahkan ke layar review OCR yang sama (human-in-the-loop, tidak auto-save),
+  - draf dibatasi maksimal 30 item dan item ambigu ditandai `needs_review`.
+  - Phase 1 inferensi tanggal: item mendukung metadata `date_source` (`explicit|inferred|unknown`) dan aturan deterministik `inferred => needs_review=true`.
+  - layar review menampilkan banner peringatan saat data terdeteksi parsial/inferensi (`is_partial_day`, `missing_opening_block`, `missing_closing_total`, `inference_notes`).
 - Payload AI kini menyertakan agregat kategori 30 hari (pemasukan/pengeluaran) untuk Insight dan Chatbot agar jawaban lebih spesifik.
 - Fondasi service chatbot finansial ditambahkan (`AiChatbotService`):
   - bounded context (hanya jawab konteks keuangan toko),
@@ -118,6 +128,10 @@ All notable changes to this project will be documented in this file.
 - Routing AI Insight dipisahkan dari OCR:
   - order provider insight kini dikontrol `AI_INSIGHT_PROVIDER_ORDER` (default `groq,gemini`) agar insight cenderung memakai model teks dulu.
   - model Gemini untuk insight dipisah melalui `GEMINI_INSIGHT_MODEL`, tidak lagi otomatis mengikuti model OCR.
+- Chatbot finansial diperketat untuk kualitas jawaban berbasis data:
+  - prompt kini mewajibkan output JSON terstruktur (`status`, `jawaban`, `dasar_data`, `aksi_singkat`, `data_tambahan_dibutuhkan`),
+  - validasi lokal menolak respons ambigu/tidak grounded (terutama saat user menanyakan kategori spesifik),
+  - retry prompt ketat dijalankan jika format/grounding gagal, lalu fallback deterministik lokal dipakai jika tetap tidak valid.
 - Guard mutlak Insight ditambahkan:
   - jalur Insight kini memblokir model Gemini Vision (`flash`/`pro`) untuk mencegah kebocoran kuota OCR.
   - fallback Gemini untuk Insight diwajibkan memakai model Gemma (default `gemma-3-12b`).

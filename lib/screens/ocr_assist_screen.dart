@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../models/chat_import_draft.dart';
 import '../models/transaction_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/category_provider.dart';
@@ -16,7 +17,9 @@ import '../services/ai_quota_guard_service.dart';
 import '../providers/transaction_provider.dart';
 
 class OcrAssistScreen extends StatefulWidget {
-  const OcrAssistScreen({super.key});
+  const OcrAssistScreen({super.key, this.chatImportDraft});
+
+  final ChatImportDraft? chatImportDraft;
 
   @override
   State<OcrAssistScreen> createState() => _OcrAssistScreenState();
@@ -33,6 +36,10 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
   String _detectedDate = '';
   final List<String> _notesFound = [];
   final List<String> _ignoredLines = [];
+  final List<String> _inferenceNotes = [];
+  bool _isPartialDayImport = false;
+  bool _missingOpeningBlock = false;
+  bool _missingClosingTotal = false;
   String? _lastErrorMessage;
   String? _lastRejectedReason;
   bool _aiBlocked = false;
@@ -44,6 +51,12 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
   int get _reviewCount => _draftItems.where((item) => item.needsReview).length;
   int get _missingDateCount =>
       _draftItems.where((item) => item.dateIso.trim().isEmpty).length;
+  bool get _hasInferenceReviewWarning =>
+      _isPartialDayImport ||
+      _missingOpeningBlock ||
+      _missingClosingTotal ||
+      _inferenceNotes.isNotEmpty ||
+      _draftItems.any((item) => item.dateSource == 'inferred');
   int get _selectedTotalAmount {
     var sum = 0;
     for (final item in _draftItems) {
@@ -56,10 +69,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
   }
 
   List<int> get _detectedNoteTotals {
-    final lines = <String>[
-      ..._notesFound,
-      ..._ignoredLines,
-    ];
+    final lines = <String>[..._notesFound, ..._ignoredLines];
     final candidates = <int>[];
     for (final raw in lines) {
       final line = raw.toLowerCase();
@@ -82,10 +92,10 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
   }
 
   List<int> _extractAmountCandidates(String text) {
-    final matches = RegExp(r'\d[\d\.\,\s]{1,}')
-        .allMatches(text)
-        .map((m) => m.group(0) ?? '')
-        .toList();
+    final matches =
+        RegExp(
+          r'\d[\d\.\,\s]{1,}',
+        ).allMatches(text).map((m) => m.group(0) ?? '').toList();
     final values = <int>[];
     for (final raw in matches) {
       final parsed = _parseAmountInput(raw);
@@ -103,7 +113,8 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
         continue;
       }
       final key = _dateKey(item.dateIso);
-      map[key] = (map[key] ?? 0) + _parseAmountInput(item.amountController.text);
+      map[key] =
+          (map[key] ?? 0) + _parseAmountInput(item.amountController.text);
     }
     return map;
   }
@@ -232,6 +243,8 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
               return 'Gemini';
             case 'groq':
               return 'Groq';
+            case 'chat-import':
+              return 'Chat Import';
             default:
               return id;
           }
@@ -242,7 +255,58 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
   @override
   void initState() {
     super.initState();
+    _applyChatImportDraftIfAny();
     _refreshAiQuotaState();
+  }
+
+  void _applyChatImportDraftIfAny() {
+    final draft = widget.chatImportDraft;
+    if (draft == null || draft.transactions.isEmpty) {
+      return;
+    }
+    setState(() {
+      _clearDraftItems();
+      _draftItems.addAll(
+        draft.transactions.map(
+          (item) => _EditableDraftItem(
+            selected: true,
+            type: item.type,
+            amount: item.amount,
+            description: item.description,
+            originalDescription: item.description,
+            categoryHint: item.categoryHint,
+            dateIso: item.dateIso,
+            dateSource: item.dateSource,
+            confidence: item.confidence,
+            rawText: item.description,
+            needsReview: item.needsReview,
+            warning: item.warning,
+          ),
+        ),
+      );
+      _detectedDate = draft.transactions
+          .map((item) => item.dateIso.trim())
+          .firstWhere((d) => d.isNotEmpty, orElse: () => '');
+      _notesFound
+        ..clear()
+        ..addAll(draft.notesFound);
+      _ignoredLines
+        ..clear()
+        ..addAll(draft.ignoredLines);
+      _inferenceNotes
+        ..clear()
+        ..addAll(draft.inferenceNotes);
+      _isPartialDayImport = draft.isPartialDay;
+      _missingOpeningBlock = draft.missingOpeningBlock;
+      _missingClosingTotal = draft.missingClosingTotal;
+      _providerTrail
+        ..clear()
+        ..add('chat-import');
+      _lastErrorMessage = null;
+      _lastRejectedReason = null;
+      _isLoading = false;
+      _applyMajorityTypeDefault();
+    });
   }
 
   Future<void> _refreshAiQuotaState() async {
@@ -358,6 +422,10 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
       _detectedDate = '';
       _notesFound.clear();
       _ignoredLines.clear();
+      _inferenceNotes.clear();
+      _isPartialDayImport = false;
+      _missingOpeningBlock = false;
+      _missingClosingTotal = false;
       _lastErrorMessage = null;
       _lastRejectedReason = null;
     });
@@ -434,6 +502,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
               originalDescription: item.description,
               categoryHint: item.categoryHint,
               dateIso: item.dateIso,
+              dateSource: item.dateIso.trim().isEmpty ? 'unknown' : 'explicit',
               confidence: item.confidence,
               rawText: item.rawText,
               needsReview: item.needsReview,
@@ -454,6 +523,10 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
         _ignoredLines
           ..clear()
           ..addAll(batch.ignoredLines);
+        _inferenceNotes.clear();
+        _isPartialDayImport = false;
+        _missingOpeningBlock = false;
+        _missingClosingTotal = false;
         _lastErrorMessage = null;
         _lastRejectedReason = null;
       });
@@ -876,7 +949,9 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
           const SizedBox(width: 6),
           Expanded(
             child: Text(
-              hasDate ? 'Tanggal: $label' : 'Tanggal belum diset (perlu review)',
+              hasDate
+                  ? 'Tanggal: $label'
+                  : 'Tanggal belum diset (perlu review)',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -885,7 +960,8 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
             ),
           ),
           TextButton(
-            onPressed: _isLoading ? null : () => _pickAndApplyDateToBelow(index),
+            onPressed:
+                _isLoading ? null : () => _pickAndApplyDateToBelow(index),
             child: const Text('Tanggal Baru dari Sini'),
           ),
         ],
@@ -999,12 +1075,24 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
                   tooltip: 'Terapkan tanggal ini ke item di bawah',
                   icon: const Icon(Icons.south_outlined),
                   onPressed:
-                      _isLoading
-                          ? null
-                          : () => _pickAndApplyDateToBelow(index),
+                      _isLoading ? null : () => _pickAndApplyDateToBelow(index),
                 ),
               ],
             ),
+            if (item.dateSource != 'explicit') ...[
+              const SizedBox(height: 2),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Sumber tanggal: ${item.dateSource == 'inferred' ? 'inferensi AI (cek ulang)' : 'tidak diketahui'}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF8A6D1A),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 2),
             Align(
               alignment: Alignment.centerLeft,
@@ -1191,165 +1279,227 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
                 }
                 var segmentIndex = -1;
                 return Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Review Hasil Scan (${_draftItems.length} transaksi)',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade300),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Terdeteksi ${_draftItems.length} transaksi, $_reviewCount perlu review.',
-                    style: const TextStyle(fontSize: 12, color: Colors.black54),
-                  ),
-                  if (_missingDateCount > 0) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      '$_missingDateCount item belum punya tanggal. Mohon review sebelum simpan.',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF8A6D1A),
-                        fontWeight: FontWeight.w600,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Review Hasil Scan (${_draftItems.length} transaksi)',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
-                    ),
-                  ],
-                  if (_detectedDate.trim().isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      'Tanggal terdeteksi: $_detectedDate',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.black54,
+                      const SizedBox(height: 4),
+                      Text(
+                        'Terdeteksi ${_draftItems.length} transaksi, $_reviewCount perlu review.',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                        ),
                       ),
-                    ),
-                  ],
-                  if (_notesFound.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Catatan non-transaksi:',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 4),
-                    ..._notesFound
-                        .take(4)
-                        .map(
-                          (line) => Text(
-                            '• $line',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.black54,
-                            ),
+                      if (_hasInferenceReviewWarning) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF3CD),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFFFE8A1)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Data terinferensi/parsial terdeteksi. Wajib cek manual sebelum simpan.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF8A6D1A),
+                                ),
+                              ),
+                              if (_isPartialDayImport)
+                                const Text(
+                                  '- Catatan kemungkinan hanya potongan hari operasional.',
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                              if (_missingOpeningBlock)
+                                const Text(
+                                  '- Blok pembuka hari tidak lengkap/tidak ditemukan.',
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                              if (_missingClosingTotal)
+                                const Text(
+                                  '- Total penutup hari tidak ditemukan, data bisa belum lengkap.',
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                              ..._inferenceNotes
+                                  .take(3)
+                                  .map(
+                                    (note) => Text(
+                                      '- $note',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                  ),
+                            ],
                           ),
                         ),
-                  ],
-                  if (_ignoredLines.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      '${_ignoredLines.length} baris diabaikan (bukan transaksi).',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.black45,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      TextButton(
-                        onPressed: _isLoading ? null : () => _selectAll(true),
-                        child: const Text('Pilih Semua'),
-                      ),
-                      TextButton(
-                        onPressed: _isLoading ? null : () => _selectAll(false),
-                        child: const Text('Batal Pilihan'),
-                      ),
-                      TextButton(
-                        onPressed: _isLoading ? null : () => _setAllType('IN'),
-                        child: const Text('Semua IN'),
-                      ),
-                      TextButton(
-                        onPressed: _isLoading ? null : () => _setAllType('OUT'),
-                        child: const Text('Semua OUT'),
-                      ),
-                      const Spacer(),
-                      Text('Dipilih: $_selectedCount'),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  for (int i = 0; i < _draftItems.length; i++) ...[
-                    if (i == 0 ||
-                        _dateKey(_draftItems[i].dateIso) !=
-                            _dateKey(_draftItems[i - 1].dateIso)) ...[
-                      () {
-                        segmentIndex += 1;
-                        return _buildDateGroupHeader(i);
-                      }(),
-                    ],
-                    _buildDraftItemCard(_draftItems[i], i),
-                    if (i == _draftItems.length - 1 ||
-                        _dateKey(_draftItems[i].dateIso) !=
-                            _dateKey(_draftItems[i + 1].dateIso))
-                      _buildDateGroupSummaryCard(
-                        currency: currency,
-                        dateIso: _draftItems[i].dateIso,
-                        scanTotal:
-                            selectedByDate[_dateKey(_draftItems[i].dateIso)] ??
-                            0,
-                        persistedTotal:
-                            persistedByDate[_dateKey(_draftItems[i].dateIso)] ??
-                            0,
-                        noteTotal: _resolveNoteTotalForSegment(
-                          groupCount: groupCount,
-                          segmentIndex: segmentIndex,
-                          noteTotals: noteTotals,
-                        ),
-                      ),
-                  ],
-                  const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: const Color(0xFFE5E7EB),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
+                      ],
+                      if (_missingDateCount > 0) ...[
+                        const SizedBox(height: 2),
                         Text(
-                          'Total kalkulasi AI (dipilih): ${currency.format(selectedTotal)}',
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Validasi per tanggal ditampilkan di bawah tiap grup.',
-                          style: TextStyle(fontSize: 12, color: Colors.black54),
+                          '$_missingDateCount item belum punya tanggal. Mohon review sebelum simpan.',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF8A6D1A),
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ],
-                    ),
+                      if (_detectedDate.trim().isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Tanggal terdeteksi: $_detectedDate',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ],
+                      if (_notesFound.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Catatan non-transaksi:',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 4),
+                        ..._notesFound
+                            .take(4)
+                            .map(
+                              (line) => Text(
+                                '• $line',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                            ),
+                      ],
+                      if (_ignoredLines.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          '${_ignoredLines.length} baris diabaikan (bukan transaksi).',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black45,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          TextButton(
+                            onPressed:
+                                _isLoading ? null : () => _selectAll(true),
+                            child: const Text('Pilih Semua'),
+                          ),
+                          TextButton(
+                            onPressed:
+                                _isLoading ? null : () => _selectAll(false),
+                            child: const Text('Batal Pilihan'),
+                          ),
+                          TextButton(
+                            onPressed:
+                                _isLoading ? null : () => _setAllType('IN'),
+                            child: const Text('Semua IN'),
+                          ),
+                          TextButton(
+                            onPressed:
+                                _isLoading ? null : () => _setAllType('OUT'),
+                            child: const Text('Semua OUT'),
+                          ),
+                          const Spacer(),
+                          Text('Dipilih: $_selectedCount'),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      for (int i = 0; i < _draftItems.length; i++) ...[
+                        if (i == 0 ||
+                            _dateKey(_draftItems[i].dateIso) !=
+                                _dateKey(_draftItems[i - 1].dateIso)) ...[
+                          () {
+                            segmentIndex += 1;
+                            return _buildDateGroupHeader(i);
+                          }(),
+                        ],
+                        _buildDraftItemCard(_draftItems[i], i),
+                        if (i == _draftItems.length - 1 ||
+                            _dateKey(_draftItems[i].dateIso) !=
+                                _dateKey(_draftItems[i + 1].dateIso))
+                          _buildDateGroupSummaryCard(
+                            currency: currency,
+                            dateIso: _draftItems[i].dateIso,
+                            scanTotal:
+                                selectedByDate[_dateKey(
+                                  _draftItems[i].dateIso,
+                                )] ??
+                                0,
+                            persistedTotal:
+                                persistedByDate[_dateKey(
+                                  _draftItems[i].dateIso,
+                                )] ??
+                                0,
+                            noteTotal: _resolveNoteTotalForSegment(
+                              groupCount: groupCount,
+                              segmentIndex: segmentIndex,
+                              noteTotals: noteTotals,
+                            ),
+                          ),
+                      ],
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFE5E7EB)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Total kalkulasi AI (dipilih): ${currency.format(selectedTotal)}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Validasi per tanggal ditampilkan di bawah tiap grup.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.black54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _isLoading ? null : _saveSelectedDrafts,
+                          icon: const Icon(Icons.save_alt),
+                          label: Text('Simpan $_selectedCount Transaksi'),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _isLoading ? null : _saveSelectedDrafts,
-                      icon: const Icon(Icons.save_alt),
-                      label: Text('Simpan $_selectedCount Transaksi'),
-                    ),
-                  ),
-                ],
-              ),
-            );
+                );
               },
             ),
         ],
@@ -1374,6 +1524,7 @@ class _EditableDraftItem {
     required this.originalDescription,
     required this.categoryHint,
     required this.dateIso,
+    required this.dateSource,
     required this.confidence,
     required this.rawText,
     required this.needsReview,
@@ -1388,6 +1539,7 @@ class _EditableDraftItem {
   final String originalDescription;
   final String categoryHint;
   String dateIso;
+  final String dateSource;
   final int confidence;
   final String rawText;
   final bool needsReview;

@@ -6,6 +6,7 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/chat_import_draft.dart';
 import 'ai_chatbot_memory_service.dart';
 import 'ai_insight_service.dart';
 import 'ai_providers/ai_vision_provider.dart';
@@ -23,12 +24,14 @@ class AiChatReply {
     required this.providerId,
     required this.fromCache,
     required this.suggestedCooldownSeconds,
+    this.actionDraft,
   });
 
   final String text;
   final String providerId;
   final bool fromCache;
   final int suggestedCooldownSeconds;
+  final ChatImportDraft? actionDraft;
 }
 
 class AiChatbotService {
@@ -65,6 +68,29 @@ class AiChatbotService {
     );
     if (memoryAction != null) {
       return _applyMemoryAction(action: memoryAction, memory: memory);
+    }
+    if (_looksLikeImportAction(safeQuestion)) {
+      final action = await _tryBuildImportDraftFromQuestion(
+        question: safeQuestion,
+        financeSnapshot: financeSnapshot,
+      );
+      if (action == null) {
+        return const AiChatReply(
+          text:
+              'Format daftar transaksi belum jelas. Kirim ulang dengan format baris per transaksi, contoh: "Bolu coklat 2x 12000".',
+          providerId: 'chat-action-intent',
+          fromCache: false,
+          suggestedCooldownSeconds: 1,
+        );
+      }
+      return AiChatReply(
+        text:
+            'Draf transaksi berhasil disiapkan. Silakan review dulu sebelum disimpan.',
+        providerId: action.providerId,
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+        actionDraft: action.draft,
+      );
     }
 
     final boundedHistory =
@@ -309,6 +335,128 @@ $question
       },
     });
     return sha256.convert(utf8.encode(payload)).toString();
+  }
+
+  bool _looksLikeImportAction(String question) {
+    final q = question.toLowerCase();
+    return q.contains('tambahkan transaksi') ||
+        q.contains('tambah transaksi') ||
+        q.contains('import transaksi') ||
+        q.contains('input transaksi ini');
+  }
+
+  Future<_ActionIntentResult?> _tryBuildImportDraftFromQuestion({
+    required String question,
+    required List<Map<String, dynamic>> financeSnapshot,
+  }) async {
+    final prompt = _buildActionIntentPrompt(
+      question: question,
+      financeSnapshot: financeSnapshot,
+    );
+    final response = await _requestWithFallback(prompt);
+    final draft = _tryParseActionDraftJson(response.text);
+    if (draft == null || !draft.isValid) {
+      return null;
+    }
+    return _ActionIntentResult(draft: draft, providerId: response.providerId);
+  }
+
+  String _buildActionIntentPrompt({
+    required String question,
+    required List<Map<String, dynamic>> financeSnapshot,
+  }) {
+    final snapshotText = financeSnapshot
+        .where((row) {
+          final type = (row['type'] ?? '').toString();
+          return type == 'income_category_30d' ||
+              type == 'expense_category_30d';
+        })
+        .take(20)
+        .map((row) => jsonEncode(row))
+        .join('\n');
+    final safeSnapshot =
+        snapshotText.isEmpty ? '- kategori tidak tersedia' : snapshotText;
+
+    return '''
+Kamu mengubah teks chat menjadi draft transaksi untuk ditinjau user.
+WAJIB output JSON valid saja, tanpa markdown, schema tepat:
+{
+  "intent":"import_transactions_draft",
+  "source":"chat_manual_import",
+  "is_partial_day":true/false,
+  "missing_opening_block":true/false,
+  "missing_closing_total":true/false,
+  "inference_notes":["..."],
+  "transactions":[
+    {
+      "type":"IN|OUT",
+      "amount":12000,
+      "description":"...",
+      "category_hint":"...",
+      "date_iso":"YYYY-MM-DD atau kosong",
+      "date_source":"explicit|inferred|unknown",
+      "needs_review":true/false,
+      "warning":"..."
+    }
+  ],
+  "notes_found":["..."],
+  "ignored_lines":["..."],
+  "confidence":0-100
+}
+
+Aturan:
+- Maksimal 30 transaksi.
+- Baris ambigu tetap masukkan sebagai transaksi dengan needs_review=true.
+- Jika tanggal tidak jelas, date_iso = "".
+- Jika tanggal ditebak dari konteks, set date_source="inferred" dan wajib needs_review=true.
+- Gunakan date_source="explicit" hanya jika tanggal tertulis jelas di teks.
+- Jangan mengarang nominal.
+- Jika format input sangat buruk, tetap keluarkan JSON dengan transactions kosong.
+
+Kategori referensi:
+$safeSnapshot
+
+Input user:
+$question
+''';
+  }
+
+  ChatImportDraft? _tryParseActionDraftJson(String rawText) {
+    final trimmed = rawText.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+
+    Map<String, dynamic>? decoded;
+    try {
+      final direct = jsonDecode(trimmed);
+      if (direct is Map<String, dynamic>) {
+        decoded = direct;
+      } else if (direct is Map) {
+        decoded = Map<String, dynamic>.from(direct);
+      }
+    } catch (_) {
+      final start = trimmed.indexOf('{');
+      final end = trimmed.lastIndexOf('}');
+      if (start >= 0 && end > start) {
+        final candidate = trimmed.substring(start, end + 1);
+        try {
+          final loose = jsonDecode(candidate);
+          if (loose is Map<String, dynamic>) {
+            decoded = loose;
+          } else if (loose is Map) {
+            decoded = Map<String, dynamic>.from(loose);
+          }
+        } catch (_) {
+          return null;
+        }
+      }
+    }
+    if (decoded == null) {
+      return null;
+    }
+    final draft = ChatImportDraft.fromJson(decoded);
+    return draft.isValid ? draft : null;
   }
 
   _MemoryAction? _resolveMemoryAction({
@@ -1321,4 +1469,11 @@ class _NameIntent {
 
   final String name;
   final String salutation;
+}
+
+class _ActionIntentResult {
+  const _ActionIntentResult({required this.draft, required this.providerId});
+
+  final ChatImportDraft draft;
+  final String providerId;
 }
