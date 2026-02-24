@@ -189,7 +189,10 @@ Catatan:
     - `AiOcrService` tidak lagi memanggil Gemini secara langsung.
     - Provider OCR dipisah ke kontrak `AiVisionProvider`.
     - Routing dilakukan oleh `AiProviderRouter` dengan urutan provider berbasis `--dart-define=AI_PROVIDER_ORDER=...`.
-    - Saat ini provider aktif: `GeminiVisionProvider`; provider kedua dapat ditambahkan tanpa perubahan UI.
+    - Provider aktif:
+      - `GeminiVisionProvider` (utama),
+      - `GroqVisionProvider` (fallback).
+    - Urutan default fallback: `gemini,groq`.
    - Output AI bersifat asistif/read-only (tidak menulis transaksi otomatis).
    - OCR Asistif (MVP):
     - akses dari FAB `Scan Catatan` di Beranda,

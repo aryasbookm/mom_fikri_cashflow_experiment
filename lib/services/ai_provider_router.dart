@@ -2,6 +2,7 @@ import '../models/ocr_transaction_draft.dart';
 import 'ai_insight_service.dart';
 import 'ai_providers/ai_vision_provider.dart';
 import 'ai_providers/gemini_vision_provider.dart';
+import 'ai_providers/groq_vision_provider.dart';
 
 class AiProviderRouter {
   AiProviderRouter({List<AiVisionProvider>? providers})
@@ -49,7 +50,7 @@ class AiProviderRouter {
   static List<AiVisionProvider> _providersFromEnvironment() {
     final order = String.fromEnvironment(
       'AI_PROVIDER_ORDER',
-      defaultValue: 'gemini',
+      defaultValue: 'gemini,groq',
     );
     final requested =
         order
@@ -62,8 +63,10 @@ class AiProviderRouter {
     for (final id in requested) {
       if (id == 'gemini') {
         providers.add(GeminiVisionProvider());
+      } else if (id == 'groq') {
+        providers.add(GroqVisionProvider());
       }
-      // next providers can be registered here (example: groq, claude, etc.)
+      // next providers can be registered here (example: claude, etc.)
     }
 
     if (providers.isEmpty) {
@@ -72,4 +75,3 @@ class AiProviderRouter {
     return providers;
   }
 }
-

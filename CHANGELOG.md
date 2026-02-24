@@ -15,6 +15,10 @@ All notable changes to this project will be documented in this file.
   - `GeminiVisionProvider` untuk isolasi implementasi Gemini dari layer UI/service utama.
   - `AiProviderRouter` untuk routing provider berurutan (berdasarkan `AI_PROVIDER_ORDER`, default `gemini`) dan auto-fallback saat provider utama terkena limit sementara (`429`) atau error temporary.
   - `AiOcrService` kini memanggil router (bukan hardcoded Gemini), sehingga siap ditambah provider kedua tanpa ubah UI.
+- Provider fallback kedua ditambahkan:
+  - `GroqVisionProvider` (`https://api.groq.com/openai/v1/chat/completions`) dengan model default `llama-3.2-11b-vision-preview`.
+  - konfigurasi key via `--dart-define=GROQ_API_KEY=...`.
+  - urutan provider default router diperbarui menjadi `gemini,groq`.
 - OCR Asistif MVP (Human-in-the-Loop):
   - menu `Scan Catatan` (ikon scanner di AppBar Beranda owner),
   - ambil foto dari kamera / pilih dari galeri,
