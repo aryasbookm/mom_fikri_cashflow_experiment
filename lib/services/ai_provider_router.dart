@@ -84,16 +84,35 @@ class AiProviderRouter {
     final providers = <AiVisionProvider>[];
     for (final id in requested) {
       if (id == 'gemini') {
-        providers.add(GeminiVisionProvider());
+        if (_isProviderConfigured('gemini')) {
+          providers.add(GeminiVisionProvider());
+        }
       } else if (id == 'groq') {
-        providers.add(GroqVisionProvider());
+        if (_isProviderConfigured('groq')) {
+          providers.add(GroqVisionProvider());
+        }
       }
       // next providers can be registered here (example: claude, etc.)
     }
 
     if (providers.isEmpty) {
-      providers.add(GeminiVisionProvider());
+      if (_isProviderConfigured('gemini')) {
+        providers.add(GeminiVisionProvider());
+      } else if (_isProviderConfigured('groq')) {
+        providers.add(GroqVisionProvider());
+      }
     }
     return providers;
+  }
+
+  static bool _isProviderConfigured(String providerId) {
+    switch (providerId) {
+      case 'gemini':
+        return const String.fromEnvironment('GEMINI_API_KEY').trim().isNotEmpty;
+      case 'groq':
+        return const String.fromEnvironment('GROQ_API_KEY').trim().isNotEmpty;
+      default:
+        return false;
+    }
   }
 }

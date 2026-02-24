@@ -416,7 +416,9 @@ Tanpa kalimat pembuka/penutup.
             .where((entry) => entry.isNotEmpty)
             .toList();
     final providerIds =
-        requested.isEmpty ? const ['gemini', 'groq'] : requested;
+        (requested.isEmpty ? const ['gemini', 'groq'] : requested)
+            .where(_isProviderConfigured)
+            .toList();
 
     Object? lastFallbackError;
 
@@ -445,7 +447,19 @@ Tanpa kalimat pembuka/penutup.
     if (lastFallbackError != null) {
       throw lastFallbackError;
     }
-    throw Exception('Provider AI belum dikonfigurasi.');
+    throw Exception(
+      'Provider AI belum dikonfigurasi. Set GEMINI_API_KEY atau GROQ_API_KEY saat build.',
+    );
+  }
+
+  bool _isProviderConfigured(String providerId) {
+    if (providerId == 'gemini') {
+      return _apiKey.trim().isNotEmpty;
+    }
+    if (providerId == 'groq') {
+      return _groqApiKey.trim().isNotEmpty;
+    }
+    return false;
   }
 
   Future<Map<String, dynamic>> _requestGemini(
