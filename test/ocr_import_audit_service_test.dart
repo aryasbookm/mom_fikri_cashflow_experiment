@@ -51,5 +51,25 @@ void main() {
 
       expect(duplicate, isNull);
     });
+
+    test('returns null for non-matching hash even within window', () async {
+      final nowMs = DateTime.now().toUtc().millisecondsSinceEpoch;
+      SharedPreferences.setMockInitialValues({
+        'ocr_import_audit_records_v1': jsonEncode([
+          {
+            'hash': 'hash-a',
+            'saved_at_ms': nowMs,
+            'item_count': 3,
+            'total_amount': 45000,
+          },
+        ]),
+      });
+
+      final duplicate = await OcrImportAuditService.findRecentDuplicate(
+        'hash-b',
+      );
+
+      expect(duplicate, isNull);
+    });
   });
 }

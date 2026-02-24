@@ -100,6 +100,11 @@ All notable changes to this project will be documented in this file.
   - transaksi dari jalur OCR kamera kini ditandai audit sumber di deskripsi (`[ocr_scan:<hash8>]`).
   - audit ringkas penyimpanan OCR kamera dicatat lokal (hash/jumlah/nominal) via `OcrImportAuditService`.
   - unit test baru `ocr_import_audit_service_test.dart` ditambahkan untuk validasi dedup window OCR.
+- OCR parity Phase 4 (reliability & edge-case testing):
+  - perluasan test parser OCR untuk skenario nominal berantai (`10.000 + 5.000 + 2.000`) agar perhitungan deterministik tetap konsisten.
+  - penambahan test OCR untuk item tanggal inferensi/parsial agar aturan review wajib tetap terjaga pada payload edge case.
+  - penambahan test batas `maxItems` untuk memastikan payload OCR besar tetap dipotong aman sesuai limit.
+  - penambahan test dedup OCR untuk kasus hash tidak cocok (dalam window) agar tidak terjadi false-positive duplicate.
 - Payload AI kini menyertakan agregat kategori 30 hari (pemasukan/pengeluaran) untuk Insight dan Chatbot agar jawaban lebih spesifik.
 - Fondasi service chatbot finansial ditambahkan (`AiChatbotService`):
   - bounded context (hanya jawab konteks keuangan toko),
