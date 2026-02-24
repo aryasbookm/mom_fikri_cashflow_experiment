@@ -41,7 +41,8 @@
     - primary tunggal: `--dart-define=GEMINI_MODEL=gemini-2.5-flash`
     - chain OCR Gemini: `--dart-define=GEMINI_OCR_MODEL_CHAIN=gemini-2.5-flash,gemini-3-flash,gemini-2.5-flash-lite`
   - opsional model Insight:
-    - `--dart-define=GEMINI_INSIGHT_MODEL=gemini-2.5-flash`
+    - `--dart-define=GEMINI_INSIGHT_MODEL=gemma-3-12b`
+    - guard insight memblokir model Gemini Vision (`flash`/`pro`) agar kuota OCR tidak bocor.
   - opsional model fallback:
     - `--dart-define=GROQ_VISION_MODEL=meta-llama/llama-4-scout-17b-16e-instruct`
 

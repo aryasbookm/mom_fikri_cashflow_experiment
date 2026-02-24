@@ -180,7 +180,7 @@ class AiInsightService {
   static const String _groqApiKey = String.fromEnvironment('GROQ_API_KEY');
   static const String _model = String.fromEnvironment(
     'GEMINI_INSIGHT_MODEL',
-    defaultValue: 'gemini-2.5-flash',
+    defaultValue: 'gemma-3-12b',
   );
   static const String _groqModel = String.fromEnvironment(
     'GROQ_CHAT_MODEL',
@@ -466,6 +466,8 @@ Tanpa kalimat pembuka/penutup.
     String prompt, {
     required double temperature,
   }) async {
+    _validateGeminiInsightModel();
+
     if (_apiKey.trim().isEmpty) {
       throw const AiProviderTemporaryException(
         'GEMINI_API_KEY belum diset untuk provider utama.',
@@ -556,6 +558,27 @@ Tanpa kalimat pembuka/penutup.
       );
     }
     return body;
+  }
+
+  void _validateGeminiInsightModel() {
+    final model = _model.trim().toLowerCase();
+    if (model.isEmpty) {
+      throw const AiProviderTemporaryException(
+        'GEMINI_INSIGHT_MODEL belum diset.',
+      );
+    }
+    final isVisionFamily = model.contains('flash') || model.contains('pro');
+    if (isVisionFamily) {
+      throw AiProviderTemporaryException(
+        'Model insight $_model diblokir: gunakan model teks (Gemma), bukan Flash/Pro.',
+      );
+    }
+    final isGemmaTextModel = model.startsWith('gemma');
+    if (!isGemmaTextModel) {
+      throw AiProviderTemporaryException(
+        'Model insight $_model tidak diizinkan. Gunakan model Gemma (contoh: gemma-3-12b).',
+      );
+    }
   }
 
   Future<Map<String, dynamic>> _requestGroq(

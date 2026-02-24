@@ -98,6 +98,9 @@ All notable changes to this project will be documented in this file.
 - Routing AI Insight dipisahkan dari OCR:
   - order provider insight kini dikontrol `AI_INSIGHT_PROVIDER_ORDER` (default `groq,gemini`) agar insight cenderung memakai model teks dulu.
   - model Gemini untuk insight dipisah melalui `GEMINI_INSIGHT_MODEL`, tidak lagi otomatis mengikuti model OCR.
+- Guard mutlak Insight ditambahkan:
+  - jalur Insight kini memblokir model Gemini Vision (`flash`/`pro`) untuk mencegah kebocoran kuota OCR.
+  - fallback Gemini untuk Insight diwajibkan memakai model Gemma (default `gemma-3-12b`).
 - Error Insight AI diperjelas:
   - pesan fallback tidak lagi selalu menyalahkan internet,
   - status HTTP umum (`400/401/403/404/5xx`) dipetakan ke pesan yang lebih akurat untuk user.
