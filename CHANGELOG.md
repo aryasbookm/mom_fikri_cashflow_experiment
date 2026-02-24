@@ -124,8 +124,10 @@ All notable changes to this project will be documented in this file.
   - item tanpa tanggal ditandai sebagai `perlu review` sebelum simpan.
 - Review OCR kini menampilkan ringkasan total:
   - total nominal otomatis dihitung dari item yang dipilih user.
-  - jika ditemukan baris total pada catatan non-transaksi, aplikasi membandingkan dengan total kalkulasi.
-  - ketika tidak cocok, ditampilkan warning selisih agar user cek ulang sebelum simpan.
+  - validasi ditampilkan per kelompok tanggal (bukan global) agar aman untuk foto dengan multi-tanggal.
+  - total kumulatif per tanggal dihitung dari `(total tersimpan di DB) + (total scan grup)`.
+  - jika ditemukan pembanding total dari catatan dan mapping tanggalnya jelas, aplikasi menampilkan status cocok/selisih.
+  - jika pembanding tidak jelas, status ditandai `belum bisa divalidasi` (tanpa warning palsu).
 - Review OCR kini menerapkan smart default IN/OUT:
   - setelah hasil scan masuk, tipe transaksi diset mengikuti suara mayoritas (`IN` atau `OUT`) dalam satu halaman.
   - user tetap bisa mengubah tipe per transaksi secara manual sebelum simpan.

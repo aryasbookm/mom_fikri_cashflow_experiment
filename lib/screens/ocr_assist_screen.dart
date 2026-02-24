@@ -55,7 +55,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     return sum;
   }
 
-  int? get _detectedGrandTotalFromNotes {
+  List<int> get _detectedNoteTotals {
     final lines = <String>[
       ..._notesFound,
       ..._ignoredLines,
@@ -77,11 +77,8 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
       final values = _extractAmountCandidates(raw);
       candidates.addAll(values.where((v) => v > 0));
     }
-    if (candidates.isEmpty) {
-      return null;
-    }
     candidates.sort();
-    return candidates.last;
+    return candidates;
   }
 
   List<int> _extractAmountCandidates(String text) {
@@ -97,6 +94,125 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
       }
     }
     return values;
+  }
+
+  Map<String, int> _selectedTotalsByDate() {
+    final map = <String, int>{};
+    for (final item in _draftItems) {
+      if (!item.selected) {
+        continue;
+      }
+      final key = _dateKey(item.dateIso);
+      map[key] = (map[key] ?? 0) + _parseAmountInput(item.amountController.text);
+    }
+    return map;
+  }
+
+  Map<String, int> _persistedTotalsByDate(TransactionProvider provider) {
+    final map = <String, int>{};
+    for (final tx in provider.transactions) {
+      if (tx.type == 'WASTE') {
+        continue;
+      }
+      final parsed = DateTime.tryParse(tx.date);
+      if (parsed == null) {
+        continue;
+      }
+      final key = _toDateIso(parsed);
+      map[key] = (map[key] ?? 0) + tx.amount;
+    }
+    return map;
+  }
+
+  int? _resolveNoteTotalForSegment({
+    required int groupCount,
+    required int segmentIndex,
+    required List<int> noteTotals,
+  }) {
+    if (noteTotals.isEmpty) {
+      return null;
+    }
+    if (groupCount == 1) {
+      return noteTotals.last;
+    }
+    if (noteTotals.length == groupCount && segmentIndex < noteTotals.length) {
+      return noteTotals[segmentIndex];
+    }
+    return null;
+  }
+
+  Widget _buildDateGroupSummaryCard({
+    required NumberFormat currency,
+    required String dateIso,
+    required int scanTotal,
+    required int persistedTotal,
+    required int? noteTotal,
+  }) {
+    final cumulative = scanTotal + persistedTotal;
+    final canValidate = noteTotal != null && dateIso.trim().isNotEmpty;
+    final isMismatch = canValidate && noteTotal != cumulative;
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color:
+            isMismatch
+                ? const Color(0xFFFFEBEE)
+                : canValidate
+                ? const Color(0xFFE8F5E9)
+                : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color:
+              isMismatch
+                  ? const Color(0xFFFFCDD2)
+                  : canValidate
+                  ? const Color(0xFFC8E6C9)
+                  : const Color(0xFFE5E7EB),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Total Scan: ${currency.format(scanTotal)}',
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Total Kumulatif Tanggal (DB + Scan): ${currency.format(cumulative)}',
+            style: const TextStyle(fontSize: 12, color: Colors.black54),
+          ),
+          if (noteTotal != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              'Total Catatan: ${currency.format(noteTotal)}',
+              style: const TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+          ],
+          const SizedBox(height: 4),
+          Text(
+            canValidate
+                ? (isMismatch
+                    ? 'Selisih terdeteksi. Mohon cek nominal di grup tanggal ini.'
+                    : 'Cocok dengan total catatan.')
+                : 'Belum bisa divalidasi (total catatan per tanggal tidak jelas).',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color:
+                  canValidate
+                      ? (isMismatch
+                          ? const Color(0xFFB71C1C)
+                          : const Color(0xFF1B5E20))
+                      : const Color(0xFF8A6D1A),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   String get _providerTrailText {
@@ -997,14 +1113,25 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
             Builder(
               builder: (context) {
                 final selectedTotal = _selectedTotalAmount;
-                final detectedTotal = _detectedGrandTotalFromNotes;
-                final hasMismatch =
-                    detectedTotal != null && detectedTotal != selectedTotal;
+                final noteTotals = _detectedNoteTotals;
                 final currency = NumberFormat.currency(
                   locale: 'id_ID',
                   symbol: 'Rp ',
                   decimalDigits: 0,
                 );
+                final selectedByDate = _selectedTotalsByDate();
+                final persistedByDate = _persistedTotalsByDate(
+                  context.read<TransactionProvider>(),
+                );
+                var groupCount = 0;
+                for (int i = 0; i < _draftItems.length; i++) {
+                  if (i == 0 ||
+                      _dateKey(_draftItems[i].dateIso) !=
+                          _dateKey(_draftItems[i - 1].dateIso)) {
+                    groupCount += 1;
+                  }
+                }
+                var segmentIndex = -1;
                 return Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -1093,25 +1220,41 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
                   for (int i = 0; i < _draftItems.length; i++) ...[
                     if (i == 0 ||
                         _dateKey(_draftItems[i].dateIso) !=
-                            _dateKey(_draftItems[i - 1].dateIso))
-                      _buildDateGroupHeader(i),
+                            _dateKey(_draftItems[i - 1].dateIso)) ...[
+                      () {
+                        segmentIndex += 1;
+                        return _buildDateGroupHeader(i);
+                      }(),
+                    ],
                     _buildDraftItemCard(_draftItems[i], i),
+                    if (i == _draftItems.length - 1 ||
+                        _dateKey(_draftItems[i].dateIso) !=
+                            _dateKey(_draftItems[i + 1].dateIso))
+                      _buildDateGroupSummaryCard(
+                        currency: currency,
+                        dateIso: _draftItems[i].dateIso,
+                        scanTotal:
+                            selectedByDate[_dateKey(_draftItems[i].dateIso)] ??
+                            0,
+                        persistedTotal:
+                            persistedByDate[_dateKey(_draftItems[i].dateIso)] ??
+                            0,
+                        noteTotal: _resolveNoteTotalForSegment(
+                          groupCount: groupCount,
+                          segmentIndex: segmentIndex,
+                          noteTotals: noteTotals,
+                        ),
+                      ),
                   ],
                   const SizedBox(height: 8),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color:
-                          hasMismatch
-                              ? const Color(0xFFFFEBEE)
-                              : const Color(0xFFF8FAFC),
+                      color: const Color(0xFFF8FAFC),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color:
-                            hasMismatch
-                                ? const Color(0xFFFFCDD2)
-                                : const Color(0xFFE5E7EB),
+                        color: const Color(0xFFE5E7EB),
                       ),
                     ),
                     child: Column(
@@ -1121,26 +1264,11 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
                           'Total kalkulasi AI (dipilih): ${currency.format(selectedTotal)}',
                           style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
-                        if (detectedTotal != null) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            'Total terdeteksi di catatan: ${currency.format(detectedTotal)}',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.black54,
-                            ),
-                          ),
-                          if (hasMismatch) ...[
-                            const SizedBox(height: 6),
-                            Text(
-                              'Ada selisih total. Mohon cek nominal per baris sebelum simpan.',
-                              style: const TextStyle(
-                                color: Color(0xFFB71C1C),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ],
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Validasi per tanggal ditampilkan di bawah tiap grup.',
+                          style: TextStyle(fontSize: 12, color: Colors.black54),
+                        ),
                       ],
                     ),
                   ),
