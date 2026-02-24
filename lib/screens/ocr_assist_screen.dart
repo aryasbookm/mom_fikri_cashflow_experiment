@@ -417,6 +417,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
           });
         },
       );
+      await OcrLearningDictionaryService.preloadFromProductsIfNeeded();
       final dictionary = await OcrLearningDictionaryService.getDictionary();
       final editableItems =
           batch.transactions.map((item) {

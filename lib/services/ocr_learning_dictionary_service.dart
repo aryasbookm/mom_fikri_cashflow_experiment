@@ -2,8 +2,11 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../database/database_helper.dart';
+
 class OcrLearningDictionaryService {
   static const String _storeKey = 'ocr_learning_dictionary_v1';
+  static const String _seededKey = 'ocr_learning_dictionary_seeded_v1';
   static const int _maxEntries = 300;
 
   static Future<Map<String, String>> getDictionary() async {
@@ -106,5 +109,36 @@ class OcrLearningDictionaryService {
 
     await prefs.setString(_storeKey, jsonEncode(updated));
   }
-}
 
+  static Future<void> preloadFromProductsIfNeeded() async {
+    final prefs = await SharedPreferences.getInstance();
+    final seeded = prefs.getBool(_seededKey) ?? false;
+    if (seeded) {
+      return;
+    }
+    final db = await DatabaseHelper.instance.database;
+    final rows = await db.query(
+      'products',
+      columns: ['name'],
+      where: 'name IS NOT NULL AND TRIM(name) != ?',
+      whereArgs: [''],
+      orderBy: 'is_active DESC, name ASC',
+    );
+    final current = await getDictionary();
+    final updated = <String, String>{...current};
+
+    for (final row in rows) {
+      final name = (row['name'] ?? '').toString().trim();
+      if (name.isEmpty) {
+        continue;
+      }
+      final fullKey = normalizeKey(name);
+      if (fullKey.isNotEmpty && !updated.containsKey(fullKey)) {
+        updated[fullKey] = name;
+      }
+    }
+
+    await prefs.setString(_storeKey, jsonEncode(updated));
+    await prefs.setBool(_seededKey, true);
+  }
+}

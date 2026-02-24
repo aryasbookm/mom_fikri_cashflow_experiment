@@ -24,6 +24,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   DateTime? _customDate;
   DateTime? _rangeStart;
   DateTime? _rangeEnd;
+  DateTime? _customMonth;
   bool _isExporting = false;
   int _lastSeenEpoch = 0;
   final TextEditingController _searchController = TextEditingController();
@@ -37,11 +38,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   final List<String> _filters = [
     'Hari Ini',
-    'Kemarin',
     '7 Hari',
     'Bulan Ini',
-    'Tanggal',
-    'Rentang',
     'Semua',
   ];
 
@@ -64,6 +62,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   DateTime _toDay(DateTime d) => DateTime(d.year, d.month, d.day);
 
+  bool get _isAdvancedFilterActive =>
+      _filter == 'Tanggal' || _filter == 'Rentang' || _filter == 'Bulan Pilihan';
+
   Future<void> _pickCustomDate() async {
     final initial = _customDate ?? DateTime.now();
     final picked = await showDatePicker(
@@ -79,6 +80,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     setState(() {
       _customDate = _toDay(picked);
       _filter = 'Tanggal';
+      _customMonth = null;
     });
   }
 
@@ -100,6 +102,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         _rangeEnd = _rangeStart;
       }
       _filter = 'Rentang';
+      _customMonth = null;
     });
   }
 
@@ -121,7 +124,77 @@ class _HistoryScreenState extends State<HistoryScreen> {
         _rangeStart = _rangeEnd;
       }
       _filter = 'Rentang';
+      _customMonth = null;
     });
+  }
+
+  Future<void> _pickCustomMonth() async {
+    final initial = _customMonth ?? DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      helpText: 'Pilih bulan (pilih tanggal apa saja di bulan target)',
+    );
+    if (picked == null || !mounted) {
+      return;
+    }
+    final monthStart = DateTime(picked.year, picked.month, 1);
+    final monthEnd = DateTime(picked.year, picked.month + 1, 0);
+    setState(() {
+      _customMonth = monthStart;
+      _rangeStart = monthStart;
+      _rangeEnd = monthEnd;
+      _filter = 'Bulan Pilihan';
+    });
+  }
+
+  Future<void> _openAdvancedFilterSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      builder:
+          (sheetContext) => SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.event),
+                  title: const Text('Tanggal tertentu'),
+                  subtitle: const Text('Lihat transaksi 1 hari spesifik'),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    _pickCustomDate();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.date_range),
+                  title: const Text('Rentang tanggal'),
+                  subtitle: const Text('Atur tanggal awal dan akhir'),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    setState(() {
+                      _filter = 'Rentang';
+                      _rangeStart ??= _toDay(DateTime.now());
+                      _rangeEnd ??= _toDay(DateTime.now());
+                      _customMonth = null;
+                    });
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.calendar_month),
+                  title: const Text('Pilih Bulan'),
+                  subtitle: const Text('Pilih laporan 1 bulan penuh'),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    _pickCustomMonth();
+                  },
+                ),
+                const SizedBox(height: 6),
+              ],
+            ),
+          ),
+    );
   }
 
   Widget _buildDateControlChip({
@@ -172,6 +245,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
         final start = _rangeStart ?? today;
         final end = _rangeEnd ?? today;
         return !target.isBefore(start) && !target.isAfter(end);
+      case 'Bulan Pilihan':
+        final selected = _customMonth ?? today;
+        return target.year == selected.year && target.month == selected.month;
       case 'Semua':
       default:
         return true;
@@ -274,6 +350,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               _customDate = null;
               _rangeStart = null;
               _rangeEnd = null;
+              _customMonth = null;
               _searchController.clear();
               _searchQuery = '';
               _lastSeenEpoch = provider.restoreEpoch;
@@ -388,9 +465,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 if (label == 'Tanggal' && _customDate == null) {
                                   _customDate = _toDay(DateTime.now());
                                 }
-                                if (label == 'Rentang') {
-                                  _rangeStart ??= _toDay(DateTime.now());
-                                  _rangeEnd ??= _toDay(DateTime.now());
+                                if (label != 'Tanggal') {
+                                  _customMonth = null;
                                 }
                               });
                             },
@@ -398,6 +474,36 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         },
                         separatorBuilder: (_, __) => const SizedBox(width: 8),
                         itemCount: _filters.length,
+                      ),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: _openAdvancedFilterSheet,
+                            icon: const Icon(Icons.tune, size: 16),
+                            label: const Text('Filter Lanjutan'),
+                          ),
+                          if (_isAdvancedFilterActive) ...[
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _filter == 'Tanggal'
+                                    ? 'Aktif: Tanggal tertentu'
+                                    : _filter == 'Rentang'
+                                    ? 'Aktif: Rentang tanggal'
+                                    : 'Aktif: Bulan pilihan',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   ),
@@ -437,7 +543,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       ),
                     ),
                   ),
-                  if (_filter == 'Tanggal' || _filter == 'Rentang')
+                  if (_filter == 'Tanggal' ||
+                      _filter == 'Rentang' ||
+                      _filter == 'Bulan Pilihan')
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
@@ -466,6 +574,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 onTap: _pickRangeEnd,
                               ),
                             ],
+                            if (_filter == 'Bulan Pilihan')
+                              _buildDateControlChip(
+                                label:
+                                    'Bulan: ${DateFormat('MMMM y', 'id_ID').format(_customMonth ?? DateTime.now())}',
+                                onTap: _pickCustomMonth,
+                              ),
                           ],
                         ),
                       ),
@@ -867,6 +981,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
         final startLabel = DateFormat('d MMM y', 'id_ID').format(start);
         final endLabel = DateFormat('d MMM y', 'id_ID').format(end);
         return '$startLabel - $endLabel';
+      case 'Bulan Pilihan':
+        final m = _customMonth ?? now;
+        return DateFormat('MMMM y', 'id_ID').format(m);
       case 'Semua':
       default:
         return 'Semua Data';

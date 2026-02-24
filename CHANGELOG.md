@@ -135,6 +135,7 @@ All notable changes to this project will be documented in this file.
   - aplikasi merekam koreksi deskripsi manual user saat simpan transaksi scan.
   - koreksi tersebut dipakai sebagai auto-correct pada scan berikutnya untuk mengurangi typo berulang.
   - penyimpanan kamus menggunakan local preferences agar ringan dan tidak mengubah skema database.
+  - kamus melakukan preload awal dari daftar produk di database agar OCR langsung lebih familiar dengan nama produk toko.
 - OCR provider error observability ditingkatkan:
   - pesan 4xx OCR kini menyertakan label provider (`[Gemini]` / `[Groq]`) dan detail message dari body response jika tersedia,
   - mempermudah identifikasi akar masalah nyata (model/key/request schema) dibanding pesan generik.
@@ -167,6 +168,8 @@ All notable changes to this project will be documented in this file.
   - mode `Tanggal` untuk melihat transaksi pada satu hari tertentu.
   - mode `Rentang` untuk melihat transaksi dari tanggal awal sampai akhir pilihan user.
   - hasil filter kustom tetap terintegrasi dengan pencarian transaksi yang sudah ada.
+  - tampilan filter disederhanakan ke chips utama (`Hari Ini`, `7 Hari`, `Bulan Ini`, `Semua`) + menu `Filter Lanjutan`.
+  - menu `Filter Lanjutan` menampung `Tanggal`, `Rentang`, dan `Pilih Bulan` cepat.
 - Dashboard input entrypoint disederhanakan:
   - FAB Beranda dihapus agar tidak menduplikasi aksi utama `Catat Pemasukan/Pengeluaran`.
   - entry OCR dipindah ke section khusus **Migrasi dari Buku** di layar Riwayat (body, bukan AppBar) agar konteks lebih tepat.
