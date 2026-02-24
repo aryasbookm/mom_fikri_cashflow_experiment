@@ -129,6 +129,10 @@ All notable changes to this project will be documented in this file.
 - Review OCR kini menerapkan smart default IN/OUT:
   - setelah hasil scan masuk, tipe transaksi diset mengikuti suara mayoritas (`IN` atau `OUT`) dalam satu halaman.
   - user tetap bisa mengubah tipe per transaksi secara manual sebelum simpan.
+- Learning Dictionary OCR (v1):
+  - aplikasi merekam koreksi deskripsi manual user saat simpan transaksi scan.
+  - koreksi tersebut dipakai sebagai auto-correct pada scan berikutnya untuk mengurangi typo berulang.
+  - penyimpanan kamus menggunakan local preferences agar ringan dan tidak mengubah skema database.
 - OCR provider error observability ditingkatkan:
   - pesan 4xx OCR kini menyertakan label provider (`[Gemini]` / `[Groq]`) dan detail message dari body response jika tersedia,
   - mempermudah identifikasi akar masalah nyata (model/key/request schema) dibanding pesan generik.

@@ -11,6 +11,7 @@ import '../providers/auth_provider.dart';
 import '../providers/category_provider.dart';
 import '../services/ai_insight_service.dart';
 import '../services/ai_ocr_service.dart';
+import '../services/ocr_learning_dictionary_service.dart';
 import '../services/ai_quota_guard_service.dart';
 import '../providers/transaction_provider.dart';
 
@@ -300,27 +301,34 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
           });
         },
       );
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _clearDraftItems();
-        _draftItems.addAll(
-          batch.transactions.map(
-            (item) => _EditableDraftItem(
+      final dictionary = await OcrLearningDictionaryService.getDictionary();
+      final editableItems =
+          batch.transactions.map((item) {
+            final correctedDescription =
+                OcrLearningDictionaryService.applyCorrection(
+                  item.description,
+                  dictionary,
+                );
+            return _EditableDraftItem(
               selected: true,
               type: item.type,
               amount: item.amount,
-              description: item.description,
+              description: correctedDescription,
+              originalDescription: item.description,
               categoryHint: item.categoryHint,
               dateIso: item.dateIso,
               confidence: item.confidence,
               rawText: item.rawText,
               needsReview: item.needsReview,
               warning: item.warning,
-            ),
-          ),
-        );
+            );
+          }).toList();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _clearDraftItems();
+        _draftItems.addAll(editableItems);
         _applyMajorityTypeDefault();
         _detectedDate = batch.detectedDate;
         _notesFound
@@ -479,6 +487,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
 
     var success = 0;
     var failed = 0;
+    final learningPairs = <String, String>{};
     for (final item in selected) {
       final amount = _parseAmountInput(item.amountController.text);
       final description = item.descriptionController.text.trim();
@@ -523,9 +532,18 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
           ),
         );
         success += 1;
+        if (item.originalDescription.trim().isNotEmpty &&
+            description.isNotEmpty &&
+            item.originalDescription.trim() != description) {
+          learningPairs[item.originalDescription.trim()] = description;
+        }
       } catch (_) {
         failed += 1;
       }
+    }
+
+    if (success > 0 && learningPairs.isNotEmpty) {
+      await OcrLearningDictionaryService.learnFromEdits(learningPairs);
     }
 
     if (!mounted) {
@@ -1159,6 +1177,7 @@ class _EditableDraftItem {
     required this.type,
     required int amount,
     required String description,
+    required this.originalDescription,
     required this.categoryHint,
     required this.dateIso,
     required this.confidence,
@@ -1172,6 +1191,7 @@ class _EditableDraftItem {
   String type;
   final TextEditingController amountController;
   final TextEditingController descriptionController;
+  final String originalDescription;
   final String categoryHint;
   String dateIso;
   final int confidence;
