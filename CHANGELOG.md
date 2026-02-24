@@ -59,6 +59,10 @@ All notable changes to this project will be documented in this file.
   - hasil ditampilkan sebagai dialog teks (read-only, tidak mengubah data transaksi),
   - integrasi via Gemini REST menggunakan `--dart-define=GEMINI_API_KEY=...`.
 - Layar **Chat AI Keuangan** (`AiChatbotScreen`) ditambahkan dan terhubung dari tombol `Tanya Lanjutan` pada dialog Insight.
+- Polishing UI chatbot:
+  - quick question chips (1-tap),
+  - copy jawaban AI ke clipboard,
+  - aksi clear chat dari AppBar.
 - Fondasi service chatbot finansial ditambahkan (`AiChatbotService`):
   - bounded context (hanya jawab konteks keuangan toko),
   - history window terbatas (maks 8 pesan),

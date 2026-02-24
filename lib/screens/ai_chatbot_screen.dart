@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../services/ai_chatbot_service.dart';
 import '../services/ai_insight_service.dart';
@@ -28,17 +29,17 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   bool _isLoading = false;
   int _cooldownSeconds = 0;
   Timer? _cooldownTimer;
+  static const List<String> _quickQuestions = [
+    'Apa 2 aksi prioritas minggu ini?',
+    'Kenapa laba turun di 30 hari terakhir?',
+    'Produk mana yang perlu dipromosikan dulu?',
+    'Bagaimana menekan pengeluaran bahan baku?',
+  ];
 
   @override
   void initState() {
     super.initState();
-    _messages.add(
-      const AiChatMessage(
-        role: 'assistant',
-        text:
-            'Halo, saya asisten keuangan toko. Tanyakan ringkasan laba, biaya, tren produk, atau rekomendasi aksi.',
-      ),
-    );
+    _resetChat();
     final initial = widget.initialQuestion?.trim();
     if (initial != null && initial.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -65,6 +66,54 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     }
     _inputController.clear();
     await _sendQuestion(text);
+  }
+
+  void _resetChat() {
+    _messages
+      ..clear()
+      ..add(
+        const AiChatMessage(
+          role: 'assistant',
+          text:
+              'Halo, saya asisten keuangan toko. Tanyakan ringkasan laba, biaya, tren produk, atau rekomendasi aksi.',
+        ),
+      );
+  }
+
+  Future<void> _clearChat() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Hapus Percakapan'),
+            content: const Text('Riwayat chat di layar ini akan dihapus.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Batal'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Hapus'),
+              ),
+            ],
+          ),
+    );
+    if (confirm != true || !mounted) {
+      return;
+    }
+    setState(_resetChat);
+    _scrollToBottom();
+  }
+
+  Future<void> _copyMessage(String text) async {
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Jawaban disalin ke clipboard.')),
+    );
   }
 
   Future<void> _sendQuestion(String question) async {
@@ -165,7 +214,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       }
       _scrollController.animateTo(
         _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 250),
+        duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
       );
     });
@@ -174,9 +223,40 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Chat AI Keuangan')),
+      appBar: AppBar(
+        title: const Text('Chat AI Keuangan'),
+        actions: [
+          IconButton(
+            tooltip: 'Hapus chat',
+            onPressed: _messages.length <= 1 ? null : _clearChat,
+            icon: const Icon(Icons.delete_sweep_outlined),
+          ),
+        ],
+      ),
       body: Column(
         children: [
+          SizedBox(
+            height: 44,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 2),
+              children:
+                  _quickQuestions
+                      .map(
+                        (q) => Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ActionChip(
+                            label: Text(q),
+                            onPressed:
+                                (_isLoading || _cooldownSeconds > 0)
+                                    ? null
+                                    : () => _sendQuestion(q),
+                          ),
+                        ),
+                      )
+                      .toList(),
+            ),
+          ),
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
@@ -209,7 +289,25 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: Colors.black12),
                     ),
-                    child: Text(msg.text),
+                    child: Column(
+                      crossAxisAlignment:
+                          isUser
+                              ? CrossAxisAlignment.end
+                              : CrossAxisAlignment.start,
+                      children: [
+                        Text(msg.text),
+                        if (!isUser)
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: IconButton(
+                              visualDensity: VisualDensity.compact,
+                              tooltip: 'Salin jawaban',
+                              onPressed: () => _copyMessage(msg.text),
+                              icon: const Icon(Icons.copy_outlined, size: 18),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 );
               },
