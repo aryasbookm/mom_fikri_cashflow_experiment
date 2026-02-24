@@ -38,6 +38,12 @@ class AiProviderRouter {
         if (!hasNext) {
           rethrow;
         }
+      } catch (error) {
+        // Keep trying next provider for OCR robustness (format/provider mismatch, etc).
+        lastFallbackError = error;
+        if (!hasNext) {
+          rethrow;
+        }
       }
     }
 

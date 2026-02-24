@@ -79,7 +79,8 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
   }
 
   String _toUserFacingOcrError(Object error) {
-    final raw = error.toString().toLowerCase();
+    final rawText = error.toString().trim();
+    final raw = rawText.toLowerCase();
     if (raw.contains('internet') || raw.contains('socket')) {
       return 'Tidak ada koneksi internet. Coba lagi.';
     }
@@ -94,6 +95,25 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     }
     if (raw.contains('api key')) {
       return 'Konfigurasi AI belum siap. Hubungi admin aplikasi.';
+    }
+    if (raw.contains('akses ocr ai ditolak') || raw.contains('403')) {
+      return 'Akses OCR ditolak. Periksa API key atau kuota.';
+    }
+    if (raw.contains('model ocr ai tidak ditemukan') || raw.contains('404')) {
+      return 'Model OCR tidak tersedia. Periksa konfigurasi model.';
+    }
+    if (raw.contains('format transaksi yang valid') ||
+        raw.contains('data ocr yang tidak terbaca') ||
+        raw.contains('tidak mengembalikan data ocr')) {
+      return 'AI merespons, tetapi formatnya tidak bisa dipakai sebagai draft transaksi. Coba foto lebih jelas.';
+    }
+
+    final cleaned =
+        rawText.startsWith('Exception:')
+            ? rawText.substring(10).trim()
+            : rawText;
+    if (cleaned.isNotEmpty) {
+      return cleaned;
     }
     return 'Gagal memproses scan. Coba lagi.';
   }

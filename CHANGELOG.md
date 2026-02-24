@@ -90,6 +90,11 @@ All notable changes to this project will be documented in this file.
 - AI quota guard disesuaikan untuk mode multi-provider:
   - lock harian dari provider utama tidak lagi memblokir OCR/scan jika fallback provider sudah terkonfigurasi,
   - mengurangi kasus false lock saat kuota provider utama habis tetapi provider cadangan masih tersedia.
+- OCR fallback behavior diperkuat:
+  - router OCR sekarang lanjut coba provider berikutnya untuk kegagalan non-rate-limit (mis. format respons/provider mismatch), bukan berhenti di provider pertama.
+- OCR error copy diperjelas:
+  - status HTTP umum OCR (`401/403/404/5xx`) dipetakan ke pesan yang lebih spesifik,
+  - kegagalan format respons (AI membalas tetapi bukan JSON transaksi valid) ditampilkan sebagai pesan yang jelas, tidak lagi generik.
 - UX `Catat Pemasukan/Pengeluaran` dirapikan:
   - padding atas diperkecil agar tidak ada ruang kosong berlebih di awal layar.
   - area produk diubah ke `CustomScrollView` (sliver) sehingga header `Pilih Produk / Input Manual / Cari produk` ikut scroll saat list digulir.

@@ -91,13 +91,24 @@ Aturan:
     if (response.statusCode == 429) {
       throw buildAiRateLimitExceptionFromResponse(response);
     }
-    if (response.statusCode >= 500) {
-      throw AiProviderTemporaryException(
-        'Server AI sedang sibuk (${response.statusCode}).',
-      );
-    }
     if (response.statusCode >= 400) {
-      throw Exception('Permintaan OCR AI gagal (${response.statusCode}).');
+      if (response.statusCode >= 500) {
+        throw AiProviderTemporaryException(
+          'Server AI sedang sibuk (${response.statusCode}).',
+        );
+      }
+      switch (response.statusCode) {
+        case 400:
+          throw Exception('Permintaan OCR tidak valid. Coba foto ulang.');
+        case 401:
+          throw Exception('API key AI tidak valid atau belum benar.');
+        case 403:
+          throw Exception('Akses OCR AI ditolak. Periksa API key/kuota.');
+        case 404:
+          throw Exception('Model OCR AI tidak ditemukan.');
+        default:
+          throw Exception('Permintaan OCR AI gagal (${response.statusCode}).');
+      }
     }
 
     final body = jsonDecode(response.body) as Map<String, dynamic>;
@@ -183,15 +194,18 @@ Aturan:
     final start = raw.indexOf('{');
     final end = raw.lastIndexOf('}');
     if (start == -1 || end == -1 || end <= start) {
-      throw Exception('Format respons OCR AI tidak valid.');
+      throw Exception(
+        'AI tidak mengembalikan format transaksi yang valid. Coba foto catatan transaksi yang lebih jelas.',
+      );
     }
 
     final jsonText = raw.substring(start, end + 1);
     final decoded = jsonDecode(jsonText);
     if (decoded is! Map<String, dynamic>) {
-      throw Exception('Format JSON OCR AI tidak valid.');
+      throw Exception(
+        'AI mengembalikan data OCR yang tidak terbaca sistem. Coba foto ulang.',
+      );
     }
     return decoded;
   }
 }
-

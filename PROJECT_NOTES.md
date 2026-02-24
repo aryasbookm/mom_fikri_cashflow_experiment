@@ -200,6 +200,10 @@ Catatan:
    - Quota guard OCR diselaraskan dengan fallback:
     - jika lock harian berasal dari provider utama tetapi fallback provider tersedia, OCR tidak di-hard-block oleh guard lokal.
     - ini mencegah kondisi “scan terkunci” padahal provider cadangan sebenarnya masih bisa dipakai.
+   - Router OCR kini fallback untuk error lebih luas:
+    - bila provider pertama gagal karena format respons/provider mismatch, sistem tetap mencoba provider berikutnya.
+   - Error OCR di UI dibuat lebih transparan:
+    - user bisa membedakan masalah key/akses/model/server dari masalah “AI merespons tapi format draft transaksi tidak valid”.
    - Output AI bersifat asistif/read-only (tidak menulis transaksi otomatis).
    - OCR Asistif (MVP):
     - akses dari FAB `Scan Catatan` di Beranda,
