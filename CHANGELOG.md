@@ -130,7 +130,9 @@ All notable changes to this project will be documented in this file.
   - jika pembanding tidak jelas, status ditandai `belum bisa divalidasi` (tanpa warning palsu).
 - Review OCR kini menerapkan smart default IN/OUT:
   - setelah hasil scan masuk, tipe transaksi diset mengikuti suara mayoritas (`IN` atau `OUT`) dalam satu halaman.
+  - jika pola data terlihat dominan nama produk, default cenderung `IN` (pemasukan) sebagai heuristik aman.
   - user tetap bisa mengubah tipe per transaksi secara manual sebelum simpan.
+  - ditambahkan aksi batch `Semua IN` dan `Semua OUT` untuk override cepat seluruh item review.
 - Learning Dictionary OCR (v1):
   - aplikasi merekam koreksi deskripsi manual user saat simpan transaksi scan.
   - koreksi tersebut dipakai sebagai auto-correct pada scan berikutnya untuk mengurangi typo berulang.

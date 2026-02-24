@@ -700,6 +700,14 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     });
   }
 
+  void _setAllType(String type) {
+    setState(() {
+      for (final item in _draftItems) {
+        item.type = type;
+      }
+    });
+  }
+
   void _clearDraftItems() {
     for (final item in _draftItems) {
       item.dispose();
@@ -713,20 +721,69 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     }
     var inCount = 0;
     var outCount = 0;
+    var productLikeCount = 0;
     for (final item in _draftItems) {
       if (item.type == 'OUT') {
         outCount += 1;
       } else {
         inCount += 1;
       }
+      if (_looksLikeProductLine(item)) {
+        productLikeCount += 1;
+      }
     }
+    String? majorityType;
     if (inCount == outCount) {
+      final threshold = (_draftItems.length / 2).ceil();
+      if (productLikeCount >= threshold) {
+        majorityType = 'IN';
+      }
+    } else {
+      majorityType = inCount > outCount ? 'IN' : 'OUT';
+    }
+    if (majorityType == null) {
       return;
     }
-    final majorityType = inCount > outCount ? 'IN' : 'OUT';
     for (final item in _draftItems) {
       item.type = majorityType;
     }
+  }
+
+  bool _looksLikeProductLine(_EditableDraftItem item) {
+    final hint = item.categoryHint.toLowerCase();
+    if (hint.contains('makanan') ||
+        hint.contains('kue') ||
+        hint.contains('produk') ||
+        hint.contains('penjualan') ||
+        hint.contains('snack') ||
+        hint.contains('minuman')) {
+      return true;
+    }
+
+    final desc = item.descriptionController.text.toLowerCase().trim();
+    if (desc.isEmpty || !RegExp(r'[a-z]').hasMatch(desc)) {
+      return false;
+    }
+
+    const expenseKeywords = <String>[
+      'beli',
+      'bayar',
+      'gaji',
+      'sewa',
+      'listrik',
+      'air',
+      'bbm',
+      'bahan baku',
+      'operasional',
+      'utang',
+      'prive',
+    ];
+    for (final keyword in expenseKeywords) {
+      if (desc.contains(keyword)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   int _parseAmountInput(String text) {
@@ -1212,6 +1269,14 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
                       TextButton(
                         onPressed: _isLoading ? null : () => _selectAll(false),
                         child: const Text('Batal Pilihan'),
+                      ),
+                      TextButton(
+                        onPressed: _isLoading ? null : () => _setAllType('IN'),
+                        child: const Text('Semua IN'),
+                      ),
+                      TextButton(
+                        onPressed: _isLoading ? null : () => _setAllType('OUT'),
+                        child: const Text('Semua OUT'),
                       ),
                       const Spacer(),
                       Text('Dipilih: $_selectedCount'),
