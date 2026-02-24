@@ -144,3 +144,16 @@
   - simpan dari layar review dan validasi jumlah transaksi tersimpan sesuai item terpilih.
 - [ ] Jalankan regression test otomatis Phase 4:
   - `flutter test test/chat_import_draft_model_test.dart test/chat_import_audit_service_test.dart`
+
+## 12) Lessons Learned (Codex Fast Path)
+- Kasus import package test sempat gagal karena typo nama package.
+  - Nama package yang benar: `mom_fikri_cashflow` (cek cepat: `rg -n "^name:" pubspec.yaml`).
+  - Sebelum buat file test baru, samakan pola import dengan test existing di folder `test/`.
+- Kasus `flutter test` sempat gagal akses lockfile SDK (`/opt/homebrew/.../flutter/bin/cache/lockfile`) saat jalan di sandbox.
+  - Fast path: jalankan `flutter test` dengan izin escalated (akses ke path SDK di luar workspace).
+  - Hindari asumsi perlu `sudo chown`; di environment ini `sudo` non-interaktif sering gagal karena butuh password TTY.
+- Urutan eksekusi yang lebih efisien untuk penambahan test:
+  1. Verifikasi nama package dari `pubspec.yaml`.
+  2. Tambah test file.
+  3. Jalankan hanya test target (bukan full suite) untuk feedback cepat.
+  4. Jika lolos, baru update `CHANGELOG.md`/`WORKFLOW.md` dan commit.
