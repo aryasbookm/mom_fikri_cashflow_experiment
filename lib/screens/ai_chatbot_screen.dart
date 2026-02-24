@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/ai_chatbot_service.dart';
 import '../services/ai_insight_service.dart';
@@ -35,11 +38,14 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     'Produk mana yang perlu dipromosikan dulu?',
     'Bagaimana menekan pengeluaran bahan baku?',
   ];
+  static const String _chatStoreKey = 'ai_chat_history_v1';
+  static const String _chatSnapshotKey = 'ai_chat_snapshot_hash_v1';
+  static const String _chatSavedAtKey = 'ai_chat_saved_at_v1';
 
   @override
   void initState() {
     super.initState();
-    _resetChat();
+    _loadPersistedChat();
     final initial = widget.initialQuestion?.trim();
     if (initial != null && initial.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -80,6 +86,68 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       );
   }
 
+  String _snapshotHash() {
+    final payload = jsonEncode(widget.financeSnapshot);
+    return sha256.convert(utf8.encode(payload)).toString();
+  }
+
+  Future<void> _loadPersistedChat() async {
+    _resetChat();
+    final prefs = await SharedPreferences.getInstance();
+    final snapshotHash = prefs.getString(_chatSnapshotKey);
+    final historyRaw = prefs.getString(_chatStoreKey);
+    if (snapshotHash == null ||
+        historyRaw == null ||
+        snapshotHash != _snapshotHash()) {
+      return;
+    }
+
+    try {
+      final decoded = jsonDecode(historyRaw);
+      if (decoded is! List) {
+        return;
+      }
+      final restored =
+          decoded
+              .map((row) {
+                if (row is! Map) {
+                  return null;
+                }
+                final map = Map<String, dynamic>.from(row);
+                final role = (map['role'] ?? '').toString().trim();
+                final text = (map['text'] ?? '').toString().trim();
+                if ((role != 'user' && role != 'assistant') || text.isEmpty) {
+                  return null;
+                }
+                return AiChatMessage(role: role, text: text);
+              })
+              .whereType<AiChatMessage>()
+              .toList();
+      if (restored.isNotEmpty) {
+        _messages
+          ..clear()
+          ..addAll(restored);
+        if (mounted) {
+          setState(() {});
+        }
+      }
+    } catch (_) {
+      return;
+    }
+  }
+
+  Future<void> _persistChat() async {
+    final prefs = await SharedPreferences.getInstance();
+    final encoded = jsonEncode(
+      _messages
+          .map((m) => {'role': m.role, 'text': m.text})
+          .toList(growable: false),
+    );
+    await prefs.setString(_chatStoreKey, encoded);
+    await prefs.setString(_chatSnapshotKey, _snapshotHash());
+    await prefs.setInt(_chatSavedAtKey, DateTime.now().millisecondsSinceEpoch);
+  }
+
   Future<void> _clearChat() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -103,6 +171,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       return;
     }
     setState(_resetChat);
+    await _persistChat();
     _scrollToBottom();
   }
 
@@ -125,6 +194,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       _isLoading = true;
       _messages.add(AiChatMessage(role: 'user', text: question));
     });
+    await _persistChat();
     _scrollToBottom();
 
     try {
@@ -139,6 +209,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       setState(() {
         _messages.add(AiChatMessage(role: 'assistant', text: reply.text));
       });
+      await _persistChat();
       _startCooldown(reply.suggestedCooldownSeconds);
       _scrollToBottom();
     } on AiRateLimitException catch (error) {
@@ -148,6 +219,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       setState(() {
         _messages.add(AiChatMessage(role: 'assistant', text: error.toString()));
       });
+      await _persistChat();
       if (!error.isDailyLimit) {
         _startCooldown(error.retryAfterSeconds);
       }
@@ -170,6 +242,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
           ),
         );
       });
+      await _persistChat();
       _scrollToBottom();
     } finally {
       if (mounted) {
@@ -230,6 +303,23 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             tooltip: 'Hapus chat',
             onPressed: _messages.length <= 1 ? null : _clearChat,
             icon: const Icon(Icons.delete_sweep_outlined),
+          ),
+          IconButton(
+            tooltip: 'Refresh data chat',
+            onPressed:
+                _isLoading
+                    ? null
+                    : () async {
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.remove(_chatStoreKey);
+                      await prefs.remove(_chatSnapshotKey);
+                      await prefs.remove(_chatSavedAtKey);
+                      if (!mounted) {
+                        return;
+                      }
+                      setState(_resetChat);
+                    },
+            icon: const Icon(Icons.refresh_outlined),
           ),
         ],
       ),
