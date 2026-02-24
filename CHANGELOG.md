@@ -63,6 +63,7 @@ All notable changes to this project will be documented in this file.
   - quick question chips (1-tap),
   - copy jawaban AI ke clipboard,
   - aksi clear chat dari AppBar.
+- Konteks chatbot diperluas dengan `product_catalog` (stok semua produk) agar jawaban produk tidak hanya bertumpu pada sampel top/slow.
 - Fondasi service chatbot finansial ditambahkan (`AiChatbotService`):
   - bounded context (hanya jawab konteks keuangan toko),
   - history window terbatas (maks 8 pesan),

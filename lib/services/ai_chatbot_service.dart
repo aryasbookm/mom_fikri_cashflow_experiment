@@ -108,10 +108,17 @@ class AiChatbotService {
     required List<AiChatMessage> history,
   }) {
     final safeQuestion = question.trim();
+    final hasCatalog = financeSnapshot.any(
+      (row) => (row['type'] ?? '').toString() == 'product_catalog',
+    );
+    final snapshotLimit = hasCatalog ? 140 : 60;
     final snapshotText =
         financeSnapshot.isEmpty
             ? '- Data belum tersedia.'
-            : financeSnapshot.take(40).map((row) => jsonEncode(row)).join('\n');
+            : financeSnapshot
+                .take(snapshotLimit)
+                .map((row) => jsonEncode(row))
+                .join('\n');
 
     final historyText =
         history.isEmpty
@@ -126,6 +133,9 @@ Aturan keras:
 - Jangan mengarang angka.
 - Jawaban ringkas: maksimal 4 poin atau 1 paragraf pendek.
 - Sertakan dasar data (tanggal/nominal/tren) jika ada.
+- Data `top_product` dan `slow_product` adalah sampel, bukan seluruh katalog.
+- Data `product_catalog` adalah stok saat ini. Jangan campur `stock_now` dengan `total_qty` penjualan.
+- Jika data tidak cukup untuk jawaban pasti, katakan "data belum cukup" dan sebut data tambahan yang dibutuhkan.
 
 Konteks data (agregat/transaksi ringkas):
 $snapshotText

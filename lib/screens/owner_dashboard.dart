@@ -268,6 +268,10 @@ class OwnerDashboardState extends State<OwnerDashboard> {
     if (_isGeneratingAiInsight || _aiCooldownSeconds > 0) {
       return;
     }
+    final productProvider = Provider.of<ProductProvider>(
+      context,
+      listen: false,
+    );
     setState(() {
       _isGeneratingAiInsight = true;
     });
@@ -309,6 +313,7 @@ class OwnerDashboardState extends State<OwnerDashboard> {
       );
       final financeSnapshot = _buildFinanceSnapshot(
         provider: provider,
+        products: productProvider.products,
         income30: income30,
         expense30: expense30,
         net30: net30,
@@ -473,6 +478,7 @@ class OwnerDashboardState extends State<OwnerDashboard> {
 
   List<Map<String, dynamic>> _buildFinanceSnapshot({
     required TransactionProvider provider,
+    required List<ProductModel> products,
     required int income30,
     required int expense30,
     required int net30,
@@ -509,6 +515,19 @@ class OwnerDashboardState extends State<OwnerDashboard> {
               'name': row['name'],
               'total_qty': row['total_qty'],
               'stock': row['stock'],
+            },
+          ),
+    );
+    snapshot.addAll(
+      products
+          .take(100)
+          .map(
+            (p) => {
+              'type': 'product_catalog',
+              'name': p.name,
+              'stock_now': p.stock,
+              'min_stock': p.minStock,
+              'is_active': p.isActive,
             },
           ),
     );
