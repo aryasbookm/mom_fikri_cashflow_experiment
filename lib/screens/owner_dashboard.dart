@@ -299,7 +299,7 @@ class OwnerDashboardState extends State<OwnerDashboard> {
         limit: 3,
         days: 30,
       );
-      final insight = await AiInsightService().generateOwnerInsight(
+      final insightResult = await AiInsightService().generateOwnerInsightResult(
         income30: income30,
         expense30: expense30,
         net30: net30,
@@ -346,7 +346,7 @@ class OwnerDashboardState extends State<OwnerDashboard> {
                     style: const TextStyle(fontSize: 12, color: Colors.black54),
                   ),
                   const SizedBox(height: 12),
-                  Text(insight),
+                  Text(insightResult.text),
                 ],
               ),
             ),
@@ -359,7 +359,7 @@ class OwnerDashboardState extends State<OwnerDashboard> {
           );
         },
       );
-      _startAiCooldown(20);
+      _startAiCooldown(insightResult.suggestedCooldownSeconds);
     } on AiRateLimitException catch (error) {
       await AiQuotaGuardService.recordRateLimit(error);
       if (error.isDailyLimit) {

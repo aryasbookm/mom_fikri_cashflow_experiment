@@ -58,6 +58,11 @@ All notable changes to this project will be documented in this file.
   - tombol `Minta Saran AI (Online)` untuk menghasilkan 3 saran bisnis berbasis data 30 hari (pemasukan, pengeluaran, produk kurang laris),
   - hasil ditampilkan sebagai dialog teks (read-only, tidak mengubah data transaksi),
   - integrasi via Gemini REST menggunakan `--dart-define=GEMINI_API_KEY=...`.
+- Fondasi service chatbot finansial ditambahkan (`AiChatbotService`):
+  - bounded context (hanya jawab konteks keuangan toko),
+  - history window terbatas (maks 8 pesan),
+  - cache fingerprint + fallback provider `AI_CHAT_PROVIDER_ORDER` (default `groq,gemini`),
+  - retry adaptif (backoff + jitter + hormati `Retry-After` saat 429).
 - Global Search: search bar di Kasir, Stok, dan Riwayat dengan filtering real-time.
 - Deep Search Riwayat: pencarian juga mencakup nama produk dari transaksi multi-item.
 - Foto produk opsional berbasis filesystem lokal (`product_images/prod_{id}.jpg`) dengan picker galeri/kamera.
@@ -95,6 +100,13 @@ All notable changes to this project will be documented in this file.
   - payload produk dinormalisasi (maks 3 item/top dan 3 item/slow) untuk menekan token.
   - prompt diringkas agar lebih padat (tanpa basa-basi) namun format tetap ketat.
   - batas output insight dinaikkan dari 420 ke 900 untuk mengurangi respons terpotong.
+- AI Insight v2 diperbarui:
+  - prompt kini mewajibkan output JSON terstruktur (`temuan`, `alasan_berbasis_data`, `aksi_nyata`, `prioritas`) agar parsing konsisten,
+  - ada parser + validasi schema lokal sebelum dirender ke teks,
+  - fallback prompt ketat jika respons awal tidak valid.
+- Cooldown Insight tidak lagi hardcoded:
+  - UI dashboard kini memakai cooldown yang disarankan service (cache lebih singkat, provider call lebih adaptif),
+  - retry provider internal memakai exponential backoff + jitter untuk error sementara.
 - Routing AI Insight dipisahkan dari OCR:
   - order provider insight kini dikontrol `AI_INSIGHT_PROVIDER_ORDER` (default `groq,gemini`) agar insight cenderung memakai model teks dulu.
   - model Gemini untuk insight dipisah melalui `GEMINI_INSIGHT_MODEL`, tidak lagi otomatis mengikuti model OCR.

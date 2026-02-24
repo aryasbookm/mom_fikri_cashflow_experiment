@@ -175,6 +175,30 @@ String _friendlyQuotaMessage({
   }
 }
 
+class AiInsightResult {
+  const AiInsightResult({
+    required this.text,
+    required this.fromCache,
+    required this.providerId,
+    required this.suggestedCooldownSeconds,
+  });
+
+  final String text;
+  final bool fromCache;
+  final String providerId;
+  final int suggestedCooldownSeconds;
+}
+
+class _InsightProviderResponse {
+  const _InsightProviderResponse({
+    required this.providerId,
+    required this.body,
+  });
+
+  final String providerId;
+  final Map<String, dynamic> body;
+}
+
 class AiInsightService {
   static const String _apiKey = String.fromEnvironment('GEMINI_API_KEY');
   static const String _groqApiKey = String.fromEnvironment('GROQ_API_KEY');
@@ -188,12 +212,30 @@ class AiInsightService {
   );
   static const bool _debugLog = _aiDebugLog;
   static const int _maxOutputTokens = 900;
+  static const int _maxProviderRetries = 2;
   static const Duration _cacheTtl = Duration(minutes: 45);
   static const String _cacheKeyText = 'ai_insight_cache_text_v1';
   static const String _cacheKeyHash = 'ai_insight_cache_hash_v1';
   static const String _cacheKeyEpoch = 'ai_insight_cache_epoch_v1';
 
   Future<String> generateOwnerInsight({
+    required int income30,
+    required int expense30,
+    required int net30,
+    required List<Map<String, dynamic>> topProducts,
+    required List<Map<String, dynamic>> slowMovingProducts,
+  }) async {
+    final result = await generateOwnerInsightResult(
+      income30: income30,
+      expense30: expense30,
+      net30: net30,
+      topProducts: topProducts,
+      slowMovingProducts: slowMovingProducts,
+    );
+    return result.text;
+  }
+
+  Future<AiInsightResult> generateOwnerInsightResult({
     required int income30,
     required int expense30,
     required int net30,
@@ -216,7 +258,12 @@ class AiInsightService {
       if (_debugLog) {
         developer.log('Using cached AI insight.', name: 'AI_DEBUG');
       }
-      return cached;
+      return AiInsightResult(
+        text: cached,
+        fromCache: true,
+        providerId: 'cache',
+        suggestedCooldownSeconds: 1,
+      );
     }
 
     final topText =
@@ -242,42 +289,35 @@ class AiInsightService {
                 })
                 .join('\n');
 
-    final prompt = '''
-Kamu adalah mentor bisnis toko kue lokal UMKM.
-Gunakan bahasa sederhana, langsung, tanpa basa-basi.
-DILARANG memakai istilah korporat/teknis seperti: margin, evaluasi operasional, perputaran stok, optimize, leverage.
-Jangan mengarang angka baru, gunakan hanya data berikut:
-- Pemasukan 30 hari: Rp $income30
-- Pengeluaran 30 hari: Rp $expense30
-- Selisih bersih 30 hari: Rp $net30
-- Produk terlaris:
-$topText
-- Produk kurang laris:
-$slowText
+    final prompt = _buildInsightPrompt(
+      income30: income30,
+      expense30: expense30,
+      net30: net30,
+      topText: topText,
+      slowText: slowText,
+    );
 
-Format jawaban WAJIB:
-1) 🌟 Bintang Toko: cara sederhana meningkatkan hasil dari produk terlaris.
-2) 🔍 Evaluasi Produk Kurang Laris: dugaan penyebab masuk akal + 1 aksi sederhana 7 hari.
-3) 💰 Pantau Dompet: 1 tips praktis menjaga uang kas agar tetap aman.
-Setiap poin maksimal 24 kata.
-Tanpa kalimat pembuka/penutup tambahan.
-''';
-
-    final firstBody = await _requestInsightWithFallback(
+    final firstResponse = await _requestInsightWithFallback(
       prompt,
       temperature: 0.25,
     );
-    final firstText = _extractJoinedText(firstBody);
-    final firstReasons = _extractFinishReasons(firstBody);
+    final firstText = _extractJoinedText(firstResponse.body);
+    final firstStructured = _tryParseInsightJson(firstText);
+    final firstReasons = _extractFinishReasons(firstResponse.body);
     final needsRetry =
-        firstText.isEmpty ||
-        !_hasThreeNumberedPoints(firstText) ||
-        _looksTooGeneric(firstText) ||
-        firstReasons.contains('MAX_TOKENS');
+        firstStructured == null || firstReasons.contains('MAX_TOKENS');
 
     if (!needsRetry) {
-      await _saveCachedInsight(fingerprint: fingerprint, insight: firstText);
-      return firstText;
+      final rendered = _renderStructuredInsight(firstStructured);
+      await _saveCachedInsight(fingerprint: fingerprint, insight: rendered);
+      return AiInsightResult(
+        text: rendered,
+        fromCache: false,
+        providerId: firstResponse.providerId,
+        suggestedCooldownSeconds: _cooldownAfterSuccess(
+          firstResponse.providerId,
+        ),
+      );
     }
 
     if (_debugLog) {
@@ -287,34 +327,22 @@ Tanpa kalimat pembuka/penutup tambahan.
       );
     }
 
-    final retryPrompt = '''
-Jawaban kamu sebelumnya belum sesuai format.
-Ulangi tepat 3 poin, format ketat:
-1) 🌟 Bintang Toko: ...
-2) 🔍 Evaluasi Produk Kurang Laris: ...
-3) 💰 Pantau Dompet: ...
-Setiap poin maksimal 28 kata, bahasa sangat sederhana.
+    final retryPrompt = _buildStrictRetryPrompt(
+      income30: income30,
+      expense30: expense30,
+      net30: net30,
+      topText: topText,
+      slowText: slowText,
+    );
 
-Wajib menyebut angka ini apa adanya:
-- Pemasukan: Rp $income30
-- Pengeluaran: Rp $expense30
-- Selisih: Rp $net30
-- Produk terlaris:
-$topText
-- Produk kurang laris:
-$slowText
-
-Jangan pakai istilah korporat.
-Tanpa kalimat pembuka/penutup.
-''';
-
-    final retryBody = await _requestInsightWithFallback(
+    final retryResponse = await _requestInsightWithFallback(
       retryPrompt,
       temperature: 0.2,
     );
-    final retryText = _extractJoinedText(retryBody);
+    final retryText = _extractJoinedText(retryResponse.body);
+    final retryStructured = _tryParseInsightJson(retryText);
 
-    if (retryText.isEmpty || !_hasThreeNumberedPoints(retryText)) {
+    if (retryStructured == null) {
       if (_debugLog) {
         developer.log(
           'Retry response still incomplete, using local deterministic fallback.',
@@ -329,11 +357,22 @@ Tanpa kalimat pembuka/penutup.
         slowMovingProducts: normalizedSlow,
       );
       await _saveCachedInsight(fingerprint: fingerprint, insight: fallback);
-      return fallback;
+      return AiInsightResult(
+        text: fallback,
+        fromCache: false,
+        providerId: 'local-fallback',
+        suggestedCooldownSeconds: 2,
+      );
     }
 
-    await _saveCachedInsight(fingerprint: fingerprint, insight: retryText);
-    return retryText;
+    final rendered = _renderStructuredInsight(retryStructured);
+    await _saveCachedInsight(fingerprint: fingerprint, insight: rendered);
+    return AiInsightResult(
+      text: rendered,
+      fromCache: false,
+      providerId: retryResponse.providerId,
+      suggestedCooldownSeconds: _cooldownAfterSuccess(retryResponse.providerId),
+    );
   }
 
   List<Map<String, dynamic>> _normalizeProductRows(
@@ -341,11 +380,13 @@ Tanpa kalimat pembuka/penutup.
   ) {
     return rows
         .take(3)
-        .map((item) => {
-          'name': (item['name'] ?? '-').toString(),
-          'total_qty': ((item['total_qty'] as num?)?.toInt() ?? 0),
-          'stock': ((item['stock'] as num?)?.toInt() ?? 0),
-        })
+        .map(
+          (item) => {
+            'name': (item['name'] ?? '-').toString(),
+            'total_qty': ((item['total_qty'] as num?)?.toInt() ?? 0),
+            'stock': ((item['stock'] as num?)?.toInt() ?? 0),
+          },
+        )
         .toList();
   }
 
@@ -401,7 +442,222 @@ Tanpa kalimat pembuka/penutup.
     await prefs.setInt(_cacheKeyEpoch, DateTime.now().millisecondsSinceEpoch);
   }
 
-  Future<Map<String, dynamic>> _requestInsightWithFallback(
+  String _buildInsightPrompt({
+    required int income30,
+    required int expense30,
+    required int net30,
+    required String topText,
+    required String slowText,
+  }) {
+    return '''
+Kamu adalah asisten keuangan UMKM toko kue.
+Wajib pakai data yang diberikan. Jangan mengarang angka.
+Balas HANYA dalam JSON valid dengan schema tepat:
+{
+  "insights": [
+    {
+      "temuan": "string pendek",
+      "alasan_berbasis_data": "jelaskan dengan angka dari data",
+      "aksi_nyata": "1 aksi operasional konkret 1-7 hari ke depan",
+      "prioritas": "tinggi|sedang|rendah"
+    }
+  ]
+}
+Aturan:
+- insights wajib tepat 3 item.
+- Bahasa Indonesia sederhana, langsung.
+- Tidak boleh ada teks di luar JSON.
+
+Data:
+- pemasukan_30_hari: Rp $income30
+- pengeluaran_30_hari: Rp $expense30
+- selisih_30_hari: Rp $net30
+- produk_terlaris:
+$topText
+- produk_kurang_laris:
+$slowText
+''';
+  }
+
+  String _buildStrictRetryPrompt({
+    required int income30,
+    required int expense30,
+    required int net30,
+    required String topText,
+    required String slowText,
+  }) {
+    return '''
+Ulangi. Jawaban sebelumnya tidak sesuai.
+WAJIB JSON valid saja, tanpa markdown.
+Schema wajib:
+{"insights":[{"temuan":"","alasan_berbasis_data":"","aksi_nyata":"","prioritas":"tinggi|sedang|rendah"}]}
+Harus tepat 3 item di insights.
+
+Gunakan hanya data ini:
+- pemasukan_30_hari: Rp $income30
+- pengeluaran_30_hari: Rp $expense30
+- selisih_30_hari: Rp $net30
+- produk_terlaris:
+$topText
+- produk_kurang_laris:
+$slowText
+''';
+  }
+
+  Map<String, dynamic>? _tryParseInsightJson(String rawText) {
+    final trimmed = rawText.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+
+    Map<String, dynamic>? decoded;
+    try {
+      final direct = jsonDecode(trimmed);
+      if (direct is Map<String, dynamic>) {
+        decoded = direct;
+      } else if (direct is Map) {
+        decoded = Map<String, dynamic>.from(direct);
+      }
+    } catch (_) {
+      final start = trimmed.indexOf('{');
+      final end = trimmed.lastIndexOf('}');
+      if (start >= 0 && end > start) {
+        final candidate = trimmed.substring(start, end + 1);
+        try {
+          final loose = jsonDecode(candidate);
+          if (loose is Map<String, dynamic>) {
+            decoded = loose;
+          } else if (loose is Map) {
+            decoded = Map<String, dynamic>.from(loose);
+          }
+        } catch (_) {
+          return null;
+        }
+      }
+    }
+
+    if (decoded == null) {
+      return null;
+    }
+
+    final insightsRaw = decoded['insights'];
+    if (insightsRaw is! List || insightsRaw.length != 3) {
+      return null;
+    }
+
+    final normalized = <Map<String, String>>[];
+    for (final row in insightsRaw) {
+      final map =
+          row is Map<String, dynamic>
+              ? row
+              : row is Map
+              ? Map<String, dynamic>.from(row)
+              : <String, dynamic>{};
+      final temuan = (map['temuan'] ?? '').toString().trim();
+      final alasan = (map['alasan_berbasis_data'] ?? '').toString().trim();
+      final aksi = (map['aksi_nyata'] ?? '').toString().trim();
+      final prioritas =
+          (map['prioritas'] ?? '').toString().trim().toLowerCase();
+      if (temuan.isEmpty ||
+          alasan.isEmpty ||
+          aksi.isEmpty ||
+          prioritas.isEmpty) {
+        return null;
+      }
+      if (prioritas != 'tinggi' &&
+          prioritas != 'sedang' &&
+          prioritas != 'rendah') {
+        return null;
+      }
+      normalized.add({
+        'temuan': temuan,
+        'alasan_berbasis_data': alasan,
+        'aksi_nyata': aksi,
+        'prioritas': prioritas,
+      });
+    }
+
+    return {'insights': normalized};
+  }
+
+  String _renderStructuredInsight(Map<String, dynamic> parsed) {
+    final insights = parsed['insights'] as List<dynamic>? ?? const [];
+    final lines = <String>[];
+    for (var i = 0; i < insights.length; i++) {
+      final row =
+          insights[i] is Map<String, dynamic>
+              ? insights[i] as Map<String, dynamic>
+              : Map<String, dynamic>.from(insights[i] as Map);
+      lines.add(
+        '${i + 1}) [${(row['prioritas'] ?? '').toString().toUpperCase()}] '
+        '${row['temuan']}\n'
+        'Alasan: ${row['alasan_berbasis_data']}\n'
+        'Aksi: ${row['aksi_nyata']}',
+      );
+    }
+    return lines.join('\n\n').trim();
+  }
+
+  int _cooldownAfterSuccess(String providerId) {
+    if (providerId == 'cache') {
+      return 1;
+    }
+    if (providerId == 'groq') {
+      return 3;
+    }
+    return 4;
+  }
+
+  Duration _nextRetryDelay(int attempt, {int? retryAfterSeconds}) {
+    if (retryAfterSeconds != null && retryAfterSeconds > 0) {
+      return Duration(seconds: retryAfterSeconds.clamp(1, 30));
+    }
+    final safeAttempt = attempt < 1 ? 1 : attempt;
+    final baseMs = (1000 * (1 << (safeAttempt - 1))).clamp(1000, 8000);
+    final jitterMs = DateTime.now().microsecond % 400;
+    return Duration(milliseconds: baseMs + jitterMs);
+  }
+
+  Future<Map<String, dynamic>> _requestProviderWithAdaptiveRetry(
+    String providerId,
+    String prompt, {
+    required double temperature,
+  }) async {
+    Object? lastError;
+    for (var attempt = 1; attempt <= _maxProviderRetries; attempt++) {
+      try {
+        if (providerId == 'groq') {
+          return await _requestGroq(prompt, temperature: temperature);
+        }
+        return await _requestGemini(prompt, temperature: temperature);
+      } on AiRateLimitException catch (error) {
+        lastError = error;
+        if (error.isDailyLimit || attempt >= _maxProviderRetries) {
+          rethrow;
+        }
+        await Future<void>.delayed(
+          _nextRetryDelay(
+            attempt,
+            retryAfterSeconds:
+                error.retryAfterSeconds > 0 ? error.retryAfterSeconds : null,
+          ),
+        );
+      } on AiProviderTemporaryException catch (error) {
+        lastError = error;
+        if (attempt >= _maxProviderRetries) {
+          rethrow;
+        }
+        await Future<void>.delayed(_nextRetryDelay(attempt));
+      }
+    }
+
+    if (lastError != null) {
+      throw lastError;
+    }
+    throw const AiProviderTemporaryException('Provider AI gagal diproses.');
+  }
+
+  Future<_InsightProviderResponse> _requestInsightWithFallback(
     String prompt, {
     required double temperature,
   }) async {
@@ -427,10 +683,20 @@ Tanpa kalimat pembuka/penutup.
       final hasNext = i < providerIds.length - 1;
       try {
         if (providerId == 'groq') {
-          return await _requestGroq(prompt, temperature: temperature);
+          final body = await _requestProviderWithAdaptiveRetry(
+            'groq',
+            prompt,
+            temperature: temperature,
+          );
+          return _InsightProviderResponse(providerId: 'groq', body: body);
         }
         // default to gemini for unknown ids
-        return await _requestGemini(prompt, temperature: temperature);
+        final body = await _requestProviderWithAdaptiveRetry(
+          'gemini',
+          prompt,
+          temperature: temperature,
+        );
+        return _InsightProviderResponse(providerId: 'gemini', body: body);
       } on AiRateLimitException catch (error) {
         lastFallbackError = error;
         if (!hasNext) {
@@ -504,13 +770,17 @@ Tanpa kalimat pembuka/penutup.
           )
           .timeout(const Duration(seconds: 20));
     } on SocketException {
-      throw Exception('Tidak ada koneksi internet.');
+      throw const AiProviderTemporaryException('Tidak ada koneksi internet.');
     } on HttpException {
-      throw Exception('Gagal menghubungi server AI.');
+      throw const AiProviderTemporaryException('Gagal menghubungi server AI.');
     } on FormatException {
-      throw Exception('Format request AI tidak valid.');
+      throw const AiProviderTemporaryException(
+        'Format request AI tidak valid.',
+      );
     } on TimeoutException {
-      throw Exception('Permintaan AI timeout. Coba lagi.');
+      throw const AiProviderTemporaryException(
+        'Permintaan AI timeout. Coba lagi.',
+      );
     }
 
     if (response.statusCode >= 400) {
@@ -534,7 +804,7 @@ Tanpa kalimat pembuka/penutup.
         case 502:
         case 503:
         case 504:
-          throw Exception(
+          throw const AiProviderTemporaryException(
             'Server AI sedang bermasalah. Coba beberapa saat lagi.',
           );
         default:
@@ -546,7 +816,14 @@ Tanpa kalimat pembuka/penutup.
       developer.log('Raw Gemini response:\n${response.body}', name: 'AI_DEBUG');
     }
 
-    final Map<String, dynamic> body = jsonDecode(response.body);
+    Map<String, dynamic> body;
+    try {
+      body = jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (_) {
+      throw const AiProviderTemporaryException(
+        'Respons AI tidak valid. Coba lagi.',
+      );
+    }
     final candidates = body['candidates'] as List<dynamic>?;
     if (candidates == null || candidates.isEmpty) {
       throw Exception('AI tidak mengembalikan saran.');
@@ -651,7 +928,14 @@ Tanpa kalimat pembuka/penutup.
       }
     }
 
-    final Map<String, dynamic> body = jsonDecode(response.body);
+    Map<String, dynamic> body;
+    try {
+      body = jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (_) {
+      throw const AiProviderTemporaryException(
+        'Respons AI tidak valid. Coba lagi.',
+      );
+    }
     final choices = body['choices'] as List<dynamic>?;
     if (choices == null || choices.isEmpty) {
       throw Exception('AI tidak mengembalikan saran.');
@@ -756,19 +1040,6 @@ Tanpa kalimat pembuka/penutup.
       }
     }
     return reasons;
-  }
-
-  bool _hasThreeNumberedPoints(String text) {
-    final normalized = text.toLowerCase();
-    final has1 = RegExp(r'(^|\n)\s*1[)\.]').hasMatch(normalized);
-    final has2 = RegExp(r'(^|\n)\s*2[)\.]').hasMatch(normalized);
-    final has3 = RegExp(r'(^|\n)\s*3[)\.]').hasMatch(normalized);
-    return has1 && has2 && has3;
-  }
-
-  bool _looksTooGeneric(String text) {
-    final normalized = text.toLowerCase().trim();
-    return normalized.contains('berikut 3 saran praktis');
   }
 
   String _buildLocalFallbackInsight({
