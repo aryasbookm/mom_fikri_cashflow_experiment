@@ -215,6 +215,9 @@ Catatan:
     - jika provider mengirim JSON terpotong/tidak lengkap, parser OCR tidak lagi melempar `FormatException` mentah ke UI; user menerima pesan retry yang jelas.
    - Kapasitas output OCR:
     - batas output provider dinaikkan ke 2500 token dengan timeout 35 detik untuk menangani halaman buku dengan volume item tinggi (hingga sekitar 30 transaksi) tanpa mudah terpotong.
+   - OCR salvage behavior:
+    - ketika model mengembalikan `is_transaction=false` namun tetap ada kandidat item+nominal, hasil tidak lagi dibuang.
+    - item dipaksa masuk mode review (`needs_review=true`) agar user tetap mendapat draft editable, bukan halaman error kosong.
    - Output AI bersifat asistif/read-only (tidak menulis transaksi otomatis).
    - OCR Asistif (MVP):
     - akses dari FAB `Scan Catatan` di Beranda,

@@ -37,6 +37,7 @@ Balas HANYA JSON object valid (tanpa markdown, tanpa teks tambahan).
 
 Aturan:
 - is_transaction: true jika foto berisi catatan transaksi keuangan yang masuk akal, false jika bukan transaksi jelas.
+- Jika ada minimal 1 pasangan item + nominal yang masuk akal, WAJIB set `is_transaction=true`.
 - reason: wajib diisi singkat saat is_transaction=false (contoh: "foto tidak berisi catatan transaksi yang jelas").
 - Maksimal kembalikan $maxItemsPerScan transaksi yang paling jelas terbaca.
 - Field tiap item transaksi:
@@ -159,7 +160,7 @@ JSON schema:
 
     final parsed = _parseJsonObject(text);
     final batch = OcrBatchDraft.fromJson(parsed);
-    if (!batch.isTransaction) {
+    if (!batch.isTransaction && batch.transactions.isEmpty) {
       final reason =
           batch.reason.isNotEmpty
               ? batch.reason
@@ -167,12 +168,35 @@ JSON schema:
       throw Exception(reason);
     }
 
+    final shouldForceReview = !batch.isTransaction;
     final filtered =
         batch.transactions
             .where((item) => item.amount > 0)
-            .where((item) => item.description.trim().length >= 3)
-            .where((item) => item.rawText.trim().length >= 3)
+            .where((item) => item.description.trim().length >= 2)
             .take(maxItemsPerScan)
+            .map((item) {
+              if (!shouldForceReview) {
+                return item;
+              }
+              return OcrTransactionDraft(
+                isTransaction: true,
+                reason: item.reason,
+                type: item.type,
+                amount: item.amount,
+                description: item.description,
+                categoryHint: item.categoryHint,
+                dateIso: item.dateIso,
+                confidence: item.confidence,
+                rawText: item.rawText,
+                needsReview: true,
+                warning:
+                    item.warning.isNotEmpty
+                        ? item.warning
+                        : (batch.reason.isNotEmpty
+                            ? batch.reason
+                            : 'AI belum yakin ini transaksi pasti, mohon review manual.'),
+              );
+            })
             .toList();
 
     if (filtered.isEmpty) {

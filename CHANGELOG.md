@@ -109,6 +109,9 @@ All notable changes to this project will be documented in this file.
 - Kapasitas output OCR dinaikkan:
   - `maxOutputTokens` (Gemini) dan `max_tokens` (Groq) dinaikkan dari 420 ke 2500.
   - timeout request OCR dinaikkan dari 25 detik ke 35 detik untuk mengurangi respons terpotong pada halaman catatan panjang (target hingga ~30 transaksi).
+- OCR salvage mode:
+  - jika provider menandai `is_transaction=false` tetapi tetap mengembalikan kandidat transaksi, aplikasi tidak lagi gagal total.
+  - kandidat tetap ditampilkan sebagai draft dengan `needs_review=true` + warning, agar user bisa edit manual.
 - UX `Catat Pemasukan/Pengeluaran` dirapikan:
   - padding atas diperkecil agar tidak ada ruang kosong berlebih di awal layar.
   - area produk diubah ke `CustomScrollView` (sliver) sehingga header `Pilih Produk / Input Manual / Cari produk` ikut scroll saat list digulir.
