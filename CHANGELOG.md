@@ -89,6 +89,11 @@ All notable changes to this project will be documented in this file.
   - prompt OCR Gemini/Groq diperketat agar mengisi `date_source` dan mewajibkan review saat tanggal hasil inferensi.
   - layar review OCR kini menggunakan `date_source` asli dari hasil OCR (bukan fallback turunan `date_iso`).
   - unit test baru `ocr_transaction_draft_model_test.dart` ditambahkan untuk validasi normalisasi `date_source` + deterministic review.
+- OCR parity Phase 2:
+  - `OcrPostProcessor` kini menerapkan parser nominal gabungan deterministik dari teks OCR (`10.000 + 5.000` => `15000`) dengan warning lokal saat nominal diubah parser.
+  - deskripsi transaksi OCR kini dibersihkan dari ekor token nominal agar hasil review lebih rapi.
+  - filter baris ringkasan/non-transaksi tetap dipertahankan (`Total/Uang Bersih/Saldo`) ke `notes_found` dan `ignored_lines`.
+  - unit test baru `ocr_post_processing_test.dart` ditambahkan untuk validasi smart math parser + data filtering OCR.
 - Payload AI kini menyertakan agregat kategori 30 hari (pemasukan/pengeluaran) untuk Insight dan Chatbot agar jawaban lebih spesifik.
 - Fondasi service chatbot finansial ditambahkan (`AiChatbotService`):
   - bounded context (hanya jawab konteks keuangan toko),

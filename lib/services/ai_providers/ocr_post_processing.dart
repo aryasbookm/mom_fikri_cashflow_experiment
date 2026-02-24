@@ -83,21 +83,30 @@ class OcrPostProcessor {
         continue;
       }
 
-      final computedAmount = _computeCompoundAmount(
-        rawText.isNotEmpty ? rawText : description,
-      );
+      final amountSource = '$rawText $description'.trim();
+      final computedAmount = _computeCompoundAmount(amountSource);
       final resolvedAmount = computedAmount ?? item.amount;
+      final cleanedDescription = _stripTrailingAmountTokens(description);
+      final hasMathExpression = _containsMathExpression(amountSource);
+      final shouldApplyMathWarning =
+          hasMathExpression &&
+          computedAmount != null &&
+          computedAmount > 0 &&
+          computedAmount != item.amount;
 
       final ambiguous = _looksAmbiguous(item);
-      final needsReview = forceReview || item.needsReview || ambiguous;
-      final warning =
-          needsReview
-              ? (item.warning.isNotEmpty
-                  ? item.warning
-                  : forceReview
-                  ? 'AI belum yakin ini transaksi pasti, mohon review manual.'
-                  : 'Tulisan/hasil OCR ambigu, mohon cek manual.')
-              : '';
+      final needsReview =
+          forceReview ||
+          item.needsReview ||
+          ambiguous ||
+          shouldApplyMathWarning;
+      final warning = _buildWarning(
+        itemWarning: item.warning,
+        needsReview: needsReview,
+        forceReview: forceReview,
+        ambiguous: ambiguous,
+        shouldApplyMathWarning: shouldApplyMathWarning,
+      );
 
       normalized.add(
         OcrTransactionDraft(
@@ -105,7 +114,8 @@ class OcrPostProcessor {
           reason: item.reason,
           type: item.type,
           amount: resolvedAmount,
-          description: item.description,
+          description:
+              cleanedDescription.length >= 2 ? cleanedDescription : description,
           categoryHint: item.categoryHint,
           dateIso: item.dateIso,
           dateSource: item.dateSource,
@@ -140,6 +150,49 @@ class OcrPostProcessor {
       }
     }
     return false;
+  }
+
+  static String _buildWarning({
+    required String itemWarning,
+    required bool needsReview,
+    required bool forceReview,
+    required bool ambiguous,
+    required bool shouldApplyMathWarning,
+  }) {
+    if (!needsReview) {
+      return '';
+    }
+    var warning = itemWarning.trim();
+    if (warning.isEmpty) {
+      if (forceReview) {
+        warning = 'AI belum yakin ini transaksi pasti, mohon review manual.';
+      } else if (ambiguous) {
+        warning = 'Tulisan/hasil OCR ambigu, mohon cek manual.';
+      }
+    }
+    if (shouldApplyMathWarning) {
+      warning = _mergeWarnings(
+        warning,
+        'Nominal gabungan dihitung otomatis oleh parser lokal.',
+      );
+    }
+    return warning;
+  }
+
+  static String _mergeWarnings(String original, String extra) {
+    final o = original.trim();
+    final e = extra.trim();
+    if (o.isEmpty) {
+      return e;
+    }
+    if (e.isEmpty || o.toLowerCase().contains(e.toLowerCase())) {
+      return o;
+    }
+    return '$o $e';
+  }
+
+  static bool _containsMathExpression(String sourceText) {
+    return RegExp(r'\d[\d\.\,\s]*\+\s*\d').hasMatch(sourceText);
   }
 
   static bool _looksAmbiguous(OcrTransactionDraft item) {
@@ -220,6 +273,14 @@ class OcrPostProcessor {
       return null;
     }
     return int.tryParse(digits);
+  }
+
+  static String _stripTrailingAmountTokens(String description) {
+    final cleaned = description.replaceFirst(
+      RegExp(r'[\s\-:]*\d[\d\.\,\s]*(?:\+\s*\d[\d\.\,\s]*)*$'),
+      '',
+    );
+    return cleaned.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
   static List<String> _dedupe(List<String> values) {
