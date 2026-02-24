@@ -185,7 +185,7 @@ Catatan:
      - selama cooldown tombol AI nonaktif dan menampilkan hitung mundur agar status transparan ke user.
     - parser 429 diperluas untuk membaca detail quota (`QuotaFailure`/`RetryInfo`) sehingga UI bisa membedakan indikasi RPM/TPM/RPD.
     - jika terindikasi RPD (limit harian), tombol AI tidak lagi pakai cooldown 60 detik berulang; user diarahkan untuk coba lagi besok.
-  - Arsitektur OCR kini fallback-ready:
+   - Arsitektur OCR kini fallback-ready:
     - `AiOcrService` tidak lagi memanggil Gemini secara langsung.
     - Provider OCR dipisah ke kontrak `AiVisionProvider`.
     - Routing dilakukan oleh `AiProviderRouter` dengan urutan provider berbasis `--dart-define=AI_PROVIDER_ORDER=...`.
@@ -193,6 +193,10 @@ Catatan:
       - `GeminiVisionProvider` (utama),
       - `GroqVisionProvider` (fallback).
     - Urutan default fallback: `gemini,groq`.
+   - AI Insight juga memakai fallback provider order yang sama (`gemini,groq` by default), jadi saat provider utama limit/sementara gagal, insight tetap mencoba provider berikutnya.
+   - Pesan error insight disanitasi agar tidak misleading:
+    - bukan lagi default “periksa internet” untuk semua kasus,
+    - status API key/akses/model/server dipetakan ke pesan yang relevan.
    - Output AI bersifat asistif/read-only (tidak menulis transaksi otomatis).
    - OCR Asistif (MVP):
     - akses dari FAB `Scan Catatan` di Beranda,

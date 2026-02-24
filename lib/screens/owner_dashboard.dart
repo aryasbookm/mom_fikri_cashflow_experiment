@@ -377,11 +377,9 @@ class OwnerDashboardState extends State<OwnerDashboard> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Gagal memuat insight AI. Periksa internet lalu coba lagi.'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_toUserFriendlyAiError(error))));
     } finally {
       if (mounted) {
         setState(() {
@@ -390,6 +388,19 @@ class OwnerDashboardState extends State<OwnerDashboard> {
         _notifyAiStateChanged();
       }
     }
+  }
+
+  String _toUserFriendlyAiError(Object error) {
+    final raw = error.toString().trim();
+    if (raw.isEmpty) {
+      return 'Gagal memuat insight AI. Coba lagi.';
+    }
+    final cleaned =
+        raw.startsWith('Exception:') ? raw.substring(10).trim() : raw;
+    if (cleaned.isEmpty) {
+      return 'Gagal memuat insight AI. Coba lagi.';
+    }
+    return cleaned;
   }
 
   void _startAiCooldown(int seconds) {

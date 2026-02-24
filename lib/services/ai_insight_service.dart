@@ -5,6 +5,8 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
+import 'ai_providers/ai_vision_provider.dart';
+
 enum AiQuotaType { rpm, tpm, rpd, unknown }
 
 const bool _aiDebugLog = bool.fromEnvironment(
@@ -173,9 +175,14 @@ String _friendlyQuotaMessage({
 
 class AiInsightService {
   static const String _apiKey = String.fromEnvironment('GEMINI_API_KEY');
+  static const String _groqApiKey = String.fromEnvironment('GROQ_API_KEY');
   static const String _model = String.fromEnvironment(
     'GEMINI_MODEL',
     defaultValue: 'gemini-2.5-flash',
+  );
+  static const String _groqModel = String.fromEnvironment(
+    'GROQ_CHAT_MODEL',
+    defaultValue: 'llama-3.1-8b-instant',
   );
   static const bool _debugLog = _aiDebugLog;
   static const int _maxOutputTokens = 420;
@@ -187,12 +194,6 @@ class AiInsightService {
     required List<Map<String, dynamic>> topProducts,
     required List<Map<String, dynamic>> slowMovingProducts,
   }) async {
-    if (_apiKey.trim().isEmpty) {
-      throw Exception(
-        'API key Gemini belum diset. Jalankan app dengan --dart-define=GEMINI_API_KEY=... ',
-      );
-    }
-
     final topText =
         topProducts.isEmpty
             ? '- Tidak ada data produk terlaris.'
@@ -237,7 +238,10 @@ Setiap poin maksimal 32 kata.
 Tanpa kalimat pembuka/penutup tambahan.
 ''';
 
-    final firstBody = await _requestGemini(prompt, temperature: 0.25);
+    final firstBody = await _requestInsightWithFallback(
+      prompt,
+      temperature: 0.25,
+    );
     final firstText = _extractJoinedText(firstBody);
     final firstReasons = _extractFinishReasons(firstBody);
     final needsRetry =
@@ -278,7 +282,10 @@ Jangan pakai istilah korporat.
 Tanpa kalimat pembuka/penutup.
 ''';
 
-    final retryBody = await _requestGemini(retryPrompt, temperature: 0.2);
+    final retryBody = await _requestInsightWithFallback(
+      retryPrompt,
+      temperature: 0.2,
+    );
     final retryText = _extractJoinedText(retryBody);
 
     if (retryText.isEmpty || !_hasThreeNumberedPoints(retryText)) {
@@ -300,10 +307,63 @@ Tanpa kalimat pembuka/penutup.
     return retryText;
   }
 
+  Future<Map<String, dynamic>> _requestInsightWithFallback(
+    String prompt, {
+    required double temperature,
+  }) async {
+    final order = String.fromEnvironment(
+      'AI_PROVIDER_ORDER',
+      defaultValue: 'gemini,groq',
+    );
+    final requested =
+        order
+            .split(',')
+            .map((entry) => entry.trim().toLowerCase())
+            .where((entry) => entry.isNotEmpty)
+            .toList();
+    final providerIds =
+        requested.isEmpty ? const ['gemini', 'groq'] : requested;
+
+    Object? lastFallbackError;
+
+    for (var i = 0; i < providerIds.length; i++) {
+      final providerId = providerIds[i];
+      final hasNext = i < providerIds.length - 1;
+      try {
+        if (providerId == 'groq') {
+          return await _requestGroq(prompt, temperature: temperature);
+        }
+        // default to gemini for unknown ids
+        return await _requestGemini(prompt, temperature: temperature);
+      } on AiRateLimitException catch (error) {
+        lastFallbackError = error;
+        if (!hasNext) {
+          rethrow;
+        }
+      } on AiProviderTemporaryException catch (error) {
+        lastFallbackError = error;
+        if (!hasNext) {
+          rethrow;
+        }
+      }
+    }
+
+    if (lastFallbackError != null) {
+      throw lastFallbackError;
+    }
+    throw Exception('Provider AI belum dikonfigurasi.');
+  }
+
   Future<Map<String, dynamic>> _requestGemini(
     String prompt, {
     required double temperature,
   }) async {
+    if (_apiKey.trim().isEmpty) {
+      throw const AiProviderTemporaryException(
+        'GEMINI_API_KEY belum diset untuk provider utama.',
+      );
+    }
+
     final uri = Uri.parse(
       'https://generativelanguage.googleapis.com/v1beta/models/$_model:generateContent?key=$_apiKey',
     );
@@ -347,7 +407,29 @@ Tanpa kalimat pembuka/penutup.
       if (response.statusCode == 429) {
         throw buildAiRateLimitExceptionFromResponse(response);
       }
-      throw Exception('Permintaan AI gagal (${response.statusCode}).');
+      switch (response.statusCode) {
+        case 400:
+          throw Exception('Permintaan AI tidak valid. Coba lagi.');
+        case 401:
+          throw Exception('API key AI tidak valid atau belum benar.');
+        case 403:
+          throw Exception(
+            'Akses AI ditolak. Periksa API key atau kuota project.',
+          );
+        case 404:
+          throw Exception(
+            'Model AI tidak ditemukan. Periksa konfigurasi model.',
+          );
+        case 500:
+        case 502:
+        case 503:
+        case 504:
+          throw Exception(
+            'Server AI sedang bermasalah. Coba beberapa saat lagi.',
+          );
+        default:
+          throw Exception('Permintaan AI gagal (${response.statusCode}).');
+      }
     }
 
     if (_debugLog) {
@@ -366,6 +448,131 @@ Tanpa kalimat pembuka/penutup.
       );
     }
     return body;
+  }
+
+  Future<Map<String, dynamic>> _requestGroq(
+    String prompt, {
+    required double temperature,
+  }) async {
+    if (_groqApiKey.trim().isEmpty) {
+      throw const AiProviderTemporaryException(
+        'GROQ_API_KEY belum diset untuk provider fallback.',
+      );
+    }
+
+    http.Response response;
+    try {
+      response = await http
+          .post(
+            Uri.parse('https://api.groq.com/openai/v1/chat/completions'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $_groqApiKey',
+            },
+            body: jsonEncode({
+              'model': _groqModel,
+              'temperature': temperature,
+              'max_tokens': _maxOutputTokens,
+              'messages': [
+                {'role': 'user', 'content': prompt},
+              ],
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+    } on SocketException {
+      throw const AiProviderTemporaryException('Tidak ada koneksi internet.');
+    } on HttpException {
+      throw const AiProviderTemporaryException('Gagal menghubungi server AI.');
+    } on FormatException {
+      throw const AiProviderTemporaryException(
+        'Format request AI tidak valid.',
+      );
+    } on TimeoutException {
+      throw const AiProviderTemporaryException(
+        'Permintaan AI timeout. Coba lagi.',
+      );
+    }
+
+    if (response.statusCode >= 400) {
+      if (response.statusCode == 429) {
+        throw buildAiRateLimitExceptionFromResponse(response);
+      }
+      if (response.statusCode >= 500) {
+        throw AiProviderTemporaryException(
+          'Server AI sedang bermasalah (${response.statusCode}).',
+        );
+      }
+      switch (response.statusCode) {
+        case 400:
+          throw Exception('Permintaan AI tidak valid. Coba lagi.');
+        case 401:
+          throw Exception('API key AI tidak valid atau belum benar.');
+        case 403:
+          throw Exception(
+            'Akses AI ditolak. Periksa API key atau kuota project.',
+          );
+        case 404:
+          throw Exception(
+            'Model AI tidak ditemukan. Periksa konfigurasi model.',
+          );
+        default:
+          throw Exception('Permintaan AI gagal (${response.statusCode}).');
+      }
+    }
+
+    final Map<String, dynamic> body = jsonDecode(response.body);
+    final choices = body['choices'] as List<dynamic>?;
+    if (choices == null || choices.isEmpty) {
+      throw Exception('AI tidak mengembalikan saran.');
+    }
+
+    return {
+      'candidates': [
+        {
+          'content': {
+            'parts': [
+              {'text': _extractGroqText(body)},
+            ],
+          },
+          'finishReason': _extractGroqFinishReason(body),
+        },
+      ],
+    };
+  }
+
+  String _extractGroqText(Map<String, dynamic> body) {
+    final choices = body['choices'] as List<dynamic>?;
+    if (choices == null || choices.isEmpty) {
+      return '';
+    }
+    final choice =
+        choices.first is Map<String, dynamic>
+            ? choices.first as Map<String, dynamic>
+            : Map<String, dynamic>.from(choices.first as Map);
+    final message =
+        choice['message'] is Map<String, dynamic>
+            ? choice['message'] as Map<String, dynamic>
+            : choice['message'] is Map
+            ? Map<String, dynamic>.from(choice['message'] as Map)
+            : null;
+    final content = message?['content'];
+    if (content is String) {
+      return content.trim();
+    }
+    return '';
+  }
+
+  String _extractGroqFinishReason(Map<String, dynamic> body) {
+    final choices = body['choices'] as List<dynamic>?;
+    if (choices == null || choices.isEmpty) {
+      return '';
+    }
+    final choice =
+        choices.first is Map<String, dynamic>
+            ? choices.first as Map<String, dynamic>
+            : Map<String, dynamic>.from(choices.first as Map);
+    final finishReason = choice['finish_reason'];
+    return finishReason is String ? finishReason.trim().toUpperCase() : '';
   }
 
   String _extractJoinedText(Map<String, dynamic> body) {
