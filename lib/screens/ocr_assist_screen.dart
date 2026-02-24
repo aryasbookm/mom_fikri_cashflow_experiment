@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -11,6 +13,7 @@ import '../models/transaction_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/category_provider.dart';
 import '../services/chat_import_audit_service.dart';
+import '../services/ocr_import_audit_service.dart';
 import '../services/ai_insight_service.dart';
 import '../services/ai_ocr_service.dart';
 import '../services/ocr_learning_dictionary_service.dart';
@@ -42,6 +45,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
   bool _missingOpeningBlock = false;
   bool _missingClosingTotal = false;
   String _chatImportHash = '';
+  String _ocrScanHash = '';
   String? _lastErrorMessage;
   String? _lastRejectedReason;
   bool _aiBlocked = false;
@@ -305,6 +309,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
         ..clear()
         ..add('chat-import');
       _chatImportHash = draft.importHash.trim();
+      _ocrScanHash = '';
       _lastErrorMessage = null;
       _lastRejectedReason = null;
       _isLoading = false;
@@ -423,6 +428,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
       _clearDraftItems();
       _providerTrail.clear();
       _chatImportHash = '';
+      _ocrScanHash = '';
       _detectedDate = '';
       _notesFound.clear();
       _ignoredLines.clear();
@@ -532,6 +538,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
         _missingOpeningBlock = false;
         _missingClosingTotal = false;
         _chatImportHash = '';
+        _ocrScanHash = _buildOcrScanHash(imageBytes: bytes, mimeType: mimeType);
         _lastErrorMessage = null;
         _lastRejectedReason = null;
       });
@@ -666,6 +673,37 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
           return;
         }
       }
+    } else {
+      final duplicate = await OcrImportAuditService.findRecentDuplicate(
+        _ocrScanHash,
+      );
+      if (duplicate != null && mounted) {
+        final proceed = await showDialog<bool>(
+          context: context,
+          builder:
+              (context) => AlertDialog(
+                title: const Text('Scan Mirip Terdeteksi'),
+                content: Text(
+                  'Hasil OCR dengan hash gambar yang sama terdeteksi pernah disimpan pada '
+                  '${DateFormat('d MMM y HH:mm', 'id_ID').format(duplicate.savedAt)} '
+                  '(${duplicate.itemCount} transaksi). Lanjut simpan ulang?',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: const Text('Batal'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    child: const Text('Lanjut Simpan'),
+                  ),
+                ],
+              ),
+        );
+        if (!mounted || proceed != true) {
+          return;
+        }
+      }
     }
     if (!mounted) {
       return;
@@ -728,7 +766,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
         continue;
       }
 
-      final auditedDescription = _applyChatImportAuditTag(description);
+      final auditedDescription = _applyAuditTag(description);
 
       final categoryId = _resolveCategoryId(
         categoryProvider: categoryProvider,
@@ -783,6 +821,12 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     if (success > 0 && _providerTrail.contains('chat-import')) {
       await ChatImportAuditService.recordSaved(
         hash: _chatImportHash,
+        itemCount: success,
+        totalAmount: savedAmountTotal,
+      );
+    } else if (success > 0) {
+      await OcrImportAuditService.recordSaved(
+        hash: _ocrScanHash,
         itemCount: success,
         totalAmount: savedAmountTotal,
       );
@@ -919,19 +963,35 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     return int.tryParse(digitsOnly) ?? 0;
   }
 
-  String _applyChatImportAuditTag(String description) {
+  String _applyAuditTag(String description) {
     final clean = description.trim();
-    if (!_providerTrail.contains('chat-import')) {
-      return clean;
+    if (_providerTrail.contains('chat-import')) {
+      final suffix =
+          _chatImportHash.isEmpty
+              ? '[chat_import]'
+              : '[chat_import:${_chatImportHash.substring(0, 8)}]';
+      if (clean.toLowerCase().contains('[chat_import')) {
+        return clean;
+      }
+      return '$clean $suffix'.trim();
     }
     final suffix =
-        _chatImportHash.isEmpty
-            ? '[chat_import]'
-            : '[chat_import:${_chatImportHash.substring(0, 8)}]';
-    if (clean.toLowerCase().contains('[chat_import')) {
+        _ocrScanHash.isEmpty
+            ? '[ocr_scan]'
+            : '[ocr_scan:${_ocrScanHash.substring(0, 8)}]';
+    if (clean.toLowerCase().contains('[ocr_scan')) {
       return clean;
     }
     return '$clean $suffix'.trim();
+  }
+
+  String _buildOcrScanHash({
+    required List<int> imageBytes,
+    required String mimeType,
+  }) {
+    final bytesDigest = sha256.convert(imageBytes).toString();
+    final payload = '$mimeType|$bytesDigest';
+    return sha256.convert(utf8.encode(payload)).toString();
   }
 
   DateTime _parseDateOrNow(String iso) {

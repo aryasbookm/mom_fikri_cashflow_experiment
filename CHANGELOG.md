@@ -94,6 +94,12 @@ All notable changes to this project will be documented in this file.
   - deskripsi transaksi OCR kini dibersihkan dari ekor token nominal agar hasil review lebih rapi.
   - filter baris ringkasan/non-transaksi tetap dipertahankan (`Total/Uang Bersih/Saldo`) ke `notes_found` dan `ignored_lines`.
   - unit test baru `ocr_post_processing_test.dart` ditambahkan untuk validasi smart math parser + data filtering OCR.
+- OCR parity Phase 3 (audit trail & dedup):
+  - jalur OCR kamera kini memiliki audit hash lokal (`ocr_scan_hash`) berbasis isi gambar (`sha256`) untuk deteksi duplikasi dalam window 72 jam.
+  - sebelum simpan, jika hash OCR sama ditemukan pada riwayat lokal, app menampilkan dialog konfirmasi simpan ulang.
+  - transaksi dari jalur OCR kamera kini ditandai audit sumber di deskripsi (`[ocr_scan:<hash8>]`).
+  - audit ringkas penyimpanan OCR kamera dicatat lokal (hash/jumlah/nominal) via `OcrImportAuditService`.
+  - unit test baru `ocr_import_audit_service_test.dart` ditambahkan untuk validasi dedup window OCR.
 - Payload AI kini menyertakan agregat kategori 30 hari (pemasukan/pengeluaran) untuk Insight dan Chatbot agar jawaban lebih spesifik.
 - Fondasi service chatbot finansial ditambahkan (`AiChatbotService`):
   - bounded context (hanya jawab konteks keuangan toko),
