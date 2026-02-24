@@ -6,6 +6,7 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'ai_chatbot_memory_service.dart';
 import 'ai_insight_service.dart';
 import 'ai_providers/ai_vision_provider.dart';
 
@@ -49,12 +50,23 @@ class AiChatbotService {
   static const String _cacheKeyText = 'ai_chat_cache_text_v1';
   static const String _cacheKeyHash = 'ai_chat_cache_hash_v1';
   static const String _cacheKeyEpoch = 'ai_chat_cache_epoch_v1';
+  final AiChatbotMemoryService _memoryService = AiChatbotMemoryService();
 
   Future<AiChatReply> askFinancialAssistant({
     required String question,
     required List<Map<String, dynamic>> financeSnapshot,
     List<AiChatMessage> history = const [],
   }) async {
+    final safeQuestion = question.trim();
+    final memory = await _memoryService.loadMemory();
+    final memoryAction = _resolveMemoryAction(
+      question: safeQuestion,
+      memory: memory,
+    );
+    if (memoryAction != null) {
+      return _applyMemoryAction(action: memoryAction, memory: memory);
+    }
+
     final boundedHistory =
         history
             .where((m) => m.text.trim().isNotEmpty)
@@ -66,9 +78,10 @@ class AiChatbotService {
             .toList();
 
     final fingerprint = _buildFingerprint(
-      question: question,
+      question: safeQuestion,
       financeSnapshot: financeSnapshot,
       history: boundedHistory,
+      memory: memory,
     );
 
     final cached = await _tryGetCached(fingerprint);
@@ -82,13 +95,58 @@ class AiChatbotService {
     }
 
     final prompt = _buildBoundedPrompt(
-      question: question,
+      question: safeQuestion,
       financeSnapshot: financeSnapshot,
       history: boundedHistory,
+      memory: memory,
     );
 
-    final response = await _requestWithFallback(prompt);
-    final cleaned = response.text.trim();
+    final askedCategories = _extractAskedCategories(
+      question: safeQuestion,
+      financeSnapshot: financeSnapshot,
+    );
+
+    final firstResponse = await _requestWithFallback(prompt);
+    final firstParsed = _tryParseStructuredResponse(firstResponse.text);
+    final firstIssue = _validateStructuredResponse(
+      response: firstParsed,
+      askedCategories: askedCategories,
+    );
+
+    _StructuredChatResponse? finalParsed = firstParsed;
+    var providerId = firstResponse.providerId;
+    if (firstIssue != null) {
+      final retryPrompt = _buildStrictRetryPrompt(
+        question: safeQuestion,
+        financeSnapshot: financeSnapshot,
+        history: boundedHistory,
+        askedCategories: askedCategories,
+        previousIssue: firstIssue,
+        memory: memory,
+      );
+      final retryResponse = await _requestWithFallback(retryPrompt);
+      providerId = retryResponse.providerId;
+      final retryParsed = _tryParseStructuredResponse(retryResponse.text);
+      final retryIssue = _validateStructuredResponse(
+        response: retryParsed,
+        askedCategories: askedCategories,
+      );
+      if (retryIssue == null && retryParsed != null) {
+        finalParsed = retryParsed;
+      } else {
+        finalParsed = _buildLocalFallbackStructuredResponse(
+          question: safeQuestion,
+          financeSnapshot: financeSnapshot,
+          askedCategories: askedCategories,
+        );
+        providerId = 'local-fallback';
+      }
+    }
+
+    if (finalParsed == null) {
+      throw const AiProviderTemporaryException('Jawaban AI kosong. Coba lagi.');
+    }
+    final cleaned = _renderStructuredResponse(finalParsed);
     if (cleaned.isEmpty) {
       throw const AiProviderTemporaryException('Jawaban AI kosong. Coba lagi.');
     }
@@ -96,9 +154,16 @@ class AiChatbotService {
     await _saveCache(fingerprint: fingerprint, text: cleaned);
     return AiChatReply(
       text: cleaned,
-      providerId: response.providerId,
+      providerId: providerId,
       fromCache: false,
-      suggestedCooldownSeconds: response.providerId == 'groq' ? 3 : 4,
+      suggestedCooldownSeconds:
+          providerId == 'cache'
+              ? 1
+              : providerId == 'groq'
+              ? 3
+              : providerId == 'local-fallback'
+              ? 1
+              : 4,
     );
   }
 
@@ -106,6 +171,7 @@ class AiChatbotService {
     required String question,
     required List<Map<String, dynamic>> financeSnapshot,
     required List<AiChatMessage> history,
+    required AiChatbotMemory memory,
   }) {
     final safeQuestion = question.trim();
     final hasCatalog = financeSnapshot.any(
@@ -124,22 +190,37 @@ class AiChatbotService {
         history.isEmpty
             ? '- (kosong)'
             : history.map((m) => '- ${m.role}: ${m.text.trim()}').join('\n');
+    final categoryHints = _buildCategoryHints(financeSnapshot);
+    final memoryText = _memoryService.renderMemoryForPrompt(memory);
 
     return '''
 Kamu adalah asisten keuangan UMKM untuk toko kue.
 Aturan keras:
 - Jawaban hanya boleh terkait data keuangan toko pada konteks di bawah.
-- Jika pertanyaan di luar konteks (cuaca, politik, umum), jawab: "Saya hanya bisa membantu analisis data keuangan toko Anda.".
+- Jika pertanyaan di luar konteks (cuaca, politik, umum), set status ke `outside_scope`.
 - Jangan mengarang angka.
-- Jawaban ringkas: maksimal 4 poin atau 1 paragraf pendek.
-- Sertakan dasar data (tanggal/nominal/tren) jika ada.
+- Jawaban ringkas: maksimal 2 kalimat.
+- Jika user menyebut kategori, gunakan nama kategori persis dari daftar kategori konteks.
 - Data `top_product` dan `slow_product` adalah sampel, bukan seluruh katalog.
 - Data `product_catalog` adalah stok saat ini. Jangan campur `stock_now` dengan `total_qty` penjualan.
 - Data `income_category_30d` dan `expense_category_30d` adalah agregat kategori 30 hari.
-- Jika data tidak cukup untuk jawaban pasti, katakan "data belum cukup" dan sebut data tambahan yang dibutuhkan.
+- Jika data tidak cukup untuk jawaban pasti, set status ke `needs_data` dan sebut data tambahan yang dibutuhkan.
+- Gunakan preferensi pengguna jika ada untuk sapaan awal (maksimal 1x), tanpa mengubah akurasi data.
+- WAJIB output JSON valid saja, tanpa markdown, dengan schema tepat:
+{"status":"ok|needs_data|outside_scope","jawaban":"","dasar_data":[{"source_type":"","kutipan":""}],"aksi_singkat":"","data_tambahan_dibutuhkan":""}
+- Untuk status `ok`, `dasar_data` minimal 1 item dan `source_type` harus salah satu:
+summary_30_days | daily_summary | income_category_30d | expense_category_30d | top_product | slow_product | product_catalog
+- Untuk status `outside_scope`, `jawaban` harus persis:
+"Saya hanya bisa membantu analisis data keuangan toko Anda."
 
 Konteks data (agregat/transaksi ringkas):
 $snapshotText
+
+Daftar kategori terdeteksi:
+$categoryHints
+
+Preferensi pengguna (lokal):
+$memoryText
 
 Riwayat percakapan (terbatas):
 $historyText
@@ -149,10 +230,70 @@ $safeQuestion
 ''';
   }
 
+  String _buildStrictRetryPrompt({
+    required String question,
+    required List<Map<String, dynamic>> financeSnapshot,
+    required List<AiChatMessage> history,
+    required List<String> askedCategories,
+    required String previousIssue,
+    required AiChatbotMemory memory,
+  }) {
+    final historyText =
+        history.isEmpty
+            ? '- (kosong)'
+            : history.map((m) => '- ${m.role}: ${m.text.trim()}').join('\n');
+    final snapshotText =
+        financeSnapshot.isEmpty
+            ? '- Data belum tersedia.'
+            : financeSnapshot
+                .take(140)
+                .map((row) => jsonEncode(row))
+                .join('\n');
+    final askedCategoryText =
+        askedCategories.isEmpty
+            ? '- (tidak spesifik kategori)'
+            : askedCategories.join(', ');
+    final categoryHints = _buildCategoryHints(financeSnapshot);
+    final memoryText = _memoryService.renderMemoryForPrompt(memory);
+    return '''
+Ulangi. Respons sebelumnya tidak valid karena:
+$previousIssue
+
+WAJIB JSON valid saja, tanpa markdown.
+Schema wajib:
+{"status":"ok|needs_data|outside_scope","jawaban":"","dasar_data":[{"source_type":"","kutipan":""}],"aksi_singkat":"","data_tambahan_dibutuhkan":""}
+
+Ketentuan wajib:
+- status `outside_scope` => jawaban persis: "Saya hanya bisa membantu analisis data keuangan toko Anda."
+- status `ok` => `dasar_data` minimal 1 item.
+- Jika user tanya kategori spesifik, sebut kategori itu secara eksplisit di `jawaban` atau `dasar_data`.
+- Jangan mengarang angka.
+
+Kategori yang ditanya user:
+$askedCategoryText
+
+Daftar kategori konteks:
+$categoryHints
+
+Preferensi pengguna (lokal):
+$memoryText
+
+Konteks data:
+$snapshotText
+
+Riwayat percakapan:
+$historyText
+
+Pertanyaan user:
+$question
+''';
+  }
+
   String _buildFingerprint({
     required String question,
     required List<Map<String, dynamic>> financeSnapshot,
     required List<AiChatMessage> history,
+    required AiChatbotMemory memory,
   }) {
     final payload = jsonEncode({
       'q': question.trim(),
@@ -161,8 +302,649 @@ $safeQuestion
           history
               .map((m) => {'role': m.role.trim(), 'text': m.text.trim()})
               .toList(),
+      'memory': {
+        'name': memory.preferredName,
+        'salutation': memory.preferredSalutation,
+        'tone': memory.tone,
+      },
     });
     return sha256.convert(utf8.encode(payload)).toString();
+  }
+
+  _MemoryAction? _resolveMemoryAction({
+    required String question,
+    required AiChatbotMemory memory,
+  }) {
+    final q = question.trim().toLowerCase();
+    if (q.isEmpty) {
+      return null;
+    }
+
+    if (memory.hasPendingRename) {
+      if (_isAffirmative(q)) {
+        return const _MemoryAction(type: _MemoryActionType.confirmRename);
+      }
+      if (_isNegative(q)) {
+        return const _MemoryAction(type: _MemoryActionType.cancelRename);
+      }
+    }
+
+    if (q.contains('apa yang kamu ingat tentang saya') ||
+        q.contains('apa yang kamu ingat') ||
+        q.contains('kamu ingat apa tentang saya')) {
+      return const _MemoryAction(type: _MemoryActionType.showMemory);
+    }
+
+    if (q.contains('lupakan saya') ||
+        q.contains('hapus preferensi saya') ||
+        q.contains('hapus memori saya')) {
+      return const _MemoryAction(type: _MemoryActionType.clearMemory);
+    }
+
+    final tone = _extractTonePreference(q);
+    if (tone != null) {
+      return _MemoryAction(type: _MemoryActionType.setTone, value: tone);
+    }
+
+    final nameIntent = _extractNameIntent(question);
+    if (nameIntent != null) {
+      return _MemoryAction(
+        type: _MemoryActionType.setName,
+        value: nameIntent.name,
+        aux: nameIntent.salutation,
+      );
+    }
+    return null;
+  }
+
+  Future<AiChatReply> _applyMemoryAction({
+    required _MemoryAction action,
+    required AiChatbotMemory memory,
+  }) async {
+    if (action.type == _MemoryActionType.showMemory) {
+      return AiChatReply(
+        text: _memorySummaryText(memory),
+        providerId: 'memory-local',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+      );
+    }
+
+    if (action.type == _MemoryActionType.clearMemory) {
+      await _memoryService.clearMemory();
+      return const AiChatReply(
+        text: 'Baik, saya sudah melupakan preferensi Anda di perangkat ini.',
+        providerId: 'memory-local',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+      );
+    }
+
+    if (action.type == _MemoryActionType.setTone) {
+      final updated = memory.copyWith(tone: action.value ?? '');
+      await _memoryService.saveMemory(updated);
+      final toneLabel =
+          (action.value ?? '').isEmpty ? 'default' : action.value!;
+      return AiChatReply(
+        text: 'Siap, gaya jawaban saya set ke "$toneLabel".',
+        providerId: 'memory-local',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+      );
+    }
+
+    if (action.type == _MemoryActionType.setName) {
+      final newName = (action.value ?? '').trim();
+      if (newName.isEmpty) {
+        return const AiChatReply(
+          text: 'Nama belum terbaca jelas. Coba tulis: "nama saya ...".',
+          providerId: 'memory-local',
+          fromCache: false,
+          suggestedCooldownSeconds: 1,
+        );
+      }
+      final currentName = memory.preferredName.trim();
+      final newSalutation = (action.aux ?? '').trim();
+      if (currentName.isNotEmpty &&
+          currentName.toLowerCase() != newName.toLowerCase()) {
+        final pending = memory.copyWith(pendingName: newName);
+        await _memoryService.saveMemory(pending);
+        return AiChatReply(
+          text:
+              'Saat ini nama tersimpan "$currentName". Ubah ke "$newName"? Balas "ya" untuk konfirmasi atau "tidak" untuk batal.',
+          providerId: 'memory-local',
+          fromCache: false,
+          suggestedCooldownSeconds: 1,
+        );
+      }
+
+      final updated = memory.copyWith(
+        preferredName: newName,
+        preferredSalutation:
+            newSalutation.isEmpty ? memory.preferredSalutation : newSalutation,
+        pendingName: '',
+      );
+      await _memoryService.saveMemory(updated);
+      final displayName = _buildDisplayName(
+        name: updated.preferredName,
+        salutation: updated.preferredSalutation,
+      );
+      return AiChatReply(
+        text: 'Siap, saya akan menyapa Anda sebagai "$displayName".',
+        providerId: 'memory-local',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+      );
+    }
+
+    if (action.type == _MemoryActionType.confirmRename) {
+      final pendingName = memory.pendingName.trim();
+      if (pendingName.isEmpty) {
+        return const AiChatReply(
+          text: 'Tidak ada perubahan nama yang menunggu konfirmasi.',
+          providerId: 'memory-local',
+          fromCache: false,
+          suggestedCooldownSeconds: 1,
+        );
+      }
+      final updated = memory.copyWith(
+        preferredName: pendingName,
+        pendingName: '',
+      );
+      await _memoryService.saveMemory(updated);
+      final displayName = _buildDisplayName(
+        name: updated.preferredName,
+        salutation: updated.preferredSalutation,
+      );
+      return AiChatReply(
+        text: 'Siap, nama panggilan diperbarui menjadi "$displayName".',
+        providerId: 'memory-local',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+      );
+    }
+
+    if (action.type == _MemoryActionType.cancelRename) {
+      if (!memory.hasPendingRename) {
+        return const AiChatReply(
+          text: 'Tidak ada perubahan nama yang menunggu konfirmasi.',
+          providerId: 'memory-local',
+          fromCache: false,
+          suggestedCooldownSeconds: 1,
+        );
+      }
+      await _memoryService.saveMemory(memory.copyWith(pendingName: ''));
+      return const AiChatReply(
+        text: 'Baik, perubahan nama dibatalkan.',
+        providerId: 'memory-local',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+      );
+    }
+
+    return const AiChatReply(
+      text: 'Perintah memori belum dikenali.',
+      providerId: 'memory-local',
+      fromCache: false,
+      suggestedCooldownSeconds: 1,
+    );
+  }
+
+  String _memorySummaryText(AiChatbotMemory memory) {
+    final displayName = _buildDisplayName(
+      name: memory.preferredName,
+      salutation: memory.preferredSalutation,
+    );
+    final lines = <String>[
+      displayName.isEmpty
+          ? '- Nama/sapaan: belum diset'
+          : '- Nama/sapaan: $displayName',
+      memory.tone.isEmpty
+          ? '- Gaya jawaban: default'
+          : '- Gaya jawaban: ${memory.tone}',
+    ];
+    return 'Yang saya ingat saat ini:\n${lines.join('\n')}';
+  }
+
+  _NameIntent? _extractNameIntent(String question) {
+    final regex = RegExp(
+      r"\b(?:nama saya|panggil saya)\s+([A-Za-z][A-Za-z .'-]{1,40})",
+      caseSensitive: false,
+    );
+    final match = regex.firstMatch(question);
+    if (match == null) {
+      return null;
+    }
+    final raw = (match.group(1) ?? '').split(RegExp(r'[.,!?]')).first;
+    final cleaned = raw.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (cleaned.isEmpty) {
+      return null;
+    }
+
+    final words = cleaned.split(' ');
+    var salutation = '';
+    final first = words.first.toLowerCase();
+    if (first == 'pak' || first == 'bapak') {
+      salutation = 'Pak';
+      words.removeAt(0);
+    } else if (first == 'bu' || first == 'ibu') {
+      salutation = 'Bu';
+      words.removeAt(0);
+    } else if (first == 'kak') {
+      salutation = 'Kak';
+      words.removeAt(0);
+    }
+
+    final name = words.join(' ').trim();
+    if (name.isEmpty) {
+      return null;
+    }
+    return _NameIntent(name: _titleCase(name), salutation: salutation);
+  }
+
+  String? _extractTonePreference(String lowerQuestion) {
+    if (!lowerQuestion.contains('gaya jawaban') &&
+        !lowerQuestion.contains('tone')) {
+      return null;
+    }
+    if (lowerQuestion.contains('ringkas')) {
+      return 'ringkas';
+    }
+    if (lowerQuestion.contains('santai')) {
+      return 'santai';
+    }
+    if (lowerQuestion.contains('formal')) {
+      return 'formal';
+    }
+    if (lowerQuestion.contains('default')) {
+      return '';
+    }
+    return null;
+  }
+
+  bool _isAffirmative(String lowerQuestion) {
+    const yesWords = <String>{'ya', 'iya', 'yes', 'ok', 'oke', 'setuju'};
+    return yesWords.contains(lowerQuestion.trim());
+  }
+
+  bool _isNegative(String lowerQuestion) {
+    const noWords = <String>{'tidak', 'nggak', 'ga', 'enggak', 'batal', 'no'};
+    return noWords.contains(lowerQuestion.trim());
+  }
+
+  String _buildDisplayName({required String name, required String salutation}) {
+    final safeName = name.trim();
+    final safeSalutation = salutation.trim();
+    if (safeName.isEmpty) {
+      return '';
+    }
+    if (safeSalutation.isEmpty) {
+      return safeName;
+    }
+    return '$safeSalutation $safeName';
+  }
+
+  String _titleCase(String value) {
+    final words =
+        value.split(' ').where((word) => word.trim().isNotEmpty).map((word) {
+          final lower = word.toLowerCase();
+          if (lower.length <= 1) {
+            return lower.toUpperCase();
+          }
+          return '${lower[0].toUpperCase()}${lower.substring(1)}';
+        }).toList();
+    return words.join(' ');
+  }
+
+  String _buildCategoryHints(List<Map<String, dynamic>> financeSnapshot) {
+    final rows =
+        financeSnapshot.where((row) {
+          final type = (row['type'] ?? '').toString();
+          return type == 'income_category_30d' ||
+              type == 'expense_category_30d';
+        }).toList();
+    if (rows.isEmpty) {
+      return '- (belum ada kategori 30 hari)';
+    }
+    final names =
+        rows
+            .map((row) => (row['category'] ?? '').toString().trim())
+            .where((name) => name.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+    if (names.isEmpty) {
+      return '- (belum ada kategori 30 hari)';
+    }
+    return names.map((name) => '- $name').join('\n');
+  }
+
+  List<String> _extractAskedCategories({
+    required String question,
+    required List<Map<String, dynamic>> financeSnapshot,
+  }) {
+    final q = question.toLowerCase();
+    final categories =
+        financeSnapshot
+            .where((row) {
+              final type = (row['type'] ?? '').toString();
+              return type == 'income_category_30d' ||
+                  type == 'expense_category_30d';
+            })
+            .map((row) => (row['category'] ?? '').toString().trim())
+            .where((name) => name.isNotEmpty)
+            .toSet();
+    final asked = <String>[];
+    for (final name in categories) {
+      if (q.contains(name.toLowerCase())) {
+        asked.add(name);
+      }
+    }
+    return asked;
+  }
+
+  _StructuredChatResponse? _tryParseStructuredResponse(String rawText) {
+    final trimmed = rawText.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+    final normalized =
+        trimmed
+            .replaceAll(RegExp(r'^```json\s*', caseSensitive: false), '')
+            .replaceAll(RegExp(r'^```', caseSensitive: false), '')
+            .replaceAll(RegExp(r'```$', caseSensitive: false), '')
+            .trim();
+
+    Map<String, dynamic>? decoded;
+    try {
+      final direct = jsonDecode(normalized);
+      if (direct is Map<String, dynamic>) {
+        decoded = direct;
+      } else if (direct is Map) {
+        decoded = Map<String, dynamic>.from(direct);
+      }
+    } catch (_) {
+      final start = normalized.indexOf('{');
+      final end = normalized.lastIndexOf('}');
+      if (start >= 0 && end > start) {
+        final candidate = normalized.substring(start, end + 1);
+        try {
+          final loose = jsonDecode(candidate);
+          if (loose is Map<String, dynamic>) {
+            decoded = loose;
+          } else if (loose is Map) {
+            decoded = Map<String, dynamic>.from(loose);
+          }
+        } catch (_) {
+          return null;
+        }
+      }
+    }
+    if (decoded == null) {
+      return null;
+    }
+
+    final status = (decoded['status'] ?? '').toString().trim().toLowerCase();
+    if (status != 'ok' && status != 'needs_data' && status != 'outside_scope') {
+      return null;
+    }
+    final jawaban = (decoded['jawaban'] ?? '').toString().trim();
+    if (jawaban.isEmpty) {
+      return null;
+    }
+
+    final dasarRaw = decoded['dasar_data'];
+    final dasarData = <_DataBasis>[];
+    if (dasarRaw is List) {
+      for (final item in dasarRaw) {
+        final map =
+            item is Map<String, dynamic>
+                ? item
+                : item is Map
+                ? Map<String, dynamic>.from(item)
+                : <String, dynamic>{};
+        final sourceType = (map['source_type'] ?? '').toString().trim();
+        final kutipan = (map['kutipan'] ?? '').toString().trim();
+        if (sourceType.isEmpty || kutipan.isEmpty) {
+          continue;
+        }
+        dasarData.add(_DataBasis(sourceType: sourceType, kutipan: kutipan));
+      }
+    }
+
+    final aksiSingkat = (decoded['aksi_singkat'] ?? '').toString().trim();
+    final dataTambahan =
+        (decoded['data_tambahan_dibutuhkan'] ?? '').toString().trim();
+    return _StructuredChatResponse(
+      status: status,
+      jawaban: jawaban,
+      dasarData: dasarData,
+      aksiSingkat: aksiSingkat,
+      dataTambahanDibutuhkan: dataTambahan,
+    );
+  }
+
+  String? _validateStructuredResponse({
+    required _StructuredChatResponse? response,
+    required List<String> askedCategories,
+  }) {
+    if (response == null) {
+      return 'response bukan JSON terstruktur valid';
+    }
+    if (response.status == 'outside_scope' &&
+        response.jawaban !=
+            'Saya hanya bisa membantu analisis data keuangan toko Anda.') {
+      return 'status outside_scope wajib pakai kalimat baku';
+    }
+    if (response.status == 'ok' && response.dasarData.isEmpty) {
+      return 'status ok wajib menyertakan minimal 1 dasar_data';
+    }
+    if (response.status == 'needs_data' &&
+        response.dataTambahanDibutuhkan.isEmpty) {
+      return 'status needs_data wajib menyebut data_tambahan_dibutuhkan';
+    }
+
+    const allowedSourceTypes = <String>{
+      'summary_30_days',
+      'daily_summary',
+      'income_category_30d',
+      'expense_category_30d',
+      'top_product',
+      'slow_product',
+      'product_catalog',
+    };
+    for (final item in response.dasarData) {
+      if (!allowedSourceTypes.contains(item.sourceType)) {
+        return 'source_type tidak valid: ${item.sourceType}';
+      }
+    }
+
+    if (askedCategories.isNotEmpty && response.status == 'ok') {
+      final combinedText =
+          [
+            response.jawaban,
+            response.aksiSingkat,
+            ...response.dasarData.map((d) => d.kutipan),
+          ].join(' ').toLowerCase();
+      final hasCategoryMention = askedCategories.any(
+        (category) => combinedText.contains(category.toLowerCase()),
+      );
+      if (!hasCategoryMention) {
+        return 'jawaban belum menyinggung kategori yang ditanyakan user';
+      }
+    }
+    return null;
+  }
+
+  String _renderStructuredResponse(_StructuredChatResponse response) {
+    if (response.status == 'outside_scope') {
+      return response.jawaban;
+    }
+    final lines = <String>[response.jawaban];
+    if (response.dasarData.isNotEmpty) {
+      lines.add('Dasar data:');
+      lines.addAll(
+        response.dasarData.take(3).map((item) => '- ${item.kutipan}'),
+      );
+    }
+    if (response.aksiSingkat.isNotEmpty) {
+      lines.add('Aksi singkat: ${response.aksiSingkat}');
+    }
+    if (response.status == 'needs_data' &&
+        response.dataTambahanDibutuhkan.isNotEmpty) {
+      lines.add('Data tambahan dibutuhkan: ${response.dataTambahanDibutuhkan}');
+    }
+    return lines.join('\n').trim();
+  }
+
+  _StructuredChatResponse _buildLocalFallbackStructuredResponse({
+    required String question,
+    required List<Map<String, dynamic>> financeSnapshot,
+    required List<String> askedCategories,
+  }) {
+    if (_looksOutsideScope(question)) {
+      return const _StructuredChatResponse(
+        status: 'outside_scope',
+        jawaban: 'Saya hanya bisa membantu analisis data keuangan toko Anda.',
+        dasarData: [],
+        aksiSingkat: '',
+        dataTambahanDibutuhkan: '',
+      );
+    }
+
+    final summary = financeSnapshot.firstWhere(
+      (row) => (row['type'] ?? '').toString() == 'summary_30_days',
+      orElse:
+          () => {
+            'type': 'summary_30_days',
+            'income': 0,
+            'expense': 0,
+            'net': 0,
+          },
+    );
+    final income = _toInt(summary['income']);
+    final expense = _toInt(summary['expense']);
+    final net = _toInt(summary['net']);
+
+    final incomeMap = _categoryAmountMap(
+      financeSnapshot,
+      'income_category_30d',
+    );
+    final expenseMap = _categoryAmountMap(
+      financeSnapshot,
+      'expense_category_30d',
+    );
+
+    if (askedCategories.isNotEmpty) {
+      final category = askedCategories.first;
+      final inAmount = incomeMap[category.toLowerCase()] ?? 0;
+      final outAmount = expenseMap[category.toLowerCase()] ?? 0;
+      if (inAmount == 0 && outAmount == 0) {
+        return _StructuredChatResponse(
+          status: 'needs_data',
+          jawaban:
+              'Data kategori $category belum cukup untuk dianalisis pasti.',
+          dasarData: const [],
+          aksiSingkat: '',
+          dataTambahanDibutuhkan:
+              'Butuh transaksi lebih lengkap untuk kategori $category dalam 30 hari.',
+        );
+      }
+      return _StructuredChatResponse(
+        status: 'ok',
+        jawaban:
+            'Kategori $category tercatat pemasukan Rp $inAmount dan pengeluaran Rp $outAmount dalam 30 hari.',
+        dasarData: [
+          _DataBasis(
+            sourceType:
+                inAmount >= outAmount
+                    ? 'income_category_30d'
+                    : 'expense_category_30d',
+            kutipan:
+                'Kategori $category: pemasukan Rp $inAmount, pengeluaran Rp $outAmount.',
+          ),
+          _DataBasis(
+            sourceType: 'summary_30_days',
+            kutipan:
+                'Ringkasan 30 hari: pemasukan Rp $income, pengeluaran Rp $expense, selisih Rp $net.',
+          ),
+        ],
+        aksiSingkat:
+            outAmount > inAmount
+                ? 'Evaluasi biaya kategori $category dan tetapkan batas belanja mingguan.'
+                : 'Pertahankan performa kategori $category sambil kontrol margin.',
+        dataTambahanDibutuhkan: '',
+      );
+    }
+
+    return _StructuredChatResponse(
+      status: 'ok',
+      jawaban:
+          'Dalam 30 hari, pemasukan Rp $income, pengeluaran Rp $expense, selisih Rp $net.',
+      dasarData: [
+        _DataBasis(
+          sourceType: 'summary_30_days',
+          kutipan:
+              'Ringkasan 30 hari: pemasukan Rp $income, pengeluaran Rp $expense, selisih Rp $net.',
+        ),
+      ],
+      aksiSingkat:
+          net < 0
+              ? 'Prioritaskan pengurangan biaya kategori terbesar minggu ini.'
+              : 'Pertahankan tren positif dengan fokus stok produk paling laku.',
+      dataTambahanDibutuhkan: '',
+    );
+  }
+
+  bool _looksOutsideScope(String question) {
+    final q = question.toLowerCase();
+    const financeKeywords = <String>[
+      'keuangan',
+      'laba',
+      'untung',
+      'rugi',
+      'pendapatan',
+      'pemasukan',
+      'pengeluaran',
+      'biaya',
+      'stok',
+      'produk',
+      'kategori',
+      'kas',
+      'penjualan',
+      'transaksi',
+      'omzet',
+      'margin',
+    ];
+    return !financeKeywords.any(q.contains);
+  }
+
+  Map<String, int> _categoryAmountMap(
+    List<Map<String, dynamic>> financeSnapshot,
+    String type,
+  ) {
+    final map = <String, int>{};
+    for (final row in financeSnapshot) {
+      if ((row['type'] ?? '').toString() != type) {
+        continue;
+      }
+      final category = (row['category'] ?? '').toString().trim().toLowerCase();
+      if (category.isEmpty) {
+        continue;
+      }
+      map[category] = _toInt(row['total_amount']);
+    }
+    return map;
+  }
+
+  int _toInt(dynamic value) {
+    if (value is int) {
+      return value;
+    }
+    if (value is num) {
+      return value.toInt();
+    }
+    return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 
   Future<String?> _tryGetCached(String fingerprint) async {
@@ -492,4 +1274,51 @@ class _ChatProviderResponse {
 
   final String providerId;
   final String text;
+}
+
+class _DataBasis {
+  const _DataBasis({required this.sourceType, required this.kutipan});
+
+  final String sourceType;
+  final String kutipan;
+}
+
+class _StructuredChatResponse {
+  const _StructuredChatResponse({
+    required this.status,
+    required this.jawaban,
+    required this.dasarData,
+    required this.aksiSingkat,
+    required this.dataTambahanDibutuhkan,
+  });
+
+  final String status;
+  final String jawaban;
+  final List<_DataBasis> dasarData;
+  final String aksiSingkat;
+  final String dataTambahanDibutuhkan;
+}
+
+enum _MemoryActionType {
+  showMemory,
+  clearMemory,
+  setTone,
+  setName,
+  confirmRename,
+  cancelRename,
+}
+
+class _MemoryAction {
+  const _MemoryAction({required this.type, this.value, this.aux});
+
+  final _MemoryActionType type;
+  final String? value;
+  final String? aux;
+}
+
+class _NameIntent {
+  const _NameIntent({required this.name, required this.salutation});
+
+  final String name;
+  final String salutation;
 }
