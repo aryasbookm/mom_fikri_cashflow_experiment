@@ -20,6 +20,11 @@ class AiQuotaGuardService {
   static const _retryUntilKey = 'ai_quota_retry_until_ms';
   static const _dailyDateKey = 'ai_quota_daily_limit_date';
   static const _dailyMessageKey = 'ai_quota_daily_limit_message';
+  static const _providerOrder = String.fromEnvironment(
+    'AI_PROVIDER_ORDER',
+    defaultValue: 'gemini,groq',
+  );
+  static const _groqApiKey = String.fromEnvironment('GROQ_API_KEY');
 
   static Future<void> recordRateLimit(AiRateLimitException error) async {
     final prefs = await SharedPreferences.getInstance();
@@ -42,6 +47,11 @@ class AiQuotaGuardService {
 
     final dailyDate = prefs.getString(_dailyDateKey);
     if (dailyDate == today) {
+      if (_hasConfiguredFallbackProvider()) {
+        // Do not hard-lock AI actions when fallback provider is available.
+        await prefs.remove(_dailyDateKey);
+        await prefs.remove(_dailyMessageKey);
+      } else {
       final msg =
           (prefs.getString(_dailyMessageKey) ?? '').trim().isNotEmpty
               ? prefs.getString(_dailyMessageKey)!.trim()
@@ -52,6 +62,7 @@ class AiQuotaGuardService {
         retryAfterSeconds: 0,
         message: msg,
       );
+      }
     }
 
     if (dailyDate != null && dailyDate != today) {
@@ -88,5 +99,20 @@ class AiQuotaGuardService {
     final d = now.day.toString().padLeft(2, '0');
     return '${now.year}-$m-$d';
   }
-}
 
+  static bool _hasConfiguredFallbackProvider() {
+    final ids =
+        _providerOrder
+            .split(',')
+            .map((entry) => entry.trim().toLowerCase())
+            .where((entry) => entry.isNotEmpty)
+            .toSet();
+    if (ids.length < 2) {
+      return false;
+    }
+    if (ids.contains('groq') && _groqApiKey.trim().isNotEmpty) {
+      return true;
+    }
+    return false;
+  }
+}

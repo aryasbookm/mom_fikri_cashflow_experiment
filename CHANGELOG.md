@@ -87,6 +87,9 @@ All notable changes to this project will be documented in this file.
 - Error Insight AI diperjelas:
   - pesan fallback tidak lagi selalu menyalahkan internet,
   - status HTTP umum (`400/401/403/404/5xx`) dipetakan ke pesan yang lebih akurat untuk user.
+- AI quota guard disesuaikan untuk mode multi-provider:
+  - lock harian dari provider utama tidak lagi memblokir OCR/scan jika fallback provider sudah terkonfigurasi,
+  - mengurangi kasus false lock saat kuota provider utama habis tetapi provider cadangan masih tersedia.
 - UX `Catat Pemasukan/Pengeluaran` dirapikan:
   - padding atas diperkecil agar tidak ada ruang kosong berlebih di awal layar.
   - area produk diubah ke `CustomScrollView` (sliver) sehingga header `Pilih Produk / Input Manual / Cari produk` ikut scroll saat list digulir.
