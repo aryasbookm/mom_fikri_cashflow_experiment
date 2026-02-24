@@ -226,7 +226,14 @@ Aturan:
     }
 
     final jsonText = raw.substring(start, end + 1);
-    final decoded = jsonDecode(jsonText);
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(jsonText);
+    } on FormatException {
+      throw Exception(
+        'Respons OCR AI terpotong/tidak lengkap. Coba tekan "Coba Lagi".',
+      );
+    }
     if (decoded is! Map<String, dynamic>) {
       throw Exception(
         'AI mengembalikan data OCR yang tidak terbaca sistem. Coba foto ulang.',

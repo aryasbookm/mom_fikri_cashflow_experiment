@@ -127,7 +127,8 @@ JSON schema:
           );
         case 401:
           throw Exception(
-            '[Gemini] API key AI tidak valid atau belum benar. ${detail.isNotEmpty ? detail : ''}'.trim(),
+            '[Gemini] API key AI tidak valid atau belum benar. ${detail.isNotEmpty ? detail : ''}'
+                .trim(),
           );
         case 403:
           throw Exception(
@@ -135,11 +136,13 @@ JSON schema:
           );
         case 404:
           throw Exception(
-            '[Gemini] Model OCR AI tidak ditemukan. ${detail.isNotEmpty ? detail : ''}'.trim(),
+            '[Gemini] Model OCR AI tidak ditemukan. ${detail.isNotEmpty ? detail : ''}'
+                .trim(),
           );
         default:
           throw Exception(
-            '[Gemini] Permintaan OCR AI gagal (${response.statusCode}). ${detail.isNotEmpty ? detail : ''}'.trim(),
+            '[Gemini] Permintaan OCR AI gagal (${response.statusCode}). ${detail.isNotEmpty ? detail : ''}'
+                .trim(),
           );
       }
     }
@@ -230,7 +233,14 @@ JSON schema:
     }
 
     final jsonText = raw.substring(start, end + 1);
-    final dynamic decoded = jsonDecode(jsonText);
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(jsonText);
+    } on FormatException {
+      throw Exception(
+        'Respons OCR AI terpotong/tidak lengkap. Coba tekan "Coba Lagi".',
+      );
+    }
     if (decoded is! Map<String, dynamic>) {
       throw Exception(
         'AI mengembalikan data OCR yang tidak terbaca sistem. Coba foto ulang.',

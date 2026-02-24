@@ -211,6 +211,8 @@ Catatan:
    - Observability OCR provider:
     - error 4xx dari provider sekarang menampilkan sumber provider (`Gemini/Groq`) dan detail body response jika ada, sehingga troubleshooting request/model menjadi lebih presisi.
    - Default OCR Groq model disetel ke `meta-llama/llama-4-scout-17b-16e-instruct` karena model vision Groq lama (`llama-3.2-11b-vision-preview`) sudah decommissioned.
+   - Robust parsing:
+    - jika provider mengirim JSON terpotong/tidak lengkap, parser OCR tidak lagi melempar `FormatException` mentah ke UI; user menerima pesan retry yang jelas.
    - Output AI bersifat asistif/read-only (tidak menulis transaksi otomatis).
    - OCR Asistif (MVP):
     - akses dari FAB `Scan Catatan` di Beranda,

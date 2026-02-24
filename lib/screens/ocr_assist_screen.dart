@@ -111,6 +111,9 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
         raw.contains('tidak mengembalikan data ocr')) {
       return 'AI merespons, tetapi formatnya tidak bisa dipakai sebagai draft transaksi. Coba foto lebih jelas.';
     }
+    if (raw.contains('terpotong') || raw.contains('tidak lengkap')) {
+      return 'Respons AI belum lengkap. Tekan "Coba Lagi".';
+    }
 
     final cleaned =
         rawText.startsWith('Exception:')
