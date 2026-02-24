@@ -126,6 +126,9 @@ All notable changes to this project will be documented in this file.
   - total nominal otomatis dihitung dari item yang dipilih user.
   - jika ditemukan baris total pada catatan non-transaksi, aplikasi membandingkan dengan total kalkulasi.
   - ketika tidak cocok, ditampilkan warning selisih agar user cek ulang sebelum simpan.
+- Review OCR kini menerapkan smart default IN/OUT:
+  - setelah hasil scan masuk, tipe transaksi diset mengikuti suara mayoritas (`IN` atau `OUT`) dalam satu halaman.
+  - user tetap bisa mengubah tipe per transaksi secara manual sebelum simpan.
 - OCR provider error observability ditingkatkan:
   - pesan 4xx OCR kini menyertakan label provider (`[Gemini]` / `[Groq]`) dan detail message dari body response jika tersedia,
   - mempermudah identifikasi akar masalah nyata (model/key/request schema) dibanding pesan generik.

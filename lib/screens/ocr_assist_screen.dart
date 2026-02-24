@@ -321,6 +321,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
             ),
           ),
         );
+        _applyMajorityTypeDefault();
         _detectedDate = batch.detectedDate;
         _notesFound
           ..clear()
@@ -569,6 +570,28 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
       item.dispose();
     }
     _draftItems.clear();
+  }
+
+  void _applyMajorityTypeDefault() {
+    if (_draftItems.isEmpty) {
+      return;
+    }
+    var inCount = 0;
+    var outCount = 0;
+    for (final item in _draftItems) {
+      if (item.type == 'OUT') {
+        outCount += 1;
+      } else {
+        inCount += 1;
+      }
+    }
+    if (inCount == outCount) {
+      return;
+    }
+    final majorityType = inCount > outCount ? 'IN' : 'OUT';
+    for (final item in _draftItems) {
+      item.type = majorityType;
+    }
   }
 
   int _parseAmountInput(String text) {
