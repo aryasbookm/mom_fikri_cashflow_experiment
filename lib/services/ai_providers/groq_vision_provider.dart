@@ -46,6 +46,12 @@ Aturan:
   - date_iso: format yyyy-MM-dd jika terbaca, jika tidak isi string kosong
   - confidence: 0..100
   - raw_text: hasil bacaan OCR singkat item tersebut
+  - needs_review: true jika ada kemungkinan typo/tidak yakin
+  - warning: alasan singkat jika needs_review=true
+- Sertakan summary:
+  - date_detected: tanggal yang terbaca (boleh kosong)
+  - notes_found: info non-transaksi penting (mis. Uang Bersih/Total)
+- ignored_lines: daftar teks yang terbaca tapi bukan transaksi.
 ''';
 
     final dataUri = 'data:$mimeType;base64,${base64Encode(imageBytes)}';
@@ -99,7 +105,9 @@ Aturan:
       }
       switch (response.statusCode) {
         case 400:
-          throw Exception('Permintaan OCR tidak valid. Coba foto ulang.');
+          throw Exception(
+            'Permintaan OCR ditolak (400). Periksa format file (JPG/PNG/WEBP), ukuran gambar, atau konfigurasi model.',
+          );
         case 401:
           throw Exception('API key AI tidak valid atau belum benar.');
         case 403:
@@ -144,6 +152,9 @@ Aturan:
       isTransaction: true,
       reason: '',
       transactions: filtered,
+      detectedDate: batch.detectedDate,
+      notesFound: batch.notesFound,
+      ignoredLines: batch.ignoredLines,
     );
   }
 

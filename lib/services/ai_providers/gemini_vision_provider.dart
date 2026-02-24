@@ -49,8 +49,13 @@ Aturan:
 
 JSON schema:
 {
+  "summary": {
+    "date_detected": "",
+    "notes_found": [{"label": "", "value": ""}]
+  },
   "is_transaction": true,
   "reason": "",
+  "ignored_lines": [""],
   "transactions": [
     {
       "type": "IN|OUT",
@@ -59,7 +64,9 @@ JSON schema:
       "category_hint": "",
       "date_iso": "",
       "confidence": 0,
-      "raw_text": ""
+      "raw_text": "",
+      "needs_review": false,
+      "warning": ""
     }
   ]
 }
@@ -114,7 +121,9 @@ JSON schema:
       }
       switch (response.statusCode) {
         case 400:
-          throw Exception('Permintaan OCR tidak valid. Coba foto ulang.');
+          throw Exception(
+            'Permintaan OCR ditolak (400). Periksa format file (JPG/PNG/WEBP), ukuran gambar, atau konfigurasi model.',
+          );
         case 401:
           throw Exception('API key AI tidak valid atau belum benar.');
         case 403:
@@ -159,6 +168,9 @@ JSON schema:
       isTransaction: true,
       reason: '',
       transactions: filtered,
+      detectedDate: batch.detectedDate,
+      notesFound: batch.notesFound,
+      ignoredLines: batch.ignoredLines,
     );
   }
 

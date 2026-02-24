@@ -95,6 +95,11 @@ All notable changes to this project will be documented in this file.
 - OCR error copy diperjelas:
   - status HTTP umum OCR (`401/403/404/5xx`) dipetakan ke pesan yang lebih spesifik,
   - kegagalan format respons (AI membalas tetapi bukan JSON transaksi valid) ditampilkan sebagai pesan yang jelas, tidak lagi generik.
+- OCR Human-in-the-Loop ditingkatkan:
+  - transaksi kini mendukung flag `needs_review` + `warning` untuk baris yang diduga typo/ragu baca.
+  - hasil scan menampilkan ringkasan `X transaksi, Y perlu review`.
+  - metadata non-transaksi dipisah dari transaksi (`date_detected`, `notes_found`, `ignored_lines`) agar catatan seperti tanggal/total/uang bersih tidak mencemari draft transaksi.
+  - baris `needs_review` diberi penanda visual (warna kuning + warning) agar user mengedit manual sebelum simpan.
 - UX `Catat Pemasukan/Pengeluaran` dirapikan:
   - padding atas diperkecil agar tidak ada ruang kosong berlebih di awal layar.
   - area produk diubah ke `CustomScrollView` (sliver) sehingga header `Pilih Produk / Input Manual / Cari produk` ikut scroll saat list digulir.

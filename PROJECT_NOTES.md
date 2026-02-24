@@ -204,6 +204,10 @@ Catatan:
     - bila provider pertama gagal karena format respons/provider mismatch, sistem tetap mencoba provider berikutnya.
    - Error OCR di UI dibuat lebih transparan:
     - user bisa membedakan masalah key/akses/model/server dari masalah “AI merespons tapi format draft transaksi tidak valid”.
+   - OCR Human-in-the-Loop v2:
+    - transaksi hasil scan mendukung `needs_review` + `warning` untuk kandidat typo/ambigu.
+    - UI review menampilkan ringkasan jumlah transaksi dan jumlah item yang perlu review manual.
+    - metadata non-transaksi dipisah (`date_detected`, `notes_found`, `ignored_lines`) agar baris seperti tanggal/uang bersih/total tidak otomatis masuk sebagai transaksi barang.
    - Output AI bersifat asistif/read-only (tidak menulis transaksi otomatis).
    - OCR Asistif (MVP):
     - akses dari FAB `Scan Catatan` di Beranda,

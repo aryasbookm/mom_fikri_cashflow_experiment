@@ -27,6 +27,9 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
   List<int>? _imageBytes;
   String? _imageMimeType;
   final List<_EditableDraftItem> _draftItems = [];
+  String _detectedDate = '';
+  final List<String> _notesFound = [];
+  final List<String> _ignoredLines = [];
   String? _lastErrorMessage;
   String? _lastRejectedReason;
   bool _aiBlocked = false;
@@ -35,6 +38,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
   Timer? _quotaTimer;
 
   int get _selectedCount => _draftItems.where((item) => item.selected).length;
+  int get _reviewCount => _draftItems.where((item) => item.needsReview).length;
 
   @override
   void initState() {
@@ -148,15 +152,24 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
       _imageBytes = null;
       _imageMimeType = null;
       _clearDraftItems();
+      _detectedDate = '';
+      _notesFound.clear();
+      _ignoredLines.clear();
       _lastErrorMessage = null;
       _lastRejectedReason = null;
     });
 
     try {
       final bytes = await file.readAsBytes();
+      final mimeType = _detectMimeType(file.path);
+      if (mimeType == null) {
+        throw Exception(
+          'Format foto dari galeri belum didukung. Gunakan JPG/PNG/WEBP atau kirim ulang sebagai JPG.',
+        );
+      }
       setState(() {
         _imageBytes = bytes;
-        _imageMimeType = _detectMimeType(file.path);
+        _imageMimeType = mimeType;
       });
       await _processCurrentImage();
     } catch (error) {
@@ -206,9 +219,18 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
               dateIso: item.dateIso,
               confidence: item.confidence,
               rawText: item.rawText,
+              needsReview: item.needsReview,
+              warning: item.warning,
             ),
           ),
         );
+        _detectedDate = batch.detectedDate;
+        _notesFound
+          ..clear()
+          ..addAll(batch.notesFound);
+        _ignoredLines
+          ..clear()
+          ..addAll(batch.ignoredLines);
         _lastErrorMessage = null;
         _lastRejectedReason = null;
       });
@@ -250,13 +272,19 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     }
   }
 
-  String _detectMimeType(String path) {
+  String? _detectMimeType(String path) {
     final lower = path.toLowerCase();
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
+      return 'image/jpeg';
+    }
     if (lower.endsWith('.png')) {
       return 'image/png';
     }
     if (lower.endsWith('.webp')) {
       return 'image/webp';
+    }
+    if (lower.endsWith('.heic') || lower.endsWith('.heif')) {
+      return null;
     }
     return 'image/jpeg';
   }
@@ -415,6 +443,9 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
         SnackBar(content: Text('Berhasil menyimpan $success transaksi.')),
       );
       _clearDraftItems();
+      _detectedDate = '';
+      _notesFound.clear();
+      _ignoredLines.clear();
       Navigator.of(context).pop();
       return;
     }
@@ -445,6 +476,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
 
   Widget _buildDraftItemCard(_EditableDraftItem item, int index) {
     return Card(
+      color: item.needsReview ? const Color(0xFFFFF8E1) : null,
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
         padding: const EdgeInsets.all(10),
@@ -469,6 +501,26 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
                 Text('OCR ${item.confidence}%'),
               ],
             ),
+            if (item.needsReview) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      item.warning.isNotEmpty
+                          ? item.warning
+                          : 'AI ragu pada baris ini. Mohon cek dan edit manual.',
+                      style: const TextStyle(
+                        color: Color(0xFF8A6D1A),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 6),
             Row(
               children: [
@@ -659,6 +711,50 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
                     'Review Hasil Scan (${_draftItems.length} transaksi)',
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Terdeteksi ${_draftItems.length} transaksi, $_reviewCount perlu review.',
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
+                  if (_detectedDate.trim().isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Tanggal terdeteksi: $_detectedDate',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ],
+                  if (_notesFound.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Catatan non-transaksi:',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 4),
+                    ..._notesFound
+                        .take(4)
+                        .map(
+                          (line) => Text(
+                            '• $line',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.black54,
+                            ),
+                          ),
+                        ),
+                  ],
+                  if (_ignoredLines.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      '${_ignoredLines.length} baris diabaikan (bukan transaksi).',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black45,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   Row(
                     children: [
@@ -712,6 +808,8 @@ class _EditableDraftItem {
     required this.dateIso,
     required this.confidence,
     required this.rawText,
+    required this.needsReview,
+    required this.warning,
   }) : amountController = TextEditingController(text: '$amount'),
        descriptionController = TextEditingController(text: description);
 
@@ -723,6 +821,8 @@ class _EditableDraftItem {
   final String dateIso;
   final int confidence;
   final String rawText;
+  final bool needsReview;
+  final String warning;
 
   void dispose() {
     amountController.dispose();
