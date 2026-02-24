@@ -199,6 +199,13 @@ When ending session or context is low, provide:
 3. Next 3–5 concrete actions.
 4. Critical constraints (DB lock, SOP, known blockers).
 
+## New Thread / Handoff Prompt Rule (Mandatory)
+- Jika user menyatakan ingin pindah ke thread/chat baru atau minta handoff, wajib berikan prompt siap-pakai untuk thread baru yang berisi:
+  1. instruksi `cd` ke folder repo yang sedang dibahas,
+  2. instruksi membaca file markdown minimum: `AGENTS.md`, `AI_CONTEXT.md`, `WORKFLOW.md`, `CHANGELOG.md`,
+  3. ringkasan singkat: `sebelumnya`, `status saat ini`, `langkah berikutnya`.
+- Hindari prompt handoff generik tanpa path repo atau daftar dokumen konteks.
+
 ## Appendix: Skripsi & Financial Safety Rules
 - Precision standard: gunakan tipe data `int` untuk kalkulasi uang (satuan Rupiah), hindari `double` di logika bisnis.
 - Data integrity: setiap transaksi harus memiliki `category_id` dan `timestamp` valid sebelum disimpan.
