@@ -287,15 +287,22 @@ class OwnerDashboardState extends State<OwnerDashboard> {
 
       var income30 = 0;
       var expense30 = 0;
+      final incomeCategoryTotals = <String, int>{};
+      final expenseCategoryTotals = <String, int>{};
       for (final tx in provider.transactions) {
         final parsed = DateTime.tryParse(tx.date);
         if (parsed == null || parsed.isBefore(periodStart)) {
           continue;
         }
+        final category = (tx.categoryName ?? 'Tanpa Kategori').trim();
         if (tx.type == 'IN') {
           income30 += tx.amount;
+          incomeCategoryTotals[category] =
+              (incomeCategoryTotals[category] ?? 0) + tx.amount;
         } else if (tx.type == 'OUT') {
           expense30 += tx.amount;
+          expenseCategoryTotals[category] =
+              (expenseCategoryTotals[category] ?? 0) + tx.amount;
         }
       }
       final net30 = income30 - expense30;
@@ -310,6 +317,8 @@ class OwnerDashboardState extends State<OwnerDashboard> {
         net30: net30,
         topProducts: topProducts,
         slowMovingProducts: slowMoving,
+        categoryIncome30: _topCategoryRows(incomeCategoryTotals),
+        categoryExpense30: _topCategoryRows(expenseCategoryTotals),
       );
       final financeSnapshot = _buildFinanceSnapshot(
         provider: provider,
@@ -319,6 +328,8 @@ class OwnerDashboardState extends State<OwnerDashboard> {
         net30: net30,
         topProducts: topProducts,
         slowMoving: slowMoving,
+        categoryIncome30: _topCategoryRows(incomeCategoryTotals),
+        categoryExpense30: _topCategoryRows(expenseCategoryTotals),
       );
       final topSummary =
           topProducts.isEmpty
@@ -484,6 +495,8 @@ class OwnerDashboardState extends State<OwnerDashboard> {
     required int net30,
     required List<Map<String, dynamic>> topProducts,
     required List<Map<String, dynamic>> slowMoving,
+    required List<Map<String, dynamic>> categoryIncome30,
+    required List<Map<String, dynamic>> categoryExpense30,
   }) {
     final snapshot = <Map<String, dynamic>>[
       {
@@ -517,6 +530,24 @@ class OwnerDashboardState extends State<OwnerDashboard> {
               'stock': row['stock'],
             },
           ),
+    );
+    snapshot.addAll(
+      categoryIncome30.map(
+        (row) => {
+          'type': 'income_category_30d',
+          'category': row['category'],
+          'total_amount': row['total_amount'],
+        },
+      ),
+    );
+    snapshot.addAll(
+      categoryExpense30.map(
+        (row) => {
+          'type': 'expense_category_30d',
+          'category': row['category'],
+          'total_amount': row['total_amount'],
+        },
+      ),
     );
     snapshot.addAll(
       products
@@ -563,6 +594,22 @@ class OwnerDashboardState extends State<OwnerDashboard> {
         );
     snapshot.addAll(dailyList);
     return snapshot;
+  }
+
+  List<Map<String, dynamic>> _topCategoryRows(Map<String, int> totals) {
+    final rows =
+        totals.entries
+            .map(
+              (e) => <String, dynamic>{
+                'category': e.key,
+                'total_amount': e.value,
+              },
+            )
+            .toList();
+    rows.sort(
+      (a, b) => (b['total_amount'] as int).compareTo(a['total_amount'] as int),
+    );
+    return rows.take(5).toList();
   }
 
   Future<void> _setDailyTarget(int target) async {

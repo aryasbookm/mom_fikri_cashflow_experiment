@@ -65,6 +65,7 @@ All notable changes to this project will be documented in this file.
   - aksi clear chat dari AppBar.
 - Konteks chatbot diperluas dengan `product_catalog` (stok semua produk) agar jawaban produk tidak hanya bertumpu pada sampel top/slow.
 - Riwayat chatbot kini disimpan lokal (dengan guard hash snapshot data) agar sesi bisa dilanjutkan jika user kembali ke layar chat pada konteks data yang sama.
+- Payload AI kini menyertakan agregat kategori 30 hari (pemasukan/pengeluaran) untuk Insight dan Chatbot agar jawaban lebih spesifik.
 - Fondasi service chatbot finansial ditambahkan (`AiChatbotService`):
   - bounded context (hanya jawab konteks keuangan toko),
   - history window terbatas (maks 8 pesan),

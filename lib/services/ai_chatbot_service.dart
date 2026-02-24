@@ -135,6 +135,7 @@ Aturan keras:
 - Sertakan dasar data (tanggal/nominal/tren) jika ada.
 - Data `top_product` dan `slow_product` adalah sampel, bukan seluruh katalog.
 - Data `product_catalog` adalah stok saat ini. Jangan campur `stock_now` dengan `total_qty` penjualan.
+- Data `income_category_30d` dan `expense_category_30d` adalah agregat kategori 30 hari.
 - Jika data tidak cukup untuk jawaban pasti, katakan "data belum cukup" dan sebut data tambahan yang dibutuhkan.
 
 Konteks data (agregat/transaksi ringkas):

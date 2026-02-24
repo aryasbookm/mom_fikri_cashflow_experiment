@@ -224,6 +224,8 @@ class AiInsightService {
     required int net30,
     required List<Map<String, dynamic>> topProducts,
     required List<Map<String, dynamic>> slowMovingProducts,
+    required List<Map<String, dynamic>> categoryIncome30,
+    required List<Map<String, dynamic>> categoryExpense30,
   }) async {
     final result = await generateOwnerInsightResult(
       income30: income30,
@@ -231,6 +233,8 @@ class AiInsightService {
       net30: net30,
       topProducts: topProducts,
       slowMovingProducts: slowMovingProducts,
+      categoryIncome30: categoryIncome30,
+      categoryExpense30: categoryExpense30,
     );
     return result.text;
   }
@@ -241,9 +245,13 @@ class AiInsightService {
     required int net30,
     required List<Map<String, dynamic>> topProducts,
     required List<Map<String, dynamic>> slowMovingProducts,
+    required List<Map<String, dynamic>> categoryIncome30,
+    required List<Map<String, dynamic>> categoryExpense30,
   }) async {
     final normalizedTop = _normalizeProductRows(topProducts);
     final normalizedSlow = _normalizeProductRows(slowMovingProducts);
+    final normalizedCategoryIncome = _normalizeCategoryRows(categoryIncome30);
+    final normalizedCategoryExpense = _normalizeCategoryRows(categoryExpense30);
 
     final fingerprint = _buildInsightFingerprint(
       income30: income30,
@@ -251,6 +259,8 @@ class AiInsightService {
       net30: net30,
       topProducts: normalizedTop,
       slowMovingProducts: normalizedSlow,
+      categoryIncome30: normalizedCategoryIncome,
+      categoryExpense30: normalizedCategoryExpense,
     );
 
     final cached = await _tryGetCachedInsight(fingerprint);
@@ -295,6 +305,8 @@ class AiInsightService {
       net30: net30,
       topText: topText,
       slowText: slowText,
+      categoryIncomeText: _categoryRowsAsText(normalizedCategoryIncome),
+      categoryExpenseText: _categoryRowsAsText(normalizedCategoryExpense),
     );
 
     final firstResponse = await _requestInsightWithFallback(
@@ -333,6 +345,8 @@ class AiInsightService {
       net30: net30,
       topText: topText,
       slowText: slowText,
+      categoryIncomeText: _categoryRowsAsText(normalizedCategoryIncome),
+      categoryExpenseText: _categoryRowsAsText(normalizedCategoryExpense),
     );
 
     final retryResponse = await _requestInsightWithFallback(
@@ -355,6 +369,7 @@ class AiInsightService {
         net30: net30,
         topProducts: normalizedTop,
         slowMovingProducts: normalizedSlow,
+        categoryExpense30: normalizedCategoryExpense,
       );
       await _saveCachedInsight(fingerprint: fingerprint, insight: fallback);
       return AiInsightResult(
@@ -390,12 +405,37 @@ class AiInsightService {
         .toList();
   }
 
+  List<Map<String, dynamic>> _normalizeCategoryRows(
+    List<Map<String, dynamic>> rows,
+  ) {
+    return rows
+        .take(5)
+        .map(
+          (item) => {
+            'category': (item['category'] ?? '-').toString(),
+            'total_amount': ((item['total_amount'] as num?)?.toInt() ?? 0),
+          },
+        )
+        .toList();
+  }
+
+  String _categoryRowsAsText(List<Map<String, dynamic>> rows) {
+    if (rows.isEmpty) {
+      return '- Tidak ada data kategori.';
+    }
+    return rows
+        .map((item) => '- ${item['category']}: Rp ${item['total_amount'] ?? 0}')
+        .join('\n');
+  }
+
   String _buildInsightFingerprint({
     required int income30,
     required int expense30,
     required int net30,
     required List<Map<String, dynamic>> topProducts,
     required List<Map<String, dynamic>> slowMovingProducts,
+    required List<Map<String, dynamic>> categoryIncome30,
+    required List<Map<String, dynamic>> categoryExpense30,
   }) {
     final payload = jsonEncode({
       'income30': income30,
@@ -403,6 +443,8 @@ class AiInsightService {
       'net30': net30,
       'top': topProducts,
       'slow': slowMovingProducts,
+      'categoryIncome': categoryIncome30,
+      'categoryExpense': categoryExpense30,
     });
     return sha256.convert(utf8.encode(payload)).toString();
   }
@@ -448,6 +490,8 @@ class AiInsightService {
     required int net30,
     required String topText,
     required String slowText,
+    required String categoryIncomeText,
+    required String categoryExpenseText,
   }) {
     return '''
 Kamu adalah asisten keuangan UMKM toko kue.
@@ -476,6 +520,10 @@ Data:
 $topText
 - produk_kurang_laris:
 $slowText
+- kategori_pemasukan_30_hari:
+$categoryIncomeText
+- kategori_pengeluaran_30_hari:
+$categoryExpenseText
 ''';
   }
 
@@ -485,6 +533,8 @@ $slowText
     required int net30,
     required String topText,
     required String slowText,
+    required String categoryIncomeText,
+    required String categoryExpenseText,
   }) {
     return '''
 Ulangi. Jawaban sebelumnya tidak sesuai.
@@ -501,6 +551,10 @@ Gunakan hanya data ini:
 $topText
 - produk_kurang_laris:
 $slowText
+- kategori_pemasukan_30_hari:
+$categoryIncomeText
+- kategori_pengeluaran_30_hari:
+$categoryExpenseText
 ''';
   }
 
@@ -1048,6 +1102,7 @@ $slowText
     required int net30,
     required List<Map<String, dynamic>> topProducts,
     required List<Map<String, dynamic>> slowMovingProducts,
+    required List<Map<String, dynamic>> categoryExpense30,
   }) {
     final topNames = topProducts
         .map((item) => '${item['name'] ?? '-'}')
@@ -1059,13 +1114,25 @@ $slowText
         .take(2)
         .join(' dan ');
     final hasSlow = slowMovingProducts.isNotEmpty;
+    final biggestExpenseCategory =
+        categoryExpense30.isEmpty
+            ? null
+            : categoryExpense30.first['category']?.toString();
+    final biggestExpenseAmount =
+        categoryExpense30.isEmpty
+            ? null
+            : (categoryExpense30.first['total_amount'] as int? ?? 0);
+    final categoryHint =
+        (biggestExpenseCategory != null && biggestExpenseAmount != null)
+            ? ' Fokus dulu kategori pengeluaran terbesar: $biggestExpenseCategory (Rp $biggestExpenseAmount).'
+            : '';
 
     return '''
 1) 🌟 Bintang Toko: ${hasTop ? '$topNames sedang paling laku. Pastikan stok dan bahan untuk produk ini aman dulu setiap pagi.' : 'Belum ada data produk paling laku. Catat produk yang paling cepat habis minggu ini.'}
 
 2) 🔍 Evaluasi Produk Kurang Laris: ${hasSlow ? '$slowNames masih kurang laris. Coba tes 1 perubahan kecil selama 7 hari (porsi mini atau bonus topping) lalu lihat apakah penjualan naik.' : 'Belum ada produk yang terlihat kurang laris. Tetap pantau produk yang jarang dibeli agar tidak menumpuk.'}
 
-3) 💰 Pantau Dompet: pemasukan Rp $income30, pengeluaran Rp $expense30, selisih Rp $net30. Tetapkan batas belanja bahan mingguan supaya uang kas tidak cepat habis.
+3) 💰 Pantau Dompet: pemasukan Rp $income30, pengeluaran Rp $expense30, selisih Rp $net30. Tetapkan batas belanja bahan mingguan supaya uang kas tidak cepat habis.$categoryHint
 '''.trim();
   }
 }
