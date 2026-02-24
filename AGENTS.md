@@ -139,6 +139,9 @@ For cashflow/financial logic, `Verify` is mandatory and must include:
   - user meminta `pre-merge` / `release check`,
   - perubahan lintas banyak file/fitur,
   - perubahan menyentuh alur kritikal (backup/restore, auth, laporan finansial, delete/rollback).
+- Self-check wajib sebelum menjalankan full-repo analyze:
+  - tulis alasan eksplisit di update kerja (mis. `pre-merge check`, `critical cross-cutting change`).
+  - jika tidak memenuhi trigger di atas, kembali ke targeted analyze per file berubah.
 - Jika analyzer menghasilkan banyak lint lama yang tidak terkait perubahan:
   - fokus pada error/regression baru dari patch saat ini,
   - jangan membuka refactor lint massal kecuali diminta user.
