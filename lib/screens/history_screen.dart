@@ -21,6 +21,9 @@ class HistoryScreen extends StatefulWidget {
 
 class _HistoryScreenState extends State<HistoryScreen> {
   String _filter = 'Semua';
+  DateTime? _customDate;
+  DateTime? _rangeStart;
+  DateTime? _rangeEnd;
   bool _isExporting = false;
   int _lastSeenEpoch = 0;
   final TextEditingController _searchController = TextEditingController();
@@ -37,6 +40,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     'Kemarin',
     '7 Hari',
     'Bulan Ini',
+    'Tanggal',
+    'Rentang',
     'Semua',
   ];
 
@@ -57,6 +62,83 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
+  DateTime _toDay(DateTime d) => DateTime(d.year, d.month, d.day);
+
+  Future<void> _pickCustomDate() async {
+    final initial = _customDate ?? DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      helpText: 'Pilih tanggal transaksi',
+    );
+    if (picked == null || !mounted) {
+      return;
+    }
+    setState(() {
+      _customDate = _toDay(picked);
+      _filter = 'Tanggal';
+    });
+  }
+
+  Future<void> _pickRangeStart() async {
+    final initial = _rangeStart ?? DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      helpText: 'Pilih tanggal awal',
+    );
+    if (picked == null || !mounted) {
+      return;
+    }
+    setState(() {
+      _rangeStart = _toDay(picked);
+      if (_rangeEnd != null && _rangeEnd!.isBefore(_rangeStart!)) {
+        _rangeEnd = _rangeStart;
+      }
+      _filter = 'Rentang';
+    });
+  }
+
+  Future<void> _pickRangeEnd() async {
+    final initial = _rangeEnd ?? _rangeStart ?? DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      helpText: 'Pilih tanggal akhir',
+    );
+    if (picked == null || !mounted) {
+      return;
+    }
+    setState(() {
+      _rangeEnd = _toDay(picked);
+      if (_rangeStart != null && _rangeEnd!.isBefore(_rangeStart!)) {
+        _rangeStart = _rangeEnd;
+      }
+      _filter = 'Rentang';
+    });
+  }
+
+  Widget _buildDateControlChip({
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: const Icon(Icons.calendar_today, size: 14),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      ),
+    );
+  }
+
   Future<void> _refreshAiQuotaState() async {
     final state = await AiQuotaGuardService.getState();
     if (!mounted) {
@@ -69,19 +151,27 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   bool _matchesFilter(DateTime date) {
     final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
+    final today = _toDay(now);
+    final target = _toDay(date);
 
     switch (_filter) {
       case 'Hari Ini':
-        return _isSameDate(date, today);
+        return _isSameDate(target, today);
       case 'Kemarin':
         final yesterday = today.subtract(const Duration(days: 1));
-        return _isSameDate(date, yesterday);
+        return _isSameDate(target, yesterday);
       case '7 Hari':
         final start = today.subtract(const Duration(days: 6));
-        return !date.isBefore(start) && !date.isAfter(today);
+        return !target.isBefore(start) && !target.isAfter(today);
       case 'Bulan Ini':
-        return date.year == today.year && date.month == today.month;
+        return target.year == today.year && target.month == today.month;
+      case 'Tanggal':
+        final picked = _customDate ?? today;
+        return _isSameDate(target, picked);
+      case 'Rentang':
+        final start = _rangeStart ?? today;
+        final end = _rangeEnd ?? today;
+        return !target.isBefore(start) && !target.isAfter(end);
       case 'Semua':
       default:
         return true;
@@ -181,6 +271,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
             }
             setState(() {
               _filter = 'Semua';
+              _customDate = null;
+              _rangeStart = null;
+              _rangeEnd = null;
               _searchController.clear();
               _searchQuery = '';
               _lastSeenEpoch = provider.restoreEpoch;
@@ -292,6 +385,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             onSelected: (_) {
                               setState(() {
                                 _filter = label;
+                                if (label == 'Tanggal' && _customDate == null) {
+                                  _customDate = _toDay(DateTime.now());
+                                }
+                                if (label == 'Rentang') {
+                                  _rangeStart ??= _toDay(DateTime.now());
+                                  _rangeEnd ??= _toDay(DateTime.now());
+                                }
                               });
                             },
                           );
@@ -337,6 +437,39 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       ),
                     ),
                   ),
+                  if (_filter == 'Tanggal' || _filter == 'Rentang')
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 4,
+                        ),
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            if (_filter == 'Tanggal')
+                              _buildDateControlChip(
+                                label:
+                                    'Tanggal: ${DateFormat('d MMM y', 'id_ID').format(_customDate ?? DateTime.now())}',
+                                onTap: _pickCustomDate,
+                              ),
+                            if (_filter == 'Rentang') ...[
+                              _buildDateControlChip(
+                                label:
+                                    'Dari: ${DateFormat('d MMM y', 'id_ID').format(_rangeStart ?? DateTime.now())}',
+                                onTap: _pickRangeStart,
+                              ),
+                              _buildDateControlChip(
+                                label:
+                                    'Sampai: ${DateFormat('d MMM y', 'id_ID').format(_rangeEnd ?? DateTime.now())}',
+                                onTap: _pickRangeEnd,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
@@ -725,6 +858,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
         return '$startLabel - $endLabel';
       case 'Bulan Ini':
         return DateFormat('MMMM y', 'id_ID').format(now);
+      case 'Tanggal':
+        final d = _customDate ?? now;
+        return DateFormat('d MMMM y', 'id_ID').format(d);
+      case 'Rentang':
+        final start = _rangeStart ?? now;
+        final end = _rangeEnd ?? now;
+        final startLabel = DateFormat('d MMM y', 'id_ID').format(start);
+        final endLabel = DateFormat('d MMM y', 'id_ID').format(end);
+        return '$startLabel - $endLabel';
       case 'Semua':
       default:
         return 'Semua Data';

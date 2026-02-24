@@ -150,6 +150,10 @@ All notable changes to this project will be documented in this file.
   - header filter/search/migrasi/ringkasan kini ikut scroll bersama daftar transaksi (tidak lagi menahan area konten terlalu besar).
   - section `Migrasi dari Buku` dibuat lebih compact agar tidak mendominasi layar.
   - section migrasi menampilkan status AI langsung (`AI siap dipakai` / pesan limit) sebelum user menekan scan.
+- Riwayat kini mendukung filter tanggal kustom:
+  - mode `Tanggal` untuk melihat transaksi pada satu hari tertentu.
+  - mode `Rentang` untuk melihat transaksi dari tanggal awal sampai akhir pilihan user.
+  - hasil filter kustom tetap terintegrasi dengan pencarian transaksi yang sudah ada.
 - Dashboard input entrypoint disederhanakan:
   - FAB Beranda dihapus agar tidak menduplikasi aksi utama `Catat Pemasukan/Pengeluaran`.
   - entry OCR dipindah ke section khusus **Migrasi dari Buku** di layar Riwayat (body, bukan AppBar) agar konteks lebih tepat.
