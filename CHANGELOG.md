@@ -87,11 +87,17 @@ All notable changes to this project will be documented in this file.
 - Seleksi provider AI kini aware konfigurasi key:
   - provider tanpa API key tidak lagi ikut antrean fallback (OCR & Insight),
   - mencegah error fallback (`GROQ_API_KEY belum diset`) menutupi akar masalah provider utama.
+- OCR kini mendukung model-chain Gemini untuk fallback intra-provider:
+  - satu request OCR akan mencoba model sesuai urutan `GEMINI_OCR_MODEL_CHAIN` (default: `gemini-2.5-flash -> gemini-3-flash -> gemini-2.5-flash-lite`) sebelum pindah ke provider berikutnya.
+  - membantu memanfaatkan kuota harian per-model secara lebih optimal pada mode free-tier.
 - AI Insight dioptimalkan untuk efisiensi kuota:
   - hasil insight dicache 45 menit berbasis fingerprint data (income/expense/net + top/slow product), sehingga klik berulang dengan data sama tidak memanggil API lagi.
   - payload produk dinormalisasi (maks 3 item/top dan 3 item/slow) untuk menekan token.
   - prompt diringkas agar lebih padat (tanpa basa-basi) namun format tetap ketat.
   - batas output insight dinaikkan dari 420 ke 900 untuk mengurangi respons terpotong.
+- Routing AI Insight dipisahkan dari OCR:
+  - order provider insight kini dikontrol `AI_INSIGHT_PROVIDER_ORDER` (default `groq,gemini`) agar insight cenderung memakai model teks dulu.
+  - model Gemini untuk insight dipisah melalui `GEMINI_INSIGHT_MODEL`, tidak lagi otomatis mengikuti model OCR.
 - Error Insight AI diperjelas:
   - pesan fallback tidak lagi selalu menyalahkan internet,
   - status HTTP umum (`400/401/403/404/5xx`) dipetakan ke pesan yang lebih akurat untuk user.

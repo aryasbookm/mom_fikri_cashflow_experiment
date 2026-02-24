@@ -179,7 +179,7 @@ class AiInsightService {
   static const String _apiKey = String.fromEnvironment('GEMINI_API_KEY');
   static const String _groqApiKey = String.fromEnvironment('GROQ_API_KEY');
   static const String _model = String.fromEnvironment(
-    'GEMINI_MODEL',
+    'GEMINI_INSIGHT_MODEL',
     defaultValue: 'gemini-2.5-flash',
   );
   static const String _groqModel = String.fromEnvironment(
@@ -406,8 +406,8 @@ Tanpa kalimat pembuka/penutup.
     required double temperature,
   }) async {
     final order = String.fromEnvironment(
-      'AI_PROVIDER_ORDER',
-      defaultValue: 'gemini,groq',
+      'AI_INSIGHT_PROVIDER_ORDER',
+      defaultValue: 'groq,gemini',
     );
     final requested =
         order

@@ -85,7 +85,9 @@ class AiProviderRouter {
     for (final id in requested) {
       if (id == 'gemini') {
         if (_isProviderConfigured('gemini')) {
-          providers.add(GeminiVisionProvider());
+          for (final model in _geminiOcrModelsFromEnvironment()) {
+            providers.add(GeminiVisionProvider(model: model));
+          }
         }
       } else if (id == 'groq') {
         if (_isProviderConfigured('groq')) {
@@ -97,12 +99,39 @@ class AiProviderRouter {
 
     if (providers.isEmpty) {
       if (_isProviderConfigured('gemini')) {
-        providers.add(GeminiVisionProvider());
+        providers.add(
+          GeminiVisionProvider(
+            model: _geminiOcrModelsFromEnvironment().firstOrNull,
+          ),
+        );
       } else if (_isProviderConfigured('groq')) {
         providers.add(GroqVisionProvider());
       }
     }
     return providers;
+  }
+
+  static List<String> _geminiOcrModelsFromEnvironment() {
+    final chain = String.fromEnvironment(
+      'GEMINI_OCR_MODEL_CHAIN',
+      defaultValue: 'gemini-2.5-flash,gemini-3-flash,gemini-2.5-flash-lite',
+    );
+    final models =
+        chain
+            .split(',')
+            .map((entry) => entry.trim())
+            .where((entry) => entry.isNotEmpty)
+            .toList();
+    if (models.isEmpty) {
+      return const ['gemini-2.5-flash'];
+    }
+    final deduped = <String>[];
+    for (final model in models) {
+      if (!deduped.contains(model)) {
+        deduped.add(model);
+      }
+    }
+    return deduped;
   }
 
   static bool _isProviderConfigured(String providerId) {
@@ -115,4 +144,8 @@ class AiProviderRouter {
         return false;
     }
   }
+}
+
+extension on List<String> {
+  String? get firstOrNull => isEmpty ? null : first;
 }

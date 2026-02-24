@@ -35,10 +35,15 @@
   - jalankan dengan `--dart-define=GEMINI_API_KEY=...`
   - provider fallback (opsional):
     - `--dart-define=GROQ_API_KEY=...`
-    - `--dart-define=AI_PROVIDER_ORDER=gemini,groq`
-  - opsional model: `--dart-define=GEMINI_MODEL=gemini-2.5-flash`
+    - OCR route: `--dart-define=AI_PROVIDER_ORDER=gemini,groq`
+    - Insight route: `--dart-define=AI_INSIGHT_PROVIDER_ORDER=groq,gemini`
+  - opsional model OCR:
+    - primary tunggal: `--dart-define=GEMINI_MODEL=gemini-2.5-flash`
+    - chain OCR Gemini: `--dart-define=GEMINI_OCR_MODEL_CHAIN=gemini-2.5-flash,gemini-3-flash,gemini-2.5-flash-lite`
+  - opsional model Insight:
+    - `--dart-define=GEMINI_INSIGHT_MODEL=gemini-2.5-flash`
   - opsional model fallback:
-    - `--dart-define=GROQ_VISION_MODEL=llama-3.2-11b-vision-preview`
+    - `--dart-define=GROQ_VISION_MODEL=meta-llama/llama-4-scout-17b-16e-instruct`
 
 ## 7) Quick Verification
 - [ ] Server jalan di `3010`.

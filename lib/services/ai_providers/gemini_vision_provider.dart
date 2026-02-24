@@ -13,13 +13,20 @@ class GeminiVisionProvider implements AiVisionProvider {
   static const int maxItemsPerScan = 30;
   static const int _maxOutputTokens = 2500;
   static const String _apiKey = String.fromEnvironment('GEMINI_API_KEY');
-  static const String _model = String.fromEnvironment(
+  static const String _defaultModel = String.fromEnvironment(
     'GEMINI_MODEL',
     defaultValue: 'gemini-2.5-flash',
   );
+  GeminiVisionProvider({String? model})
+    : _model =
+          (model == null || model.trim().isEmpty)
+              ? _defaultModel
+              : model.trim();
+
+  final String _model;
 
   @override
-  String get providerId => 'gemini';
+  String get providerId => _model;
 
   @override
   Future<OcrBatchDraft> extractDraftFromImageBytes({
