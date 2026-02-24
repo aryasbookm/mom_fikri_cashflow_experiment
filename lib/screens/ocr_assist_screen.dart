@@ -3,6 +3,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../models/transaction_model.dart';
@@ -40,6 +41,8 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
 
   int get _selectedCount => _draftItems.where((item) => item.selected).length;
   int get _reviewCount => _draftItems.where((item) => item.needsReview).length;
+  int get _missingDateCount =>
+      _draftItems.where((item) => item.dateIso.trim().isEmpty).length;
 
   String get _providerTrailText {
     if (_providerTrail.isEmpty) {
@@ -514,6 +517,105 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     _draftItems.clear();
   }
 
+  DateTime _parseDateOrNow(String iso) {
+    final parsed = DateTime.tryParse(iso.trim());
+    if (parsed != null) {
+      return DateTime(parsed.year, parsed.month, parsed.day);
+    }
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  String _toDateIso(DateTime value) => DateFormat('yyyy-MM-dd').format(value);
+
+  String _dateKey(String iso) {
+    final parsed = DateTime.tryParse(iso.trim());
+    if (parsed == null) {
+      return '';
+    }
+    return _toDateIso(parsed);
+  }
+
+  String _dateLabel(String iso) {
+    final parsed = DateTime.tryParse(iso.trim());
+    if (parsed == null) {
+      return 'Belum diset';
+    }
+    return DateFormat('dd MMM yyyy', 'id_ID').format(parsed);
+  }
+
+  Future<void> _pickDateForItem(int index) async {
+    final item = _draftItems[index];
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _parseDateOrNow(item.dateIso),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      helpText: 'Pilih tanggal transaksi',
+    );
+    if (picked == null || !mounted) {
+      return;
+    }
+    setState(() {
+      item.dateIso = _toDateIso(picked);
+    });
+  }
+
+  Future<void> _pickAndApplyDateToBelow(int startIndex) async {
+    final item = _draftItems[startIndex];
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _parseDateOrNow(item.dateIso),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      helpText: 'Terapkan tanggal ke item di bawah',
+    );
+    if (picked == null || !mounted) {
+      return;
+    }
+    final dateIso = _toDateIso(picked);
+    setState(() {
+      for (int i = startIndex; i < _draftItems.length; i++) {
+        _draftItems[i].dateIso = dateIso;
+      }
+    });
+  }
+
+  Widget _buildDateGroupHeader(int index) {
+    final item = _draftItems[index];
+    final label = _dateLabel(item.dateIso);
+    final hasDate = item.dateIso.trim().isNotEmpty;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F5FF),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE6DEF8)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.calendar_month, size: 16, color: Color(0xFF594596)),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              hasDate ? 'Tanggal: $label' : 'Tanggal belum diset (perlu review)',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: hasDate ? Colors.black87 : const Color(0xFF8A6D1A),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: _isLoading ? null : () => _pickAndApplyDateToBelow(index),
+            child: const Text('Tanggal Baru dari Sini'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDraftItemCard(_EditableDraftItem item, int index) {
     return Card(
       color: item.needsReview ? const Color(0xFFFFF8E1) : null,
@@ -597,6 +699,36 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
               ),
             ),
             const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Tanggal: ${_dateLabel(item.dateIso)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color:
+                          item.dateIso.trim().isEmpty
+                              ? const Color(0xFF8A6D1A)
+                              : Colors.black87,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Ubah tanggal item ini',
+                  icon: const Icon(Icons.edit_calendar_outlined),
+                  onPressed: _isLoading ? null : () => _pickDateForItem(index),
+                ),
+                IconButton(
+                  tooltip: 'Terapkan tanggal ini ke item di bawah',
+                  icon: const Icon(Icons.south_outlined),
+                  onPressed:
+                      _isLoading
+                          ? null
+                          : () => _pickAndApplyDateToBelow(index),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
@@ -778,6 +910,17 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
                     'Terdeteksi ${_draftItems.length} transaksi, $_reviewCount perlu review.',
                     style: const TextStyle(fontSize: 12, color: Colors.black54),
                   ),
+                  if (_missingDateCount > 0) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      '$_missingDateCount item belum punya tanggal. Mohon review sebelum simpan.',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF8A6D1A),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                   if (_detectedDate.trim().isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text(
@@ -833,8 +976,13 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  for (int i = 0; i < _draftItems.length; i++)
+                  for (int i = 0; i < _draftItems.length; i++) ...[
+                    if (i == 0 ||
+                        _dateKey(_draftItems[i].dateIso) !=
+                            _dateKey(_draftItems[i - 1].dateIso))
+                      _buildDateGroupHeader(i),
                     _buildDraftItemCard(_draftItems[i], i),
+                  ],
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
@@ -880,7 +1028,7 @@ class _EditableDraftItem {
   final TextEditingController amountController;
   final TextEditingController descriptionController;
   final String categoryHint;
-  final String dateIso;
+  String dateIso;
   final int confidence;
   final String rawText;
   final bool needsReview;

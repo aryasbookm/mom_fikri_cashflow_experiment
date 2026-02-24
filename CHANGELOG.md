@@ -117,6 +117,11 @@ All notable changes to this project will be documented in this file.
   - hasil scan menampilkan ringkasan `X transaksi, Y perlu review`.
   - metadata non-transaksi dipisah dari transaksi (`date_detected`, `notes_found`, `ignored_lines`) agar catatan seperti tanggal/total/uang bersih tidak mencemari draft transaksi.
   - baris `needs_review` diberi penanda visual (warna kuning + warning) agar user mengedit manual sebelum simpan.
+- Interactive Date Grouping Lite pada review OCR:
+  - daftar transaksi kini dikelompokkan visual per tanggal (`dateIso`) agar item lintas-hari lebih mudah ditinjau.
+  - tersedia aksi `Tanggal Baru dari Sini` untuk menyisipkan grup tanggal baru dan menerapkan tanggal ke seluruh item di bawahnya.
+  - setiap baris transaksi punya kontrol edit tanggal individual + terapkan ke bawah.
+  - item tanpa tanggal ditandai sebagai `perlu review` sebelum simpan.
 - OCR provider error observability ditingkatkan:
   - pesan 4xx OCR kini menyertakan label provider (`[Gemini]` / `[Groq]`) dan detail message dari body response jika tersedia,
   - mempermudah identifikasi akar masalah nyata (model/key/request schema) dibanding pesan generik.
