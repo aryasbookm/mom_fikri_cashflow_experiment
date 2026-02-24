@@ -75,6 +75,7 @@ All notable changes to this project will be documented in this file.
   - draf dibatasi maksimal 30 item dan item ambigu ditandai `needs_review`.
   - Phase 1 inferensi tanggal: item mendukung metadata `date_source` (`explicit|inferred|unknown`) dan aturan deterministik `inferred => needs_review=true`.
   - layar review menampilkan banner peringatan saat data terdeteksi parsial/inferensi (`is_partial_day`, `missing_opening_block`, `missing_closing_total`, `inference_notes`).
+  - Phase 2 smart parser: nominal gabungan seperti `10.000 + 5.000` dihitung deterministik oleh parser lokal, deskripsi dibersihkan dari ekor nominal, dan baris non-transaksi (`Total/Uang Bersih/Saldo`) difilter ke `ignored_lines`.
 - Payload AI kini menyertakan agregat kategori 30 hari (pemasukan/pengeluaran) untuk Insight dan Chatbot agar jawaban lebih spesifik.
 - Fondasi service chatbot finansial ditambahkan (`AiChatbotService`):
   - bounded context (hanya jawab konteks keuangan toko),

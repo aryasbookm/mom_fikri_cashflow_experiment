@@ -410,6 +410,8 @@ Aturan:
 - Jika tanggal tidak jelas, date_iso = "".
 - Jika tanggal ditebak dari konteks, set date_source="inferred" dan wajib needs_review=true.
 - Gunakan date_source="explicit" hanya jika tanggal tertulis jelas di teks.
+- Untuk nominal gabungan (contoh "10.000 + 5.000"), simpan ekspresinya di transaksi agar parser lokal bisa menghitungnya.
+- Baris non-transaksi seperti "Total", "Uang Bersih", atau "Saldo" jangan masuk transactions; taruh ke notes_found/ignored_lines.
 - Jangan mengarang nominal.
 - Jika format input sangat buruk, tetap keluarkan JSON dengan transactions kosong.
 

@@ -137,4 +137,6 @@
   - pastikan item ambigu ditandai `needs_review`
   - pastikan item dengan `date_source=inferred` otomatis `needs_review=true`
   - pastikan banner parsial/inferensi tampil jika `is_partial_day` / `missing_*` / `inference_notes` terisi
+  - uji nominal gabungan (`10.000 + 5.000`) dan pastikan parser lokal menghitung total dengan benar
+  - uji baris non-transaksi (`Total`, `Uang Bersih`, `Saldo`) dan pastikan tidak masuk daftar transaksi tersimpan
   - simpan dari layar review dan validasi jumlah transaksi tersimpan sesuai item terpilih.
