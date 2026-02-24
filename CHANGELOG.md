@@ -112,6 +112,11 @@ All notable changes to this project will be documented in this file.
 - OCR salvage mode:
   - jika provider menandai `is_transaction=false` tetapi tetap mengembalikan kandidat transaksi, aplikasi tidak lagi gagal total.
   - kandidat tetap ditampilkan sebagai draft dengan `needs_review=true` + warning, agar user bisa edit manual.
+- OCR post-processing deterministik ditambahkan setelah respons AI:
+  - nominal gabungan seperti `20.000 + 20.000` otomatis dijumlahkan menjadi `40000` sebelum ditampilkan/simpan.
+  - baris ringkasan non-transaksi (`Total`, `Jumlah`, `Uang Bersih`, `Saldo Akhir`, dll.) otomatis dipindah ke `notes_found/ignored_lines`, tidak dimasukkan sebagai transaksi.
+  - teks ambigu/typo pendek dipaksa `needs_review=true` agar benar-benar muncul sebagai item review manual (lampu kuning).
+- Prompt OCR Gemini/Groq dipertegas dengan konteks domain **toko kue Mom Fiqry Cake** + aturan tegas pemisahan transaksi vs catatan ringkasan.
 - OCR provider trail:
   - layar scan kini menampilkan jejak provider yang dicoba per request (mis. `Gemini -> Groq`) untuk transparansi fallback saat testing/demo.
 - UX `Catat Pemasukan/Pengeluaran` dirapikan:

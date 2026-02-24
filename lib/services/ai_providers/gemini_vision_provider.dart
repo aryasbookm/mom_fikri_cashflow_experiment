@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import '../../models/ocr_transaction_draft.dart';
 import '../ai_insight_service.dart';
 import 'ai_vision_provider.dart';
+import 'ocr_post_processing.dart';
 
 class GeminiVisionProvider implements AiVisionProvider {
   static const int maxItemsPerScan = 30;
@@ -32,7 +33,7 @@ class GeminiVisionProvider implements AiVisionProvider {
     }
 
     final prompt = '''
-Kamu mengekstrak daftar transaksi dari foto catatan buku keuangan UMKM.
+Kamu mengekstrak daftar transaksi dari foto catatan buku keuangan UMKM toko kue "Mom Fiqry Cake".
 Balas HANYA JSON object valid (tanpa markdown, tanpa teks tambahan).
 
 Aturan:
@@ -40,6 +41,8 @@ Aturan:
 - Jika ada minimal 1 pasangan item + nominal yang masuk akal, WAJIB set `is_transaction=true`.
 - reason: wajib diisi singkat saat is_transaction=false (contoh: "foto tidak berisi catatan transaksi yang jelas").
 - Maksimal kembalikan $maxItemsPerScan transaksi yang paling jelas terbaca.
+- Jika ada nominal seperti "20.000 + 20.000", isi `amount` sebagai total akhirnya (40000).
+- Baris ringkasan seperti Total/Jumlah/Uang Bersih/Saldo Akhir bukan transaksi; pindahkan ke summary.notes_found atau ignored_lines.
 - Field tiap item transaksi:
   - type: "IN" atau "OUT"
   - amount: integer rupiah tanpa titik/koma (contoh 15000)
@@ -48,6 +51,8 @@ Aturan:
   - date_iso: format yyyy-MM-dd jika terbaca, jika tidak isi string kosong
   - confidence: 0..100
   - raw_text: hasil bacaan OCR singkat item tersebut
+  - needs_review: true jika kata/nominal ambigu, typo, atau sulit dibaca
+  - warning: alasan singkat jika needs_review=true
 
 JSON schema:
 {
@@ -168,36 +173,12 @@ JSON schema:
       throw Exception(reason);
     }
 
-    final shouldForceReview = !batch.isTransaction;
-    final filtered =
-        batch.transactions
-            .where((item) => item.amount > 0)
-            .where((item) => item.description.trim().length >= 2)
-            .take(maxItemsPerScan)
-            .map((item) {
-              if (!shouldForceReview) {
-                return item;
-              }
-              return OcrTransactionDraft(
-                isTransaction: true,
-                reason: item.reason,
-                type: item.type,
-                amount: item.amount,
-                description: item.description,
-                categoryHint: item.categoryHint,
-                dateIso: item.dateIso,
-                confidence: item.confidence,
-                rawText: item.rawText,
-                needsReview: true,
-                warning:
-                    item.warning.isNotEmpty
-                        ? item.warning
-                        : (batch.reason.isNotEmpty
-                            ? batch.reason
-                            : 'AI belum yakin ini transaksi pasti, mohon review manual.'),
-              );
-            })
-            .toList();
+    final processed = OcrPostProcessor.normalize(
+      batch: batch,
+      maxItems: maxItemsPerScan,
+      forceReview: !batch.isTransaction,
+    );
+    final filtered = processed.transactions;
 
     if (filtered.isEmpty) {
       throw Exception(
@@ -209,8 +190,8 @@ JSON schema:
       reason: '',
       transactions: filtered,
       detectedDate: batch.detectedDate,
-      notesFound: batch.notesFound,
-      ignoredLines: batch.ignoredLines,
+      notesFound: processed.notesFound,
+      ignoredLines: processed.ignoredLines,
     );
   }
 
