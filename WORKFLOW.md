@@ -37,11 +37,14 @@
     - `--dart-define=GROQ_API_KEY=...`
     - OCR route: `--dart-define=AI_PROVIDER_ORDER=gemini,groq`
     - Insight route: `--dart-define=AI_INSIGHT_PROVIDER_ORDER=groq,gemini`
+    - Chat route: `--dart-define=AI_CHAT_PROVIDER_ORDER=groq,gemini`
   - opsional model OCR:
-    - primary tunggal: `--dart-define=GEMINI_MODEL=gemini-2.5-flash`
-    - chain OCR Gemini: `--dart-define=GEMINI_OCR_MODEL_CHAIN=gemini-2.5-flash,gemini-3-flash,gemini-2.5-flash-lite`
-  - opsional model Insight:
+    - primary tunggal: `--dart-define=GEMINI_MODEL=gemini-3-flash`
+    - chain OCR Gemini: `--dart-define=GEMINI_OCR_MODEL_CHAIN=gemini-3-flash,gemini-2.5-flash,gemini-2.5-flash-lite`
+  - opsional model Insight/Chat:
     - `--dart-define=GEMINI_INSIGHT_MODEL=gemma-3-12b`
+    - `--dart-define=GEMINI_CHAT_MODEL=gemma-3-12b`
+    - `--dart-define=GROQ_CHAT_MODEL=llama-3.1-8b-instant`
     - guard insight memblokir model Gemini Vision (`flash`/`pro`) agar kuota OCR tidak bocor.
   - opsional model fallback:
     - `--dart-define=GROQ_VISION_MODEL=meta-llama/llama-4-scout-17b-16e-instruct`
@@ -50,7 +53,7 @@
 - `ocr_gemini_only`
   - `--dart-define=GEMINI_API_KEY=...`
   - `--dart-define=AI_PROVIDER_ORDER=gemini`
-  - `--dart-define=GEMINI_OCR_MODEL_CHAIN=gemini-2.5-flash,gemini-3-flash,gemini-2.5-flash-lite`
+  - `--dart-define=GEMINI_OCR_MODEL_CHAIN=gemini-3-flash,gemini-2.5-flash,gemini-2.5-flash-lite`
 - `ocr_chain_with_groq`
   - profile `ocr_gemini_only` + `--dart-define=GROQ_API_KEY=...`
   - `--dart-define=AI_PROVIDER_ORDER=gemini,groq`
@@ -58,11 +61,16 @@
   - `--dart-define=GROQ_API_KEY=...`
   - `--dart-define=AI_INSIGHT_PROVIDER_ORDER=groq`
   - opsional fallback Gemini text-only: `--dart-define=AI_INSIGHT_PROVIDER_ORDER=groq,gemini --dart-define=GEMINI_INSIGHT_MODEL=gemma-3-12b`
+- `chat_text_only`
+  - `--dart-define=GROQ_API_KEY=...`
+  - `--dart-define=AI_CHAT_PROVIDER_ORDER=groq`
+  - opsional fallback Gemini text-only: `--dart-define=AI_CHAT_PROVIDER_ORDER=groq,gemini --dart-define=GEMINI_CHAT_MODEL=gemma-3-12b`
 
 ## 6.2) AI Preflight Check (Wajib Sebelum Build/Test)
 - [ ] Key untuk provider aktif sudah di-pass via `--dart-define`.
 - [ ] Route OCR/Insight sesuai target test (`AI_PROVIDER_ORDER` vs `AI_INSIGHT_PROVIDER_ORDER`).
-- [ ] Model OCR chain dan model Insight tidak tertukar (vision vs text-only).
+- [ ] Route chat sesuai target test (`AI_CHAT_PROVIDER_ORDER`).
+- [ ] Model OCR chain dan model Insight/Chat tidak tertukar (vision vs text-only).
 - [ ] Jika tujuan hanya uji UI, gunakan mock/fixture lokal dulu (hindari burn kuota API).
 
 ## 7) Quick Verification

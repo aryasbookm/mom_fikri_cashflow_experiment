@@ -6,7 +6,7 @@
 
 > ⚠️ ALL AI AGENTS MUST READ THIS FILE BEFORE STARTING A SESSION.
 
-Last updated: 2026-02-22  
+Last updated: 2026-02-25  
 Project: **Mom Fiqry Cashflow**
 
 ## 1) Purpose
@@ -25,9 +25,12 @@ Hard rules for mentor/reviewer AI:
 ## 3) Current Project State
 - Active workspace branch (current session): `main`
 - Recent commits:
-  - `98d8917` fix: harden android safe-area handling for bottom actions
-  - `04b9e14` refactor: simplify category management with smart delete
-  - `91f1d4a` feat: add category archive flow with db v9 migration
+  - `a81dd19` feat(ai): add 30-day category aggregates to insight and chatbot context
+  - `02e2a4f` feat(chatbot): persist local chat session with snapshot hash guard
+  - `2dc1180` fix(chatbot): include full product catalog context and stricter data-grounding
+  - `7b54a01` feat(chatbot): add quick chips, copy reply, and clear chat
+  - `ff8032e` feat(ai): add follow-up chatbot screen from insight dialog
+  - `3896be2` feat(ai): upgrade insight schema and add bounded chatbot service
 - DB policy: **SQLite v9 locked** (no schema changes without migration approval).
 - Fresh install flow:
   - no default users are seeded,
@@ -70,8 +73,12 @@ Hard rules for mentor/reviewer AI:
   - `lib/services/backup_service.dart`
   - `lib/services/cloud_drive_service.dart`
   - `lib/services/ai_insight_service.dart`
+  - `lib/services/ai_chatbot_service.dart`
+  - `lib/services/ai_provider_router.dart`
   - `lib/services/export_service.dart`
   - `lib/services/pdf_service.dart`
+- AI Screens:
+  - `lib/screens/ai_chatbot_screen.dart` (follow-up chat from insight dialog)
 - Shared widgets:
   - `lib/widgets/account_panel.dart`
   - `lib/widgets/owner_pin_dialog.dart`
@@ -134,6 +141,21 @@ lib/
   - trigger on app `paused`,
   - throttle 5 minutes + data-changed guard,
   - retention 5 latest files.
+
+## 5.2) AI Architecture Status (Current)
+- OCR and text AI are intentionally separated:
+  - OCR route: `AI_PROVIDER_ORDER` + `GEMINI_OCR_MODEL_CHAIN`
+  - Insight/Chat route: text-first (`AI_INSIGHT_PROVIDER_ORDER`, `AI_CHAT_PROVIDER_ORDER`)
+- Insight v2:
+  - output schema enforced as structured JSON (`temuan`, `alasan_berbasis_data`, `aksi_nyata`, `prioritas`)
+  - local schema validation + deterministic fallback text
+  - adaptive retry/backoff (respect `Retry-After` when 429)
+  - cache fingerprint (45m) to avoid duplicate API calls for unchanged data
+- Chatbot:
+  - bounded context only (financial context)
+  - context includes summary 30d, daily summary 30d, product catalog stock snapshot, category aggregates 30d
+  - local session persistence with snapshot-hash guard (resume only when data context matches)
+  - UI polish available (quick chips, copy response, clear chat)
 
 ## 6) Documentation Policy
 - Use impacted-docs-only updates (avoid noisy doc edits for trivial refactors).
@@ -206,7 +228,7 @@ Output format expected from mentor AI:
   - branch: `main`
   - use case: operasional toko / APK produksi.
 - Experimental channel:
-  - branch: `codex/*` (aktif saat ini: `codex/onboarding-adjustment`)
+  - branch: `codex/*`
   - use case: uji fitur sebelum merge ke `main`.
 - Versioning discipline:
   - stable dan experimental harus dibedakan lewat `versionName+buildNumber` di `pubspec.yaml`.
