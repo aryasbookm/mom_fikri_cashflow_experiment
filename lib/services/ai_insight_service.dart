@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'ai_providers/ai_vision_provider.dart';
 
@@ -185,7 +187,11 @@ class AiInsightService {
     defaultValue: 'llama-3.1-8b-instant',
   );
   static const bool _debugLog = _aiDebugLog;
-  static const int _maxOutputTokens = 420;
+  static const int _maxOutputTokens = 900;
+  static const Duration _cacheTtl = Duration(minutes: 45);
+  static const String _cacheKeyText = 'ai_insight_cache_text_v1';
+  static const String _cacheKeyHash = 'ai_insight_cache_hash_v1';
+  static const String _cacheKeyEpoch = 'ai_insight_cache_epoch_v1';
 
   Future<String> generateOwnerInsight({
     required int income30,
@@ -194,10 +200,29 @@ class AiInsightService {
     required List<Map<String, dynamic>> topProducts,
     required List<Map<String, dynamic>> slowMovingProducts,
   }) async {
+    final normalizedTop = _normalizeProductRows(topProducts);
+    final normalizedSlow = _normalizeProductRows(slowMovingProducts);
+
+    final fingerprint = _buildInsightFingerprint(
+      income30: income30,
+      expense30: expense30,
+      net30: net30,
+      topProducts: normalizedTop,
+      slowMovingProducts: normalizedSlow,
+    );
+
+    final cached = await _tryGetCachedInsight(fingerprint);
+    if (cached != null) {
+      if (_debugLog) {
+        developer.log('Using cached AI insight.', name: 'AI_DEBUG');
+      }
+      return cached;
+    }
+
     final topText =
-        topProducts.isEmpty
+        normalizedTop.isEmpty
             ? '- Tidak ada data produk terlaris.'
-            : topProducts
+            : normalizedTop
                 .map((item) {
                   final name = item['name'] ?? '-';
                   final qty = item['total_qty'] ?? 0;
@@ -206,9 +231,9 @@ class AiInsightService {
                 .join('\n');
 
     final slowText =
-        slowMovingProducts.isEmpty
+        normalizedSlow.isEmpty
             ? '- Tidak ada data produk kurang laris.'
-            : slowMovingProducts
+            : normalizedSlow
                 .map((item) {
                   final name = item['name'] ?? '-';
                   final qty = item['total_qty'] ?? 0;
@@ -219,7 +244,7 @@ class AiInsightService {
 
     final prompt = '''
 Kamu adalah mentor bisnis toko kue lokal UMKM.
-Gunakan bahasa sehari-hari yang ringan dan mudah dipahami pemilik toko.
+Gunakan bahasa sederhana, langsung, tanpa basa-basi.
 DILARANG memakai istilah korporat/teknis seperti: margin, evaluasi operasional, perputaran stok, optimize, leverage.
 Jangan mengarang angka baru, gunakan hanya data berikut:
 - Pemasukan 30 hari: Rp $income30
@@ -234,7 +259,7 @@ Format jawaban WAJIB:
 1) 🌟 Bintang Toko: cara sederhana meningkatkan hasil dari produk terlaris.
 2) 🔍 Evaluasi Produk Kurang Laris: dugaan penyebab masuk akal + 1 aksi sederhana 7 hari.
 3) 💰 Pantau Dompet: 1 tips praktis menjaga uang kas agar tetap aman.
-Setiap poin maksimal 32 kata.
+Setiap poin maksimal 24 kata.
 Tanpa kalimat pembuka/penutup tambahan.
 ''';
 
@@ -251,6 +276,7 @@ Tanpa kalimat pembuka/penutup tambahan.
         firstReasons.contains('MAX_TOKENS');
 
     if (!needsRetry) {
+      await _saveCachedInsight(fingerprint: fingerprint, insight: firstText);
       return firstText;
     }
 
@@ -295,16 +321,84 @@ Tanpa kalimat pembuka/penutup.
           name: 'AI_DEBUG',
         );
       }
-      return _buildLocalFallbackInsight(
+      final fallback = _buildLocalFallbackInsight(
         income30: income30,
         expense30: expense30,
         net30: net30,
-        topProducts: topProducts,
-        slowMovingProducts: slowMovingProducts,
+        topProducts: normalizedTop,
+        slowMovingProducts: normalizedSlow,
       );
+      await _saveCachedInsight(fingerprint: fingerprint, insight: fallback);
+      return fallback;
     }
 
+    await _saveCachedInsight(fingerprint: fingerprint, insight: retryText);
     return retryText;
+  }
+
+  List<Map<String, dynamic>> _normalizeProductRows(
+    List<Map<String, dynamic>> rows,
+  ) {
+    return rows
+        .take(3)
+        .map((item) => {
+          'name': (item['name'] ?? '-').toString(),
+          'total_qty': ((item['total_qty'] as num?)?.toInt() ?? 0),
+          'stock': ((item['stock'] as num?)?.toInt() ?? 0),
+        })
+        .toList();
+  }
+
+  String _buildInsightFingerprint({
+    required int income30,
+    required int expense30,
+    required int net30,
+    required List<Map<String, dynamic>> topProducts,
+    required List<Map<String, dynamic>> slowMovingProducts,
+  }) {
+    final payload = jsonEncode({
+      'income30': income30,
+      'expense30': expense30,
+      'net30': net30,
+      'top': topProducts,
+      'slow': slowMovingProducts,
+    });
+    return sha256.convert(utf8.encode(payload)).toString();
+  }
+
+  Future<String?> _tryGetCachedInsight(String fingerprint) async {
+    final prefs = await SharedPreferences.getInstance();
+    final cachedText = prefs.getString(_cacheKeyText);
+    final cachedHash = prefs.getString(_cacheKeyHash);
+    final cachedEpoch = prefs.getInt(_cacheKeyEpoch);
+    if (cachedText == null ||
+        cachedText.trim().isEmpty ||
+        cachedHash == null ||
+        cachedEpoch == null) {
+      return null;
+    }
+    if (cachedHash != fingerprint) {
+      return null;
+    }
+    final age = DateTime.now().millisecondsSinceEpoch - cachedEpoch;
+    if (age > _cacheTtl.inMilliseconds) {
+      return null;
+    }
+    return cachedText;
+  }
+
+  Future<void> _saveCachedInsight({
+    required String fingerprint,
+    required String insight,
+  }) async {
+    final trimmed = insight.trim();
+    if (trimmed.isEmpty) {
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_cacheKeyText, trimmed);
+    await prefs.setString(_cacheKeyHash, fingerprint);
+    await prefs.setInt(_cacheKeyEpoch, DateTime.now().millisecondsSinceEpoch);
   }
 
   Future<Map<String, dynamic>> _requestInsightWithFallback(

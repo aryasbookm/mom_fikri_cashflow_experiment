@@ -84,6 +84,11 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 - AI Insight kini ikut memakai strategi multi-provider fallback (urutan `AI_PROVIDER_ORDER`, default `gemini,groq`) sehingga jika provider pertama kena rate limit/temporary error, sistem otomatis mencoba provider berikutnya.
+- AI Insight dioptimalkan untuk efisiensi kuota:
+  - hasil insight dicache 45 menit berbasis fingerprint data (income/expense/net + top/slow product), sehingga klik berulang dengan data sama tidak memanggil API lagi.
+  - payload produk dinormalisasi (maks 3 item/top dan 3 item/slow) untuk menekan token.
+  - prompt diringkas agar lebih padat (tanpa basa-basi) namun format tetap ketat.
+  - batas output insight dinaikkan dari 420 ke 900 untuk mengurangi respons terpotong.
 - Error Insight AI diperjelas:
   - pesan fallback tidak lagi selalu menyalahkan internet,
   - status HTTP umum (`400/401/403/404/5xx`) dipetakan ke pesan yang lebih akurat untuk user.
