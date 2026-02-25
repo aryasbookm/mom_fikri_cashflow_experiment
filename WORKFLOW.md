@@ -183,6 +183,7 @@
 - [ ] Uji explainability chatbot:
   - verifikasi indikator mode eksekusi muncul di bubble asisten (local/local+ai/llm) dan dapat ditekan untuk melihat detail.
   - pastikan mode `local_ai` muncul saat parser tanggal butuh normalisasi AI namun nominal tetap dihitung lokal.
+  - verifikasi bottom sheet informasi indikator tidak menutupi area system navigation bar Android (gesture/3-button).
 - [ ] Uji smart search chatbot:
   - query `cari kategori pengeluaran di atas 50 ribu` menampilkan hasil filter kategori dari snapshot lokal.
   - query `cari produk`/`tampilkan riwayat harian` tidak memaksa jalur LLM saat data lokal cukup.

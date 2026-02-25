@@ -16,6 +16,8 @@ All notable changes to this project will be documented in this file.
 - Smart search deterministik (MVP):
   - query berbasis kata kunci `cari/filter/temukan/riwayat/tampilkan` dapat dieksekusi lokal untuk filter cepat pada snapshot (kategori 30 hari, katalog produk, ringkasan harian) tanpa wajib melewati LLM.
   - dukungan filter nominal minimum pada query pencarian (contoh: `di atas 50 ribu` / `minimal 100000`).
+- UX safety fix (chat info bottom sheet):
+  - panel informasi indikator keyakinan/mode eksekusi kini menggunakan safe-area + padding bawah dinamis agar tidak bentrok dengan navigation bar Android.
 
 - Chatbot intent router tuning (batch reliability):
   - intent stok dilonggarkan untuk frasa operasional pendek (`cek stok`, `stok saat ini`, `stok produk saat ini`) agar langsung masuk jalur deterministik lokal.
