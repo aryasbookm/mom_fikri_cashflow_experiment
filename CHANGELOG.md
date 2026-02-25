@@ -10,6 +10,14 @@ All notable changes to this project will be documented in this file.
 *Fokus: Pencarian Global, Reminder Backup, Insight Produk Lambat*
 
 ### Added
+- Chatbot intent router tuning (batch reliability):
+  - intent stok dilonggarkan untuk frasa operasional pendek (`cek stok`, `stok saat ini`, `stok produk saat ini`) agar langsung masuk jalur deterministik lokal.
+  - dukungan status produk ditambahkan pada jalur stok deterministik (`produk aktif`, `produk arsip/diarsipkan/nonaktif`) dengan filter berbasis `is_active`.
+  - parser tanggal deterministik diperluas untuk `N hari lalu` (contoh: 4/5 hari lalu), rentang rolling (`7 hari terakhir`, `30 hari terakhir`), minggu/bulan ini-lalu, tanggal eksplisit (`yyyy-mm-dd`, `dd-mm-yyyy`, `dd bulan yyyy`), dan rentang `dari ... sampai ...`.
+  - fallback normalizer tanggal berbasis LLM ditambahkan dalam mode JSON-only untuk kasus referensi waktu kompleks; hasil tetap dieksekusi deterministik ke `daily_summary` (LLM tidak menghitung nominal).
+  - komparasi tanggal lokal ditambah untuk pola seperti `bandingkan transaksi 2 hari lalu dengan kemarin`.
+  - golden tests diperluas untuk intent router, stok deterministik, dan query tanggal deterministik (termasuk edge case typo/slang + relative date).
+
 - Fondasi arsitektur OCR multi-provider (fallback-ready):
   - `AiVisionProvider` interface sebagai kontrak provider Vision OCR.
   - `GeminiVisionProvider` untuk isolasi implementasi Gemini dari layer UI/service utama.

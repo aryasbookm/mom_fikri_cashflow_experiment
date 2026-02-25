@@ -303,6 +303,60 @@ void main() {
         expect(reply.text, isNot(contains('Aksi singkat:')));
       },
     );
+
+    test('handles short stock command "cek stok" deterministically', () async {
+      final service = AiChatbotService();
+      final reply = await service.askFinancialAssistant(
+        question: 'cek stok',
+        financeSnapshot: [
+          {
+            'type': 'product_catalog',
+            'name': 'Donat Mini',
+            'stock_now': 5,
+            'is_active': 1,
+          },
+          {
+            'type': 'product_catalog',
+            'name': 'Roti Maros',
+            'stock_now': 2,
+            'is_active': 1,
+          },
+        ],
+      );
+
+      expect(reply.providerId, 'local-deterministic');
+      expect(reply.confidenceLevel, 'high');
+      expect(reply.text.toLowerCase(), contains('stok'));
+      expect(reply.text, contains('Donat Mini'));
+      expect(reply.text, isNot(contains('Maksud Anda yang mana')));
+    });
+
+    test('handles product status query for archived products', () async {
+      final service = AiChatbotService();
+      final reply = await service.askFinancialAssistant(
+        question: 'produk yang diarsipkan',
+        financeSnapshot: [
+          {
+            'type': 'product_catalog',
+            'name': 'Donat Mini',
+            'stock_now': 5,
+            'is_active': 1,
+          },
+          {
+            'type': 'product_catalog',
+            'name': 'Brownies Lama',
+            'stock_now': 0,
+            'is_active': 0,
+          },
+        ],
+      );
+
+      expect(reply.providerId, 'local-deterministic');
+      expect(reply.confidenceLevel, 'high');
+      expect(reply.text, contains('Produk arsip saat ini'));
+      expect(reply.text, contains('Brownies Lama'));
+      expect(reply.text, isNot(contains('Donat Mini')));
+    });
   });
 
   group('AiChatbotService capability intent', () {

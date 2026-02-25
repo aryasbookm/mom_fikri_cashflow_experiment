@@ -176,6 +176,10 @@
   - jalankan `flutter test test/chat_intent_router_test.dart` untuk validasi 40+ kasus intent (typo/singkatan/slang).
   - verifikasi query `kamu bisa apa`/`halo` selalu lewat local template (bukan drift ke LLM analitik).
   - verifikasi query ambigu pendek (`cek`, `tolong`) mengembalikan klarifikasi opsi intent.
+- [ ] Uji parser tanggal hybrid (lokal + normalizer):
+  - verifikasi `N hari lalu` (contoh 2/4/5 hari lalu) mengarah ke tanggal benar.
+  - verifikasi query rentang (`dari 01-02-2026 sampai 03-02-2026`) dan explicit date (`2026-02-24`) menghasilkan agregasi sesuai `daily_summary`.
+  - verifikasi komparasi (`2 hari lalu vs kemarin`) tidak fallback ke pasangan default `hari ini vs kemarin`.
 - [ ] Jalankan regression test otomatis Phase 4:
   - `flutter test test/chat_import_draft_model_test.dart test/chat_import_audit_service_test.dart`
 - [ ] Jalankan regression test OCR parity Phase 1:

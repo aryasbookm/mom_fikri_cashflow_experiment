@@ -60,6 +60,11 @@ void main() {
       // stock
       _IntentCase('stoknya berapa selain yang 0', ChatIntentType.stockQuery),
       _IntentCase('sebutkan stok selain yang 0', ChatIntentType.stockQuery),
+      _IntentCase('cek stok', ChatIntentType.stockQuery),
+      _IntentCase('stok saat ini', ChatIntentType.stockQuery),
+      _IntentCase('stok produk saat ini', ChatIntentType.stockQuery),
+      _IntentCase('produk aktif saat ini', ChatIntentType.stockQuery),
+      _IntentCase('produk yang diarsipkan', ChatIntentType.stockQuery),
       _IntentCase('urut stok tertinggi', ChatIntentType.stockQuery),
       _IntentCase('ranking stock terendah', ChatIntentType.stockQuery),
       _IntentCase('daftar sisa stok hari ini', ChatIntentType.stockQuery),
@@ -70,6 +75,22 @@ void main() {
       // date
       _IntentCase('penghasilan hari ini berapa', ChatIntentType.dateQuery),
       _IntentCase('pengeluaran kemarin berapa', ChatIntentType.dateQuery),
+      _IntentCase('cek pemasukan 4 hari lalu', ChatIntentType.dateQuery),
+      _IntentCase('cek pemasukan 5 hari lalu', ChatIntentType.dateQuery),
+      _IntentCase('penghasilan 7 hari terakhir', ChatIntentType.dateQuery),
+      _IntentCase('penghasilan minggu lalu', ChatIntentType.dateQuery),
+      _IntentCase('penghasilan bulan lalu', ChatIntentType.dateQuery),
+      _IntentCase('penghasilan 24-02-2026', ChatIntentType.dateQuery),
+      _IntentCase('penghasilan 2026-02-24', ChatIntentType.dateQuery),
+      _IntentCase('penghasilan 24 Februari 2026', ChatIntentType.dateQuery),
+      _IntentCase(
+        'penghasilan dari 01-02-2026 sampai 15-02-2026',
+        ChatIntentType.dateQuery,
+      ),
+      _IntentCase(
+        'bandingkan transaksi 2 hari lalu dengan kemarin',
+        ChatIntentType.dateQuery,
+      ),
       _IntentCase('laba hari ini', ChatIntentType.dateQuery),
       _IntentCase(
         'banding penghasilan hari ini dan kemarin',

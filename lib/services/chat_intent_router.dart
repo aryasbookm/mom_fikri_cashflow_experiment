@@ -188,9 +188,15 @@ class ChatIntentRouter {
 
   bool _isStockQuery(String q) {
     final hasStock =
-        q.contains('stok') || q.contains('stock') || q.contains('sisa');
+        q.contains('stok') ||
+        q.contains('stock') ||
+        q.contains('sisa') ||
+        q.contains('produk aktif') ||
+        q.contains('produk arsip') ||
+        q.contains('produk diarsipkan');
     final hasIntent =
         q.contains('berapa') ||
+        q.contains('cek') ||
         q.contains('urut') ||
         q.contains('ranking') ||
         q.contains('tertinggi') ||
@@ -198,19 +204,38 @@ class ChatIntentRouter {
         q.contains('selain') ||
         q.contains('di atas') ||
         q.contains('daftar') ||
-        q.contains('sebut');
-    return hasStock && hasIntent;
+        q.contains('sebut') ||
+        q.contains('saat ini') ||
+        q.contains('aktif') ||
+        q.contains('arsip') ||
+        q.contains('diarsipkan');
+    return hasStock && (hasIntent || q == 'stok' || q == 'cek stok');
   }
 
   bool _isDateQuery(String q) {
-    final hasDateRef = q.contains('hari ini') || q.contains('kemarin');
+    final hasDateRef =
+        q.contains('hari ini') ||
+        q.contains('kemarin') ||
+        q.contains('hari lalu') ||
+        q.contains('minggu ini') ||
+        q.contains('minggu lalu') ||
+        q.contains('bulan ini') ||
+        q.contains('bulan lalu') ||
+        q.contains('hari terakhir') ||
+        q.contains('dari') && q.contains('sampai') ||
+        RegExp(r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b').hasMatch(q) ||
+        RegExp(r'\b\d{4}-\d{2}-\d{2}\b').hasMatch(q) ||
+        RegExp(
+          r'\b\d{1,2}\s+(jan|feb|mar|apr|mei|jun|jul|agu|agt|sep|okt|nov|des|januari|februari|maret|april|juni|juli|agustus|september|oktober|november|desember)(\s+\d{4})?\b',
+        ).hasMatch(q);
     final hasMetric =
         q.contains('penghasilan') ||
         q.contains('pemasukan') ||
         q.contains('pengeluaran') ||
         q.contains('laba') ||
         q.contains('selisih') ||
-        q.contains('untung');
+        q.contains('untung') ||
+        q.contains('transaksi');
     final hasCompare =
         q.contains('banding') ||
         q.contains('compare') ||
@@ -230,11 +255,20 @@ class ChatIntentRouter {
       'kategori',
       'margin',
       'omzet',
+      'pemasukan',
+      'pengeluaran',
+      'transaksi',
       '30 hari',
       'laporan',
     ];
     final hit = keywords.where(q.contains).length;
-    return hit >= 1 && !_isCapabilityHelp(q) && !_isSmallTalk(q);
+    if (hit >= 1 && !_isCapabilityHelp(q) && !_isSmallTalk(q)) {
+      return true;
+    }
+    return q.startsWith('cek ') &&
+        (q.contains('pemasukan') ||
+            q.contains('pengeluaran') ||
+            q.contains('transaksi'));
   }
 
   bool _isAmbiguous(String q) {

@@ -339,8 +339,9 @@ class AiChatbotService {
         );
       case ChatIntentType.dateQuery:
         return _resolveDeterministicDateQueryReply(
-          question: decision.normalizedQuestion,
+          question: question,
           financeSnapshot: financeSnapshot,
+          providerOrderOverride: providerOrderOverride,
         );
       case ChatIntentType.importDraft:
         final action = await _tryBuildImportDraftFromQuestion(
@@ -649,7 +650,24 @@ $question
     required List<Map<String, dynamic>> financeSnapshot,
   }) {
     final q = question.toLowerCase();
-    final asksStock = q.contains('stok') || q.contains('stock');
+    final asksStock =
+        q.contains('stok') || q.contains('stock') || q.contains('sisa');
+    final asksProductStatus =
+        q.contains('produk aktif') ||
+        q.contains('aktif saja') ||
+        q.contains('produk arsip') ||
+        q.contains('produk diarsipkan') ||
+        q.contains('produk yang diarsipkan') ||
+        q.contains('produk nonaktif');
+    final asksArchived =
+        q.contains('arsip') ||
+        q.contains('diarsipkan') ||
+        q.contains('nonaktif');
+    final asksActive =
+        q.contains('aktif') &&
+        !q.contains('nonaktif') &&
+        !q.contains('arsip') &&
+        !q.contains('diarsipkan');
     final asksOrder =
         q.contains('urut') ||
         q.contains('ranking') ||
@@ -663,8 +681,9 @@ $question
         q.contains('stok selain') ||
         q.contains('stok di atas') ||
         q.contains('masih') ||
-        q.contains('sisa');
-    if (!asksStock || (!asksOrder && !asksListOnly)) {
+        q.contains('sisa') ||
+        q.contains('cek');
+    if (!(asksStock || asksProductStatus)) {
       return null;
     }
 
@@ -677,10 +696,15 @@ $question
             .map((row) {
               final name = (row['name'] ?? '').toString().trim();
               final stock = _toInt(row['stock_now']);
+              final isActive = _toBool(row['is_active'], defaultValue: true);
               if (name.isEmpty) {
                 return null;
               }
-              return <String, dynamic>{'name': name, 'stock_now': stock};
+              return <String, dynamic>{
+                'name': name,
+                'stock_now': stock,
+                'is_active': isActive,
+              };
             })
             .whereType<Map<String, dynamic>>()
             .toList();
@@ -703,6 +727,14 @@ $question
         q.contains('> 0') ||
         q.contains('bukan 0');
     var rows = List<Map<String, dynamic>>.from(products);
+    if (asksProductStatus) {
+      rows =
+          asksArchived
+              ? rows.where((row) => (row['is_active'] ?? true) != true).toList()
+              : asksActive
+              ? rows.where((row) => (row['is_active'] ?? true) == true).toList()
+              : rows;
+    }
     if (hideZero) {
       rows = rows.where((row) => _toInt(row['stock_now']) > 0).toList();
     }
@@ -731,14 +763,25 @@ $question
 
     final limit = _extractTopLimit(q) ?? 10;
     final topRows = rows.take(limit).toList();
+    final statusTitle =
+        asksProductStatus
+            ? asksArchived
+                ? 'Produk arsip saat ini:'
+                : asksActive
+                ? 'Produk aktif saat ini:'
+                : 'Daftar produk saat ini:'
+            : null;
     final lines = <String>[
-      asksOrder
-          ? 'Stok saat ini (urut tertinggi ke terendah${hideZero ? ', tanpa stok 0' : ''}):'
-          : 'Produk dengan stok ${hideZero ? 'lebih dari 0' : 'saat ini'}:',
-      ...topRows.map(
-        (row) =>
-            '- ${row['name']}: ${NumberFormat('#,##0', 'id_ID').format(_toInt(row['stock_now']))}',
-      ),
+      statusTitle ??
+          (asksOrder
+              ? 'Stok saat ini (urut tertinggi ke terendah${hideZero ? ', tanpa stok 0' : ''}):'
+              : 'Produk dengan stok ${hideZero ? 'lebih dari 0' : 'saat ini'}:'),
+      ...topRows.map((row) {
+        if (asksProductStatus && !asksStock && !asksListOnly) {
+          return '- ${row['name']}';
+        }
+        return '- ${row['name']}: ${NumberFormat('#,##0', 'id_ID').format(_toInt(row['stock_now']))}';
+      }),
     ];
     return AiChatReply(
       text: lines.join('\n'),
@@ -860,23 +903,12 @@ $question
     );
   }
 
-  AiChatReply? _resolveDeterministicDateQueryReply({
+  Future<AiChatReply?> _resolveDeterministicDateQueryReply({
     required String question,
     required List<Map<String, dynamic>> financeSnapshot,
-  }) {
-    final q = question.toLowerCase();
-    final asksToday = q.contains('hari ini');
-    final asksYesterday = q.contains('kemarin');
-    final asksCompare =
-        q.contains('banding') ||
-        q.contains('compare') ||
-        q.contains('perbandingan') ||
-        (asksToday && asksYesterday);
-    final asksDateQuery = asksToday || asksYesterday || asksCompare;
-    if (!asksDateQuery) {
-      return null;
-    }
-
+    String? providerOrderOverride,
+  }) async {
+    final q = question.toLowerCase().trim();
     final dailyRows =
         financeSnapshot
             .where((row) => (row['type'] ?? '').toString() == 'daily_summary')
@@ -884,7 +916,7 @@ $question
     if (dailyRows.isEmpty) {
       return const AiChatReply(
         text:
-            'Data harian belum tersedia, jadi saya belum bisa hitung hari ini/kemarin secara pasti. Pastikan transaksi harian sudah tercatat.',
+            'Data harian belum tersedia, jadi saya belum bisa hitung tanggal yang diminta secara pasti. Pastikan transaksi harian sudah tercatat.',
         providerId: 'local-deterministic',
         fromCache: false,
         suggestedCooldownSeconds: 1,
@@ -893,13 +925,20 @@ $question
       );
     }
 
+    final now = DateTime.now();
+    final resolved =
+        _tryResolveDateQueryLocal(q, now) ??
+        await _tryResolveDateQueryWithAi(
+          question: question,
+          now: now,
+          providerOrderOverride: providerOrderOverride,
+        );
+    if (resolved == null) {
+      return null;
+    }
+
     final metric = _resolveDateMetric(q);
     final metricLabel = _metricLabel(metric);
-    final now = DateTime.now();
-    final todayKey = DateFormat('yyyy-MM-dd').format(now);
-    final yesterdayKey = DateFormat(
-      'yyyy-MM-dd',
-    ).format(now.subtract(const Duration(days: 1)));
     final dailyMap = <String, Map<String, dynamic>>{};
     for (final row in dailyRows) {
       final key = (row['date'] ?? '').toString().trim();
@@ -908,98 +947,565 @@ $question
       }
     }
 
-    final todayValue = _extractMetricValue(dailyMap[todayKey], metric);
-    final yesterdayValue = _extractMetricValue(dailyMap[yesterdayKey], metric);
-    final todayLabel = DateFormat('d MMM yyyy').format(now);
-    final yesterdayLabel = DateFormat(
-      'd MMM yyyy',
-    ).format(now.subtract(const Duration(days: 1)));
-
     String formatCurrency(int value) =>
         'Rp ${NumberFormat('#,##0', 'id_ID').format(value)}';
 
-    if (asksCompare) {
-      if (todayValue == null || yesterdayValue == null) {
+    final primary = resolved.primary;
+    final primaryValue = _sumMetricInRange(dailyMap, metric, primary);
+    if (resolved.compare == null) {
+      if (primaryValue == null) {
         return AiChatReply(
           text:
-              'Saya butuh data harian lengkap untuk membandingkan $metricLabel hari ini vs kemarin. '
-              'Data tersedia: hari ini=${todayValue != null ? formatCurrency(todayValue) : '-'}, '
-              'kemarin=${yesterdayValue != null ? formatCurrency(yesterdayValue) : '-'}.',
+              'Data $metricLabel untuk ${primary.label.toLowerCase()} belum tersedia.',
           providerId: 'local-deterministic',
           fromCache: false,
           suggestedCooldownSeconds: 1,
           confidenceLevel: 'medium',
           confidenceReason:
-              'Data hari ini/kemarin belum lengkap untuk komparasi.',
+              'Data harian pada tanggal yang diminta belum tersedia.',
         );
       }
-      final delta = todayValue - yesterdayValue;
-      final trend =
-          delta > 0
-              ? 'naik'
-              : delta < 0
-              ? 'turun'
-              : 'stabil';
-      final deltaAbs = NumberFormat('#,##0', 'id_ID').format(delta.abs());
       return AiChatReply(
         text:
-            '$metricLabel $todayLabel: ${formatCurrency(todayValue)}\n'
-            '$metricLabel $yesterdayLabel: ${formatCurrency(yesterdayValue)}\n'
-            'Perbandingan: $trend sebesar Rp $deltaAbs.',
+            '$metricLabel ${primary.label.toLowerCase()}: ${formatCurrency(primaryValue)}.',
         providerId: 'local-deterministic',
         fromCache: false,
         suggestedCooldownSeconds: 1,
         confidenceLevel: 'high',
         confidenceReason:
-            'Komparasi dihitung deterministik dari daily_summary.',
+            'Nilai dihitung deterministik dari daily_summary (${resolved.source}).',
       );
     }
 
-    if (asksYesterday) {
-      if (yesterdayValue == null) {
-        return AiChatReply(
-          text:
-              'Data $metricLabel untuk kemarin ($yesterdayLabel) belum tersedia.',
-          providerId: 'local-deterministic',
-          fromCache: false,
-          suggestedCooldownSeconds: 1,
-          confidenceLevel: 'medium',
-          confidenceReason: 'Nilai kemarin tidak tersedia pada data harian.',
-        );
-      }
+    final compare = resolved.compare!;
+    final compareValue = _sumMetricInRange(dailyMap, metric, compare);
+    if (primaryValue == null || compareValue == null) {
       return AiChatReply(
         text:
-            '$metricLabel kemarin ($yesterdayLabel): ${formatCurrency(yesterdayValue)}.',
-        providerId: 'local-deterministic',
-        fromCache: false,
-        suggestedCooldownSeconds: 1,
-        confidenceLevel: 'high',
-        confidenceReason:
-            'Nilai kemarin dihitung deterministik dari data harian.',
-      );
-    }
-
-    if (todayValue == null) {
-      return AiChatReply(
-        text: 'Data $metricLabel untuk hari ini ($todayLabel) belum tersedia.',
+            'Saya butuh data harian lengkap untuk membandingkan $metricLabel ${primary.label.toLowerCase()} vs ${compare.label.toLowerCase()}. '
+            'Data tersedia: ${primary.label.toLowerCase()}=${primaryValue != null ? formatCurrency(primaryValue) : '-'}, '
+            '${compare.label.toLowerCase()}=${compareValue != null ? formatCurrency(compareValue) : '-'}.',
         providerId: 'local-deterministic',
         fromCache: false,
         suggestedCooldownSeconds: 1,
         confidenceLevel: 'medium',
-        confidenceReason: 'Nilai hari ini tidak tersedia pada data harian.',
+        confidenceReason: 'Sebagian data tanggal pembanding belum tersedia.',
       );
     }
+
+    final delta = primaryValue - compareValue;
+    final trend =
+        delta > 0
+            ? 'naik'
+            : delta < 0
+            ? 'turun'
+            : 'stabil';
+    final deltaAbs = NumberFormat('#,##0', 'id_ID').format(delta.abs());
     return AiChatReply(
       text:
-          '$metricLabel hari ini ($todayLabel): ${formatCurrency(todayValue)}.',
+          '$metricLabel ${primary.label}: ${formatCurrency(primaryValue)}\n'
+          '$metricLabel ${compare.label}: ${formatCurrency(compareValue)}\n'
+          'Perbandingan: $trend sebesar Rp $deltaAbs.',
       providerId: 'local-deterministic',
       fromCache: false,
       suggestedCooldownSeconds: 1,
       confidenceLevel: 'high',
       confidenceReason:
-          'Nilai hari ini dihitung deterministik dari data harian.',
+          'Komparasi dihitung deterministik dari daily_summary (${resolved.source}).',
     );
   }
+
+  int? _sumMetricInRange(
+    Map<String, Map<String, dynamic>> dailyMap,
+    _DateMetric metric,
+    _DateRangeWindow range,
+  ) {
+    var hasAny = false;
+    var sum = 0;
+    for (
+      var date = range.start;
+      !date.isAfter(range.end);
+      date = date.add(const Duration(days: 1))
+    ) {
+      final key = DateFormat('yyyy-MM-dd').format(date);
+      final value = _extractMetricValue(dailyMap[key], metric);
+      if (value != null) {
+        hasAny = true;
+        sum += value;
+      }
+    }
+    if (!hasAny) {
+      return null;
+    }
+    return sum;
+  }
+
+  _ResolvedDateQuery? _tryResolveDateQueryLocal(String q, DateTime now) {
+    final hasCompare =
+        q.contains('banding') ||
+        q.contains('compare') ||
+        q.contains('perbandingan') ||
+        q.contains(' vs ') ||
+        q.contains(' dengan ');
+
+    final explicitRange = _tryParseExplicitRange(q, now);
+    if (explicitRange != null) {
+      return _ResolvedDateQuery(primary: explicitRange, source: 'local');
+    }
+
+    if (hasCompare) {
+      final today = _singleDayRange(now, 'Hari ini (${_formatDateId(now)})');
+      final yesterday = _singleDayRange(
+        now.subtract(const Duration(days: 1)),
+        'Kemarin (${_formatDateId(now.subtract(const Duration(days: 1)))})',
+      );
+      final nDaysAgo = _extractNDaysAgoRange(q, now);
+      final weekThis = _weekRange(now, labelPrefix: 'Minggu ini');
+      final weekLast = _weekRange(
+        now.subtract(const Duration(days: 7)),
+        labelPrefix: 'Minggu lalu',
+      );
+      final monthThis = _monthRange(now, labelPrefix: 'Bulan ini');
+      final monthLast = _monthRange(
+        DateTime(now.year, now.month - 1, 15),
+        labelPrefix: 'Bulan lalu',
+      );
+
+      if (nDaysAgo != null && q.contains('kemarin')) {
+        return _ResolvedDateQuery(
+          primary: nDaysAgo,
+          compare: yesterday,
+          source: 'local',
+        );
+      }
+      if (q.contains('hari ini') && q.contains('kemarin')) {
+        return _ResolvedDateQuery(
+          primary: today,
+          compare: yesterday,
+          source: 'local',
+        );
+      }
+      if (q.contains('minggu lalu') && q.contains('minggu ini')) {
+        return _ResolvedDateQuery(
+          primary: weekLast,
+          compare: weekThis,
+          source: 'local',
+        );
+      }
+      if (q.contains('bulan lalu') && q.contains('bulan ini')) {
+        return _ResolvedDateQuery(
+          primary: monthLast,
+          compare: monthThis,
+          source: 'local',
+        );
+      }
+    }
+
+    if (q.contains('hari ini')) {
+      return _ResolvedDateQuery(
+        primary: _singleDayRange(now, 'Hari ini (${_formatDateId(now)})'),
+        source: 'local',
+      );
+    }
+    if (q.contains('kemarin')) {
+      final day = now.subtract(const Duration(days: 1));
+      return _ResolvedDateQuery(
+        primary: _singleDayRange(day, 'Kemarin (${_formatDateId(day)})'),
+        source: 'local',
+      );
+    }
+    final nDaysAgo = _extractNDaysAgoRange(q, now);
+    if (nDaysAgo != null) {
+      return _ResolvedDateQuery(primary: nDaysAgo, source: 'local');
+    }
+    if (q.contains('7 hari terakhir')) {
+      return _ResolvedDateQuery(
+        primary: _rollingRange(now, days: 7, labelPrefix: '7 hari terakhir'),
+        source: 'local',
+      );
+    }
+    if (q.contains('30 hari terakhir')) {
+      return _ResolvedDateQuery(
+        primary: _rollingRange(now, days: 30, labelPrefix: '30 hari terakhir'),
+        source: 'local',
+      );
+    }
+    if (q.contains('minggu ini')) {
+      return _ResolvedDateQuery(
+        primary: _weekRange(now, labelPrefix: 'Minggu ini'),
+        source: 'local',
+      );
+    }
+    if (q.contains('minggu lalu')) {
+      return _ResolvedDateQuery(
+        primary: _weekRange(
+          now.subtract(const Duration(days: 7)),
+          labelPrefix: 'Minggu lalu',
+        ),
+        source: 'local',
+      );
+    }
+    if (q.contains('bulan ini')) {
+      return _ResolvedDateQuery(
+        primary: _monthRange(now, labelPrefix: 'Bulan ini'),
+        source: 'local',
+      );
+    }
+    if (q.contains('bulan lalu')) {
+      return _ResolvedDateQuery(
+        primary: _monthRange(
+          DateTime(now.year, now.month - 1, 15),
+          labelPrefix: 'Bulan lalu',
+        ),
+        source: 'local',
+      );
+    }
+
+    final explicitSingle = _tryParseSingleExplicitDate(q, now);
+    if (explicitSingle != null) {
+      return _ResolvedDateQuery(primary: explicitSingle, source: 'local');
+    }
+    return null;
+  }
+
+  Future<_ResolvedDateQuery?> _tryResolveDateQueryWithAi({
+    required String question,
+    required DateTime now,
+    String? providerOrderOverride,
+  }) async {
+    final prompt = _buildDateNormalizerPrompt(question, now);
+    try {
+      final response = await _requestWithFallback(
+        prompt,
+        providerOrderOverride: providerOrderOverride,
+      );
+      return _tryParseDateNormalizerResponse(response.text);
+    } on AiRateLimitException {
+      return null;
+    } on AiProviderTemporaryException {
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _buildDateNormalizerPrompt(String question, DateTime now) {
+    final today = DateFormat('yyyy-MM-dd').format(now);
+    return '''
+Anda adalah normalizer tanggal untuk asisten keuangan toko.
+Hari ini: $today.
+Tugas Anda hanya menormalkan referensi waktu ke ISO date/range. Jangan hitung uang.
+
+WAJIB output JSON valid saja:
+{
+  "mode":"single|range|compare|unknown",
+  "primary_start":"YYYY-MM-DD atau kosong",
+  "primary_end":"YYYY-MM-DD atau kosong",
+  "compare_start":"YYYY-MM-DD atau kosong",
+  "compare_end":"YYYY-MM-DD atau kosong",
+  "label_primary":"...",
+  "label_compare":"..."
+}
+
+Aturan:
+- Jika tidak yakin, mode=unknown.
+- Untuk frasa komparasi, gunakan mode=compare.
+- Untuk tanggal tunggal, start=end.
+- Jangan menambahkan penjelasan apapun di luar JSON.
+
+Teks user:
+$question
+''';
+  }
+
+  _ResolvedDateQuery? _tryParseDateNormalizerResponse(String rawText) {
+    final trimmed = rawText.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+    Map<String, dynamic>? decoded;
+    try {
+      final direct = jsonDecode(trimmed);
+      if (direct is Map<String, dynamic>) {
+        decoded = direct;
+      } else if (direct is Map) {
+        decoded = Map<String, dynamic>.from(direct);
+      }
+    } catch (_) {
+      final start = trimmed.indexOf('{');
+      final end = trimmed.lastIndexOf('}');
+      if (start >= 0 && end > start) {
+        try {
+          final loose = jsonDecode(trimmed.substring(start, end + 1));
+          if (loose is Map<String, dynamic>) {
+            decoded = loose;
+          } else if (loose is Map) {
+            decoded = Map<String, dynamic>.from(loose);
+          }
+        } catch (_) {
+          return null;
+        }
+      }
+    }
+    if (decoded == null) {
+      return null;
+    }
+
+    final mode = (decoded['mode'] ?? '').toString().trim().toLowerCase();
+    if (mode == 'unknown' || mode.isEmpty) {
+      return null;
+    }
+    final primary = _buildRangeWindowFromIso(
+      startIso: (decoded['primary_start'] ?? '').toString(),
+      endIso: (decoded['primary_end'] ?? '').toString(),
+      label: (decoded['label_primary'] ?? 'Rentang utama').toString().trim(),
+    );
+    if (primary == null) {
+      return null;
+    }
+    if (mode == 'single' || mode == 'range') {
+      return _ResolvedDateQuery(primary: primary, source: 'ai-normalizer');
+    }
+    if (mode == 'compare') {
+      final compare = _buildRangeWindowFromIso(
+        startIso: (decoded['compare_start'] ?? '').toString(),
+        endIso: (decoded['compare_end'] ?? '').toString(),
+        label:
+            (decoded['label_compare'] ?? 'Rentang pembanding')
+                .toString()
+                .trim(),
+      );
+      if (compare == null) {
+        return null;
+      }
+      return _ResolvedDateQuery(
+        primary: primary,
+        compare: compare,
+        source: 'ai-normalizer',
+      );
+    }
+    return null;
+  }
+
+  _DateRangeWindow? _buildRangeWindowFromIso({
+    required String startIso,
+    required String endIso,
+    required String label,
+  }) {
+    final start = _tryParseIsoDate(startIso);
+    final end = _tryParseIsoDate(endIso);
+    if (start == null || end == null) {
+      return null;
+    }
+    final safeStart = _startOfDay(start);
+    final safeEnd = _startOfDay(end);
+    final actualStart = safeStart.isBefore(safeEnd) ? safeStart : safeEnd;
+    final actualEnd = safeStart.isBefore(safeEnd) ? safeEnd : safeStart;
+    return _DateRangeWindow(
+      start: actualStart,
+      end: actualEnd,
+      label:
+          label.isEmpty
+              ? '${_formatDateId(actualStart)}-${_formatDateId(actualEnd)}'
+              : label,
+    );
+  }
+
+  _DateRangeWindow? _extractNDaysAgoRange(String q, DateTime now) {
+    final match = RegExp(r'\b(\d{1,4})\s+hari\s+lalu\b').firstMatch(q);
+    if (match == null) {
+      return null;
+    }
+    final days = int.tryParse(match.group(1) ?? '');
+    if (days == null || days < 1 || days > 3650) {
+      return null;
+    }
+    final day = now.subtract(Duration(days: days));
+    return _singleDayRange(day, '$days hari lalu (${_formatDateId(day)})');
+  }
+
+  _DateRangeWindow? _tryParseSingleExplicitDate(String q, DateTime now) {
+    final isoMatch = RegExp(r'\b(\d{4}-\d{2}-\d{2})\b').firstMatch(q);
+    if (isoMatch != null) {
+      final date = _tryParseIsoDate(isoMatch.group(1)!);
+      if (date != null) {
+        return _singleDayRange(date, 'Tanggal ${_formatDateId(date)}');
+      }
+    }
+    final dmyMatch = RegExp(
+      r'\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b',
+    ).firstMatch(q);
+    if (dmyMatch != null) {
+      final day = int.tryParse(dmyMatch.group(1)!);
+      final month = int.tryParse(dmyMatch.group(2)!);
+      final yearRaw = int.tryParse(dmyMatch.group(3)!);
+      if (day != null && month != null && yearRaw != null) {
+        final year = yearRaw < 100 ? 2000 + yearRaw : yearRaw;
+        final date = _tryBuildSafeDate(year, month, day);
+        if (date != null) {
+          return _singleDayRange(date, 'Tanggal ${_formatDateId(date)}');
+        }
+      }
+    }
+    final monthNameMatch = RegExp(
+      r'\b(\d{1,2})\s+(jan|feb|mar|apr|mei|jun|jul|agu|agt|sep|okt|nov|des|januari|februari|maret|april|juni|juli|agustus|september|oktober|november|desember)(?:\s+(\d{4}))?\b',
+    ).firstMatch(q);
+    if (monthNameMatch != null) {
+      final day = int.tryParse(monthNameMatch.group(1)!);
+      final month = _monthTokenToInt(monthNameMatch.group(2)!);
+      final year = int.tryParse(monthNameMatch.group(3) ?? '') ?? now.year;
+      if (day != null && month != null) {
+        final date = _tryBuildSafeDate(year, month, day);
+        if (date != null) {
+          return _singleDayRange(date, 'Tanggal ${_formatDateId(date)}');
+        }
+      }
+    }
+    return null;
+  }
+
+  _DateRangeWindow? _tryParseExplicitRange(String q, DateTime now) {
+    final rangeMatch = RegExp(
+      r'\b(?:dari|antara)\s+(.+?)\s+(?:sampai|hingga|sd|dan)\s+(.+)$',
+    ).firstMatch(q);
+    if (rangeMatch == null) {
+      return null;
+    }
+    final start = _tryParseExplicitDateToken(rangeMatch.group(1) ?? '', now);
+    final end = _tryParseExplicitDateToken(rangeMatch.group(2) ?? '', now);
+    if (start == null || end == null) {
+      return null;
+    }
+    final safeStart = _startOfDay(start);
+    final safeEnd = _startOfDay(end);
+    final actualStart = safeStart.isBefore(safeEnd) ? safeStart : safeEnd;
+    final actualEnd = safeStart.isBefore(safeEnd) ? safeEnd : safeStart;
+    return _DateRangeWindow(
+      start: actualStart,
+      end: actualEnd,
+      label: '${_formatDateId(actualStart)} s.d. ${_formatDateId(actualEnd)}',
+    );
+  }
+
+  DateTime? _tryParseExplicitDateToken(String value, DateTime now) {
+    final normalized = value.toLowerCase().trim();
+    final asSingle = _tryParseSingleExplicitDate(normalized, now);
+    if (asSingle != null) {
+      return asSingle.start;
+    }
+    return null;
+  }
+
+  _DateRangeWindow _singleDayRange(DateTime day, String label) {
+    final safe = _startOfDay(day);
+    return _DateRangeWindow(start: safe, end: safe, label: label);
+  }
+
+  _DateRangeWindow _rollingRange(
+    DateTime now, {
+    required int days,
+    required String labelPrefix,
+  }) {
+    final end = _startOfDay(now);
+    final start = _startOfDay(now.subtract(Duration(days: days - 1)));
+    return _DateRangeWindow(
+      start: start,
+      end: end,
+      label: '$labelPrefix (${_formatDateId(start)}-${_formatDateId(end)})',
+    );
+  }
+
+  _DateRangeWindow _weekRange(DateTime pivot, {required String labelPrefix}) {
+    final safe = _startOfDay(pivot);
+    final start = safe.subtract(Duration(days: safe.weekday - DateTime.monday));
+    final end = start.add(const Duration(days: 6));
+    return _DateRangeWindow(
+      start: start,
+      end: end,
+      label: '$labelPrefix (${_formatDateId(start)}-${_formatDateId(end)})',
+    );
+  }
+
+  _DateRangeWindow _monthRange(DateTime pivot, {required String labelPrefix}) {
+    final start = DateTime(pivot.year, pivot.month, 1);
+    final end = DateTime(pivot.year, pivot.month + 1, 0);
+    return _DateRangeWindow(
+      start: _startOfDay(start),
+      end: _startOfDay(end),
+      label: '$labelPrefix (${_formatDateId(start)}-${_formatDateId(end)})',
+    );
+  }
+
+  DateTime _startOfDay(DateTime value) =>
+      DateTime(value.year, value.month, value.day);
+
+  DateTime? _tryParseIsoDate(String value) {
+    final raw = value.trim();
+    if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(raw)) {
+      return null;
+    }
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) {
+      return null;
+    }
+    return _startOfDay(parsed);
+  }
+
+  DateTime? _tryBuildSafeDate(int year, int month, int day) {
+    if (month < 1 || month > 12 || day < 1 || day > 31) {
+      return null;
+    }
+    final date = DateTime(year, month, day);
+    if (date.year != year || date.month != month || date.day != day) {
+      return null;
+    }
+    return _startOfDay(date);
+  }
+
+  int? _monthTokenToInt(String token) {
+    switch (token.toLowerCase()) {
+      case 'jan':
+      case 'januari':
+        return 1;
+      case 'feb':
+      case 'februari':
+        return 2;
+      case 'mar':
+      case 'maret':
+        return 3;
+      case 'apr':
+      case 'april':
+        return 4;
+      case 'mei':
+        return 5;
+      case 'jun':
+      case 'juni':
+        return 6;
+      case 'jul':
+      case 'juli':
+        return 7;
+      case 'agu':
+      case 'agt':
+      case 'agustus':
+        return 8;
+      case 'sep':
+      case 'september':
+        return 9;
+      case 'okt':
+      case 'oktober':
+        return 10;
+      case 'nov':
+      case 'november':
+        return 11;
+      case 'des':
+      case 'desember':
+        return 12;
+      default:
+        return null;
+    }
+  }
+
+  String _formatDateId(DateTime date) => DateFormat('d MMM yyyy').format(date);
 
   _DateMetric _resolveDateMetric(String q) {
     if (q.contains('pengeluaran') ||
@@ -2110,6 +2616,23 @@ $question
     return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 
+  bool _toBool(dynamic value, {required bool defaultValue}) {
+    if (value == null) {
+      return defaultValue;
+    }
+    if (value is bool) {
+      return value;
+    }
+    if (value is num) {
+      return value != 0;
+    }
+    final lowered = value.toString().trim().toLowerCase();
+    if (lowered.isEmpty) {
+      return defaultValue;
+    }
+    return lowered == 'true' || lowered == '1' || lowered == 'yes';
+  }
+
   Future<String?> _tryGetCached(String fingerprint) async {
     final prefs = await SharedPreferences.getInstance();
     final cachedText = prefs.getString(_cacheKeyText);
@@ -2539,6 +3062,30 @@ class _ActionIntentResult {
 
   final ChatImportDraft draft;
   final String providerId;
+}
+
+class _DateRangeWindow {
+  const _DateRangeWindow({
+    required this.start,
+    required this.end,
+    required this.label,
+  });
+
+  final DateTime start;
+  final DateTime end;
+  final String label;
+}
+
+class _ResolvedDateQuery {
+  const _ResolvedDateQuery({
+    required this.primary,
+    required this.source,
+    this.compare,
+  });
+
+  final _DateRangeWindow primary;
+  final _DateRangeWindow? compare;
+  final String source;
 }
 
 enum _DateMetric { income, expense, net }
