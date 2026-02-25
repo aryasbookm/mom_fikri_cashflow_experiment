@@ -137,6 +137,10 @@ class ChatIntentRouter {
     return q.contains('kamu bisa apa') ||
         q.contains('kau bisa apa') ||
         q.contains('anda bisa apa') ||
+        q.contains('siapa nama mu') ||
+        q.contains('siapa nama kamu') ||
+        q.contains('siapa namamu') ||
+        q.contains('deskripsikan diri') ||
         q.contains('apa yang bisa kamu lakukan') ||
         q.contains('apa yang bisa kau lakukan') ||
         q.contains('fitur kamu') ||

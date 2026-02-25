@@ -28,6 +28,8 @@ void main() {
       _IntentCase('fitur kamu apa saja', ChatIntentType.capabilityHelp),
       _IntentCase('cara pakai chatbot ini', ChatIntentType.capabilityHelp),
       _IntentCase('bisa bantu apa', ChatIntentType.capabilityHelp),
+      _IntentCase('siapa nama mu?', ChatIntentType.capabilityHelp),
+      _IntentCase('deskripsikan diri ku', ChatIntentType.capabilityHelp),
       _IntentCase('help', ChatIntentType.capabilityHelp),
 
       // small talk

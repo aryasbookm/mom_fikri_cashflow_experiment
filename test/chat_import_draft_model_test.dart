@@ -411,5 +411,28 @@ void main() {
       expect(reply.confidenceLevel, 'high');
       expect(reply.text.toLowerCase(), contains('halo'));
     });
+
+    test('handles "siapa nama mu" as local capability response', () async {
+      final service = AiChatbotService();
+      final reply = await service.askFinancialAssistant(
+        question: 'siapa nama mu?',
+        financeSnapshot: const [],
+      );
+
+      expect(reply.providerId, 'local-smalltalk');
+      expect(reply.confidenceLevel, 'high');
+      expect(reply.text.toLowerCase(), contains('asisten mom fiqry'));
+    });
+
+    test('stores name from "nama ku arya" via memory-local', () async {
+      final service = AiChatbotService();
+      final reply = await service.askFinancialAssistant(
+        question: 'nama ku arya',
+        financeSnapshot: const [],
+      );
+
+      expect(reply.providerId, 'memory-local');
+      expect(reply.text.toLowerCase(), contains('arya'));
+    });
   });
 }

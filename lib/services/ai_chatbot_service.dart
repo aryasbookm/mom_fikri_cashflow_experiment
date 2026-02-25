@@ -1832,6 +1832,10 @@ $question
 
   bool _isCapabilityHelpQuery(String q) {
     return q.contains('kamu bisa apa') ||
+        q.contains('siapa nama mu') ||
+        q.contains('siapa namamu') ||
+        q.contains('siapa nama kamu') ||
+        q.contains('deskripsikan diri') ||
         q.contains('bisa apa saja') ||
         q.contains('fitur kamu') ||
         q.contains('bantuan') ||
@@ -2261,7 +2265,12 @@ $question
 
     if (q.contains('apa yang kamu ingat tentang saya') ||
         q.contains('apa yang kamu ingat') ||
-        q.contains('kamu ingat apa tentang saya')) {
+        q.contains('kamu ingat apa tentang saya') ||
+        q.contains('siapa nama ku') ||
+        q.contains('siapa namaku') ||
+        q.contains('apakah kau memiliki memori') ||
+        q.contains('apakah kamu memiliki memori') ||
+        q.contains('kamu punya memori')) {
       return const _MemoryAction(type: _MemoryActionType.showMemory);
     }
 
@@ -2438,7 +2447,7 @@ $question
 
   _NameIntent? _extractNameIntent(String question) {
     final regex = RegExp(
-      r"\b(?:nama saya|panggil saya)\s+([A-Za-z][A-Za-z .'-]{1,40})",
+      r"\b(?:nama saya|nama ku|namaku|panggil saya)\s+([A-Za-z][A-Za-z .'-]{1,40})",
       caseSensitive: false,
     );
     final match = regex.firstMatch(question);
