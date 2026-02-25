@@ -37,6 +37,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   bool _isLoading = false;
   int _cooldownSeconds = 0;
   bool _initialQuestionHandled = false;
+  String _chatProviderPriority = 'auto';
   Timer? _cooldownTimer;
   static const List<String> _quickQuestions = [
     'Kamu bisa apa?',
@@ -48,10 +49,12 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   static const String _chatStoreKey = 'ai_chat_history_v1';
   static const String _chatSnapshotKey = 'ai_chat_snapshot_hash_v1';
   static const String _chatSavedAtKey = 'ai_chat_saved_at_v1';
+  static const String _chatProviderPriorityKey = 'ai_chat_provider_priority_v1';
 
   @override
   void initState() {
     super.initState();
+    _loadChatSettings();
     _loadPersistedChat();
   }
 
@@ -61,6 +64,54 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     _inputController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadChatSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = (prefs.getString(_chatProviderPriorityKey) ?? 'auto').trim();
+    final normalized =
+        saved == 'gemini_first' || saved == 'groq_first' ? saved : 'auto';
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _chatProviderPriority = normalized;
+    });
+  }
+
+  Future<void> _setChatProviderPriority(String value) async {
+    final normalized =
+        value == 'gemini_first' || value == 'groq_first' ? value : 'auto';
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_chatProviderPriorityKey, normalized);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _chatProviderPriority = normalized;
+    });
+  }
+
+  String? _providerOrderOverride() {
+    switch (_chatProviderPriority) {
+      case 'groq_first':
+        return 'groq,gemini';
+      case 'gemini_first':
+        return 'gemini,groq';
+      default:
+        return null;
+    }
+  }
+
+  String _chatProviderPriorityLabel() {
+    switch (_chatProviderPriority) {
+      case 'groq_first':
+        return 'Groq dulu';
+      case 'gemini_first':
+        return 'Gemini dulu';
+      default:
+        return 'Otomatis (default: Groq dulu)';
+    }
   }
 
   Future<void> _sendFromInput() async {
@@ -306,6 +357,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         question: question,
         financeSnapshot: widget.financeSnapshot,
         history: _messages,
+        providerOrderOverride: _providerOrderOverride(),
       );
       if (!mounted) {
         return;
@@ -495,6 +547,27 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       appBar: AppBar(
         title: const Text('Asisten Mom Fiqry'),
         actions: [
+          PopupMenuButton<String>(
+            tooltip: 'Prioritas provider AI',
+            initialValue: _chatProviderPriority,
+            onSelected: _setChatProviderPriority,
+            itemBuilder:
+                (context) => const [
+                  PopupMenuItem<String>(
+                    value: 'auto',
+                    child: Text('Otomatis (default: Groq dulu)'),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'groq_first',
+                    child: Text('Prioritaskan Groq'),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'gemini_first',
+                    child: Text('Prioritaskan Gemini'),
+                  ),
+                ],
+            icon: const Icon(Icons.tune),
+          ),
           IconButton(
             tooltip: 'Hapus chat',
             onPressed: _messages.length <= 1 ? null : _clearChat,
@@ -541,6 +614,16 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                         ),
                       )
                       .toList(),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 2),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Prioritas AI: ${_chatProviderPriorityLabel()}',
+                style: const TextStyle(fontSize: 11, color: Colors.black54),
+              ),
             ),
           ),
           Expanded(

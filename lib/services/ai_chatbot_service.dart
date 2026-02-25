@@ -73,6 +73,7 @@ class AiChatbotService {
     required String question,
     required List<Map<String, dynamic>> financeSnapshot,
     List<AiChatMessage> history = const [],
+    String? providerOrderOverride,
   }) async {
     final safeQuestion = question.trim();
     final stockRankingReply = _resolveDeterministicStockRankingReply(
@@ -121,6 +122,7 @@ class AiChatbotService {
       final action = await _tryBuildImportDraftFromQuestion(
         question: safeQuestion,
         financeSnapshot: financeSnapshot,
+        providerOrderOverride: providerOrderOverride,
       );
       if (action == null) {
         return _finalizeConfidenceReply(
@@ -196,7 +198,10 @@ class AiChatbotService {
       financeSnapshot: financeSnapshot,
     );
 
-    final firstResponse = await _requestWithFallback(prompt);
+    final firstResponse = await _requestWithFallback(
+      prompt,
+      providerOrderOverride: providerOrderOverride,
+    );
     final firstParsed = _tryParseStructuredResponse(firstResponse.text);
     final firstIssue = _validateStructuredResponse(
       response: firstParsed,
@@ -216,7 +221,10 @@ class AiChatbotService {
         memory: memory,
         detailedMode: detailedMode,
       );
-      final retryResponse = await _requestWithFallback(retryPrompt);
+      final retryResponse = await _requestWithFallback(
+        retryPrompt,
+        providerOrderOverride: providerOrderOverride,
+      );
       providerId = retryResponse.providerId;
       final retryParsed = _tryParseStructuredResponse(retryResponse.text);
       final retryIssue = _validateStructuredResponse(
@@ -959,12 +967,16 @@ $question
   Future<_ActionIntentResult?> _tryBuildImportDraftFromQuestion({
     required String question,
     required List<Map<String, dynamic>> financeSnapshot,
+    String? providerOrderOverride,
   }) async {
     final prompt = _buildActionIntentPrompt(
       question: question,
       financeSnapshot: financeSnapshot,
     );
-    final response = await _requestWithFallback(prompt);
+    final response = await _requestWithFallback(
+      prompt,
+      providerOrderOverride: providerOrderOverride,
+    );
     final draft = _tryParseActionDraftJson(response.text);
     if (draft == null || !draft.isValid) {
       return null;
@@ -1768,11 +1780,17 @@ $question
     await prefs.setInt(_cacheKeyEpoch, DateTime.now().millisecondsSinceEpoch);
   }
 
-  Future<_ChatProviderResponse> _requestWithFallback(String prompt) async {
-    final order = String.fromEnvironment(
-      'AI_CHAT_PROVIDER_ORDER',
-      defaultValue: 'groq,gemini',
-    );
+  Future<_ChatProviderResponse> _requestWithFallback(
+    String prompt, {
+    String? providerOrderOverride,
+  }) async {
+    final order =
+        (providerOrderOverride ?? '').trim().isNotEmpty
+            ? providerOrderOverride!.trim()
+            : String.fromEnvironment(
+              'AI_CHAT_PROVIDER_ORDER',
+              defaultValue: 'groq,gemini',
+            );
     final providerIds =
         order
             .split(',')
