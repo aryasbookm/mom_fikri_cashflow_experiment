@@ -162,8 +162,12 @@
   - uji inferensi tanggal:
     - blok atas sebelum tanggal eksplisit diasumsikan H-1 dan ditandai review,
     - baris setelah tanggal eksplisit tanpa tanggal melanjutkan tanggal terakhir,
-    - jika tidak ada tanggal sama sekali, fallback ke tanggal hari ini + `date_source=inferred`.
+  - jika tidak ada tanggal sama sekali, fallback ke tanggal hari ini + `date_source=inferred`.
   - untuk action import sukses, pastikan chat menampilkan ringkasan + tombol `Lanjut ke Review` (tidak auto-push ke layar OCR).
+- [ ] Uji analysis-mode enhancement:
+  - kirim pertanyaan komparatif multi-intent (contoh: "berapa penghasilan kemarin, hari ini, bandingkan, analisis dan saran") dan pastikan jawaban lebih detail dari mode ringkas biasa.
+  - pastikan jawaban detail tetap menyertakan basis data (tidak halusinasi angka).
+  - kirim input sangat panjang (>3500 karakter), pastikan bot tidak crash dan memberi arahan split pertanyaan menjadi beberapa langkah.
 - [ ] Jalankan regression test otomatis Phase 4:
   - `flutter test test/chat_import_draft_model_test.dart test/chat_import_audit_service_test.dart`
 - [ ] Jalankan regression test OCR parity Phase 1:

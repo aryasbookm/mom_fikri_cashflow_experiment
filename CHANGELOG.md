@@ -161,6 +161,12 @@ All notable changes to this project will be documented in this file.
   - untuk action import, chat tidak lagi auto-lompat ke layar review:
     - bot menampilkan ringkasan draf (jumlah item/total/tanggal/perlu review),
     - user menekan tombol `Lanjut ke Review` atau memilih `Edit di Chat Dulu`.
+- Analysis mode enhancement:
+  - chatbot kini memiliki deteksi `mode detail` untuk pertanyaan analisis komparatif (mis. hari ini vs kemarin, analisis + saran) sehingga jawaban boleh lebih mendalam, tidak selalu dipaksa sangat singkat.
+  - validator respons terstruktur diperketat untuk mode detail (menolak jawaban `ok` yang terlalu dangkal, lalu retry dengan prompt lebih ketat).
+  - output token budget dinaikkan (`700 -> 900`) agar analisis detail tidak mudah terpotong.
+  - ditambahkan guard input terlalu panjang: jika pesan > 3500 karakter, bot memberi arahan memecah pertanyaan menjadi beberapa langkah agar kualitas tetap stabil.
+  - fallback lokal untuk mode detail ikut diperkaya agar tetap memberi analisis yang lebih actionable saat provider utama gagal format.
 - AI Insight kini ikut memakai strategi multi-provider fallback (urutan `AI_PROVIDER_ORDER`, default `gemini,groq`) sehingga jika provider pertama kena rate limit/temporary error, sistem otomatis mencoba provider berikutnya.
 - Seleksi provider AI kini aware konfigurasi key:
   - provider tanpa API key tidak lagi ikut antrean fallback (OCR & Insight),

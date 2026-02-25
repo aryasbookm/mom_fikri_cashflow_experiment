@@ -45,7 +45,7 @@ class AiChatbotService {
     'GROQ_CHAT_MODEL',
     defaultValue: 'llama-3.1-8b-instant',
   );
-  static const int _maxOutputTokens = 700;
+  static const int _maxOutputTokens = 900;
   static const int _maxHistoryMessages = 8;
   static const int _maxProviderRetries = 2;
   static const Duration _cacheTtl = Duration(minutes: 10);
@@ -61,6 +61,15 @@ class AiChatbotService {
     List<AiChatMessage> history = const [],
   }) async {
     final safeQuestion = question.trim();
+    if (safeQuestion.length > 3500) {
+      return const AiChatReply(
+        text:
+            'Pertanyaan terlalu panjang untuk diproses aman dalam satu kali kirim. Pecah jadi 2-3 pesan: (1) angka/fakta utama, (2) pertanyaan analisis, (3) saran yang diinginkan.',
+        providerId: 'local-guard',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+      );
+    }
     final instantReply = _resolveInstantLocalReply(safeQuestion);
     if (instantReply != null) {
       return instantReply;
@@ -107,6 +116,7 @@ class AiChatbotService {
             .toList()
             .reversed
             .toList();
+    final detailedMode = _isDetailedAnalysisRequest(safeQuestion);
 
     final fingerprint = _buildFingerprint(
       question: safeQuestion,
@@ -130,6 +140,7 @@ class AiChatbotService {
       financeSnapshot: financeSnapshot,
       history: boundedHistory,
       memory: memory,
+      detailedMode: detailedMode,
     );
 
     final askedCategories = _extractAskedCategories(
@@ -142,6 +153,7 @@ class AiChatbotService {
     final firstIssue = _validateStructuredResponse(
       response: firstParsed,
       askedCategories: askedCategories,
+      detailedMode: detailedMode,
     );
 
     _StructuredChatResponse? finalParsed = firstParsed;
@@ -154,6 +166,7 @@ class AiChatbotService {
         askedCategories: askedCategories,
         previousIssue: firstIssue,
         memory: memory,
+        detailedMode: detailedMode,
       );
       final retryResponse = await _requestWithFallback(retryPrompt);
       providerId = retryResponse.providerId;
@@ -161,6 +174,7 @@ class AiChatbotService {
       final retryIssue = _validateStructuredResponse(
         response: retryParsed,
         askedCategories: askedCategories,
+        detailedMode: detailedMode,
       );
       if (retryIssue == null && retryParsed != null) {
         finalParsed = retryParsed;
@@ -169,6 +183,7 @@ class AiChatbotService {
           question: safeQuestion,
           financeSnapshot: financeSnapshot,
           askedCategories: askedCategories,
+          detailedMode: detailedMode,
         );
         providerId = 'local-fallback';
       }
@@ -177,7 +192,10 @@ class AiChatbotService {
     if (finalParsed == null) {
       throw const AiProviderTemporaryException('Jawaban AI kosong. Coba lagi.');
     }
-    final cleaned = _renderStructuredResponse(finalParsed);
+    final cleaned = _renderStructuredResponse(
+      finalParsed,
+      detailedMode: detailedMode,
+    );
     if (cleaned.isEmpty) {
       throw const AiProviderTemporaryException('Jawaban AI kosong. Coba lagi.');
     }
@@ -280,6 +298,7 @@ class AiChatbotService {
     required List<Map<String, dynamic>> financeSnapshot,
     required List<AiChatMessage> history,
     required AiChatbotMemory memory,
+    required bool detailedMode,
   }) {
     final safeQuestion = question.trim();
     final hasCatalog = financeSnapshot.any(
@@ -301,13 +320,18 @@ class AiChatbotService {
     final categoryHints = _buildCategoryHints(financeSnapshot);
     final memoryText = _memoryService.renderMemoryForPrompt(memory);
 
+    final verbosityRule =
+        detailedMode
+            ? '- MODE DETAIL aktif: jawab lebih mendalam dengan 4-8 poin/bagian yang tetap spesifik ke data.'
+            : '- Jawaban ringkas: maksimal 2 kalimat.';
+
     return '''
 Kamu adalah asisten keuangan UMKM untuk toko kue.
 Aturan keras:
 - Jawaban hanya boleh terkait data keuangan toko pada konteks di bawah.
 - Jika pertanyaan di luar konteks (cuaca, politik, umum), set status ke `outside_scope`.
 - Jangan mengarang angka.
-- Jawaban ringkas: maksimal 2 kalimat.
+$verbosityRule
 - Jika user menyebut kategori, gunakan nama kategori persis dari daftar kategori konteks.
 - Data `top_product` dan `slow_product` adalah sampel, bukan seluruh katalog.
 - Data `product_catalog` adalah stok saat ini. Jangan campur `stock_now` dengan `total_qty` penjualan.
@@ -345,6 +369,7 @@ $safeQuestion
     required List<String> askedCategories,
     required String previousIssue,
     required AiChatbotMemory memory,
+    required bool detailedMode,
   }) {
     final historyText =
         history.isEmpty
@@ -363,6 +388,10 @@ $safeQuestion
             : askedCategories.join(', ');
     final categoryHints = _buildCategoryHints(financeSnapshot);
     final memoryText = _memoryService.renderMemoryForPrompt(memory);
+    final detailRule =
+        detailedMode
+            ? '- MODE DETAIL aktif: berikan jawaban mendalam (4-8 poin) berbasis data.'
+            : '- Jawaban tetap ringkas dan tepat sasaran.';
     return '''
 Ulangi. Respons sebelumnya tidak valid karena:
 $previousIssue
@@ -376,6 +405,7 @@ Ketentuan wajib:
 - status `ok` => `dasar_data` minimal 1 item.
 - Jika user tanya kategori spesifik, sebut kategori itu secara eksplisit di `jawaban` atau `dasar_data`.
 - Jangan mengarang angka.
+$detailRule
 
 Kategori yang ditanya user:
 $askedCategoryText
@@ -448,6 +478,25 @@ $question
       }
     }
     return lineWithAmount >= 3 || (lineWithAmount >= 2 && listLike >= 1);
+  }
+
+  bool _isDetailedAnalysisRequest(String question) {
+    final q = question.toLowerCase();
+    const detailKeywords = <String>[
+      'analisis',
+      'bandingkan',
+      'bandingin',
+      'saran',
+      'strategi',
+      'detail',
+      'mendalam',
+      'kenapa',
+      'apa penyebab',
+      'hari ini',
+      'kemarin',
+    ];
+    final hitCount = detailKeywords.where(q.contains).length;
+    return hitCount >= 2;
   }
 
   Future<_ActionIntentResult?> _tryBuildImportDraftFromQuestion({
@@ -988,6 +1037,7 @@ $question
   String? _validateStructuredResponse({
     required _StructuredChatResponse? response,
     required List<String> askedCategories,
+    required bool detailedMode,
   }) {
     if (response == null) {
       return 'response bukan JSON terstruktur valid';
@@ -1003,6 +1053,11 @@ $question
     if (response.status == 'needs_data' &&
         response.dataTambahanDibutuhkan.isEmpty) {
       return 'status needs_data wajib menyebut data_tambahan_dibutuhkan';
+    }
+    if (detailedMode &&
+        response.status == 'ok' &&
+        response.jawaban.trim().length < 120) {
+      return 'mode detail aktif tetapi jawaban terlalu singkat';
     }
 
     const allowedSourceTypes = <String>{
@@ -1037,7 +1092,10 @@ $question
     return null;
   }
 
-  String _renderStructuredResponse(_StructuredChatResponse response) {
+  String _renderStructuredResponse(
+    _StructuredChatResponse response, {
+    required bool detailedMode,
+  }) {
     if (response.status == 'outside_scope') {
       return response.jawaban;
     }
@@ -1055,6 +1113,11 @@ $question
         response.dataTambahanDibutuhkan.isNotEmpty) {
       lines.add('Data tambahan dibutuhkan: ${response.dataTambahanDibutuhkan}');
     }
+    if (detailedMode && response.status == 'ok') {
+      lines.add(
+        'Jika Anda mau, saya bisa lanjutkan analisis lebih rinci per kategori/hari secara bertahap.',
+      );
+    }
     return lines.join('\n').trim();
   }
 
@@ -1062,6 +1125,7 @@ $question
     required String question,
     required List<Map<String, dynamic>> financeSnapshot,
     required List<String> askedCategories,
+    required bool detailedMode,
   }) {
     if (_looksOutsideScope(question)) {
       return const _StructuredChatResponse(
@@ -1114,7 +1178,9 @@ $question
       return _StructuredChatResponse(
         status: 'ok',
         jawaban:
-            'Kategori $category tercatat pemasukan Rp $inAmount dan pengeluaran Rp $outAmount dalam 30 hari.',
+            detailedMode
+                ? 'Analisis kategori $category (30 hari): pemasukan Rp $inAmount dan pengeluaran Rp $outAmount. Selisih kategori ini adalah Rp ${inAmount - outAmount}. Fokus utama: ${outAmount > inAmount ? 'tekan komponen biaya dominan di kategori ini' : 'pertahankan performa kategori sambil jaga margin'} dan validasi tren harian untuk mencegah penurunan mendadak.'
+                : 'Kategori $category tercatat pemasukan Rp $inAmount dan pengeluaran Rp $outAmount dalam 30 hari.',
         dasarData: [
           _DataBasis(
             sourceType:
@@ -1141,7 +1207,9 @@ $question
     return _StructuredChatResponse(
       status: 'ok',
       jawaban:
-          'Dalam 30 hari, pemasukan Rp $income, pengeluaran Rp $expense, selisih Rp $net.',
+          detailedMode
+              ? 'Ringkasan 30 hari: pemasukan Rp $income, pengeluaran Rp $expense, selisih Rp $net. Interpretasi cepat: ${net < 0 ? 'arus kas negatif menandakan biaya lebih cepat tumbuh dari pemasukan' : 'arus kas positif menandakan operasi relatif sehat'}. Langkah analitis berikutnya: bandingkan hari ini vs kemarin, lalu pecah biaya per kategori terbesar untuk cari sumber deviasi.'
+              : 'Dalam 30 hari, pemasukan Rp $income, pengeluaran Rp $expense, selisih Rp $net.',
       dasarData: [
         _DataBasis(
           sourceType: 'summary_30_days',
