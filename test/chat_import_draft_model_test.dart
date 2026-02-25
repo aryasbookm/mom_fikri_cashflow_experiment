@@ -434,5 +434,20 @@ void main() {
       expect(reply.providerId, 'memory-local');
       expect(reply.text.toLowerCase(), contains('arya'));
     });
+
+    test('hard-intent candidate uses local clarification options', () async {
+      final service = AiChatbotService();
+      final reply = await service.askFinancialAssistant(
+        question: '03/02/2026',
+        financeSnapshot: const [],
+      );
+
+      expect(reply.providerId, 'local-clarification');
+      expect(reply.text, contains('Maksud Anda yang mana?'));
+      expect(reply.text, contains('- Cek stok'));
+      expect(reply.text, contains('- Cek pemasukan/pengeluaran'));
+      expect(reply.text, contains('- Input draf transaksi'));
+      expect(reply.text, isNot(contains('- Analisis laporan')));
+    });
   });
 }

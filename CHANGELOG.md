@@ -18,6 +18,10 @@ All notable changes to this project will be documented in this file.
   - dukungan filter nominal minimum pada query pencarian (contoh: `di atas 50 ribu` / `minimal 100000`).
 - UX safety fix (chat info bottom sheet):
   - panel informasi indikator keyakinan/mode eksekusi kini menggunakan safe-area + padding bawah dinamis agar tidak bentrok dengan navigation bar Android.
+- Hybrid intent router hard/soft (chat):
+  - hard-intent ambigu (stok/tanggal/import) kini dikunci ke klarifikasi lokal kontekstual tanpa melewati AI classifier.
+  - AI classifier dipersempit untuk soft-intent (capability/small-talk/analysis/outside-scope) dengan threshold confidence sebelum eksekusi.
+  - prompt classifier diperkuat dengan few-shot + dukungan `suggestions` agar opsi klarifikasi lebih relevan (tidak selalu 4 opsi generik).
 
 - Chatbot intent router tuning (batch reliability):
   - intent stok dilonggarkan untuk frasa operasional pendek (`cek stok`, `stok saat ini`, `stok produk saat ini`) agar langsung masuk jalur deterministik lokal.

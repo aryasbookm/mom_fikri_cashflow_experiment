@@ -187,6 +187,10 @@
 - [ ] Uji smart search chatbot:
   - query `cari kategori pengeluaran di atas 50 ribu` menampilkan hasil filter kategori dari snapshot lokal.
   - query `cari produk`/`tampilkan riwayat harian` tidak memaksa jalur LLM saat data lokal cukup.
+- [ ] Uji hybrid intent router (hard vs soft):
+  - hard-intent ambigu (contoh tanggal mentah tanpa metrik) harus memunculkan klarifikasi lokal kontekstual (stok/arus kas/import), bukan fallback AI classifier.
+  - soft-intent ambigu harus melewati AI classifier dulu; klarifikasi muncul hanya saat confidence rendah.
+  - uji frasa identitas/memori (`siapa nama mu`, `siapa nama ku`, `nama ku ...`) agar tidak jatuh ke klarifikasi generik.
 - [ ] Jalankan regression test otomatis Phase 4:
   - `flutter test test/chat_import_draft_model_test.dart test/chat_import_audit_service_test.dart`
 - [ ] Jalankan regression test OCR parity Phase 1:

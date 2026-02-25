@@ -71,12 +71,18 @@ class AiChatbotService {
   static const int _maxOutputTokens = 900;
   static const int _maxHistoryMessages = 8;
   static const int _maxProviderRetries = 2;
+  static const double _aiIntentConfidenceThreshold = 0.65;
   static const Duration _cacheTtl = Duration(minutes: 10);
   static const List<String> _clarificationOptions = <String>[
     'Cek stok',
     'Cek pemasukan/pengeluaran',
     'Input draf transaksi',
     'Analisis laporan',
+  ];
+  static const List<String> _hardIntentClarificationOptions = <String>[
+    'Cek stok',
+    'Cek pemasukan/pengeluaran',
+    'Input draf transaksi',
   ];
 
   static const String _cacheKeyText = 'ai_chat_cache_text_v1';
@@ -130,22 +136,45 @@ class AiChatbotService {
     if (localIntent.type == ChatIntentType.unknown ||
         localIntent.type == ChatIntentType.ambiguous ||
         localIntent.type == ChatIntentType.outsideScope) {
-      final aiIntent = await _classifyIntentWithAi(
-        question: safeQuestion,
-        providerOrderOverride: providerOrderOverride,
-      );
-      if (aiIntent != null) {
-        final aiRoutedReply = await _routeIntentDecision(
-          decision: aiIntent,
+      final normalizedQuestion = localIntent.normalizedQuestion;
+      if (_looksHardIntentCandidate(normalizedQuestion)) {
+        return _finalizeConfidenceReply(
+          _buildClarificationReply(
+            ChatIntentDecision(
+              type: ChatIntentType.ambiguous,
+              confidence: 0.4,
+              normalizedQuestion: normalizedQuestion,
+              reason: 'hard_intent_ambiguous_local_guard',
+              clarificationOptions: _hardIntentClarificationOptions,
+            ),
+          ),
+        );
+      } else {
+        final aiIntent = await _classifyIntentWithAi(
           question: safeQuestion,
-          financeSnapshot: financeSnapshot,
           providerOrderOverride: providerOrderOverride,
         );
-        if (aiRoutedReply != null) {
-          return _finalizeConfidenceReply(aiRoutedReply);
-        }
-        if (aiIntent.type == ChatIntentType.outsideScope) {
-          return _finalizeConfidenceReply(_buildOutsideScopeReply());
+        if (aiIntent != null) {
+          if (aiIntent.type == ChatIntentType.outsideScope) {
+            return _finalizeConfidenceReply(_buildOutsideScopeReply());
+          }
+          final isLowConfidence =
+              aiIntent.confidence < _aiIntentConfidenceThreshold;
+          final isAmbiguous =
+              aiIntent.type == ChatIntentType.ambiguous ||
+              aiIntent.type == ChatIntentType.unknown;
+          if (isLowConfidence || isAmbiguous) {
+            return _finalizeConfidenceReply(_buildClarificationReply(aiIntent));
+          }
+          final aiRoutedReply = await _routeIntentDecision(
+            decision: aiIntent,
+            question: safeQuestion,
+            financeSnapshot: financeSnapshot,
+            providerOrderOverride: providerOrderOverride,
+          );
+          if (aiRoutedReply != null) {
+            return _finalizeConfidenceReply(aiRoutedReply);
+          }
         }
       }
 
@@ -457,32 +486,36 @@ class AiChatbotService {
   String _buildIntentClassifierPrompt(String question) {
     return '''
 Anda adalah classifier intent untuk asisten keuangan toko.
-Tugas Anda hanya klasifikasi intent, bukan menjawab pertanyaan.
+Tugas Anda hanya klasifikasi soft-intent (bukan menghitung angka).
 
 Pilih SATU intent dari daftar berikut:
 - capability_help
 - small_talk
-- stock_query
-- date_query
-- import_draft
 - analysis
 - outside_scope
 - ambiguous
 - unknown
 
 WAJIB output JSON valid saja tanpa markdown:
-{"intent":"...","confidence":0-100,"reason":"..."}
+{"intent":"...","confidence":0-100,"reason":"...","suggestions":["...","..."]}
 
 Aturan:
 - Jika user menyapa atau tes singkat => small_talk.
 - Jika user tanya kemampuan bot/cara pakai => capability_help.
-- Jika user tanya stok/ranking/list stok => stock_query.
-- Jika user tanya hari ini/kemarin/bandingkan metrik => date_query.
-- Jika user ingin mengubah daftar transaksi jadi draf => import_draft.
 - Jika user minta insight/saran/analisis dari data toko => analysis.
 - Jika topik jelas di luar keuangan toko => outside_scope.
+- Jika user sebenarnya terlihat seperti perintah stok/tanggal/import transaksi, set `intent=ambiguous` dan beri `suggestions` kontekstual.
 - Jika maksud belum jelas => ambiguous.
 - confidence wajib angka 0..100.
+- suggestions berisi 2-3 opsi singkat yang paling relevan (contoh: "Cek stok", "Cek pemasukan/pengeluaran", "Input draf transaksi").
+
+Few-shot contoh:
+Input: "siapa nama ku?"
+Output: {"intent":"capability_help","confidence":86,"reason":"identity_question","suggestions":["Kemampuan bot","Lihat memori"]}
+Input: "barang sisa berapa"
+Output: {"intent":"ambiguous","confidence":52,"reason":"hard_intent_not_allowed_here","suggestions":["Cek stok","Cek pemasukan/pengeluaran"]}
+Input: "kenapa bulan ini sepi"
+Output: {"intent":"analysis","confidence":78,"reason":"analysis_request","suggestions":["Analisis laporan","Aksi prioritas"]}
 
 Teks user:
 $question
@@ -529,7 +562,7 @@ $question
 
     final intentRaw =
         (decoded['intent'] ?? decoded['label'] ?? '').toString().trim();
-    final intent = _parseIntentType(intentRaw);
+    final intent = _parseSoftIntentType(intentRaw);
     if (intent == null) {
       return null;
     }
@@ -547,10 +580,7 @@ $question
     confidence = confidence.clamp(0.0, 1.0);
     final reason =
         (decoded['reason'] ?? 'ai_intent_classifier').toString().trim();
-    final clarifications =
-        intent == ChatIntentType.ambiguous || intent == ChatIntentType.unknown
-            ? _clarificationOptions
-            : const <String>[];
+    final clarifications = _extractAiClarificationOptions(decoded);
     return ChatIntentDecision(
       type: intent,
       confidence: confidence,
@@ -560,7 +590,7 @@ $question
     );
   }
 
-  ChatIntentType? _parseIntentType(String raw) {
+  ChatIntentType? _parseSoftIntentType(String raw) {
     final value = raw.trim().toLowerCase();
     switch (value) {
       case 'capability_help':
@@ -571,18 +601,6 @@ $question
       case 'smalltalk':
       case 'greeting':
         return ChatIntentType.smallTalk;
-      case 'stock_query':
-      case 'stock':
-      case 'stok_query':
-        return ChatIntentType.stockQuery;
-      case 'date_query':
-      case 'date':
-      case 'tanggal':
-        return ChatIntentType.dateQuery;
-      case 'import_draft':
-      case 'import':
-      case 'import_transactions':
-        return ChatIntentType.importDraft;
       case 'analysis':
       case 'insight':
       case 'analytical':
@@ -599,6 +617,79 @@ $question
       default:
         return null;
     }
+  }
+
+  List<String> _extractAiClarificationOptions(Map<String, dynamic> decoded) {
+    final raw =
+        decoded['suggestions'] ?? decoded['options'] ?? decoded['candidates'];
+    final normalized = <String>[];
+    if (raw is List) {
+      for (final item in raw) {
+        final text = item.toString().trim();
+        if (text.isEmpty) {
+          continue;
+        }
+        final mapped = _mapClarificationOption(text);
+        if (mapped.isEmpty || normalized.contains(mapped)) {
+          continue;
+        }
+        normalized.add(mapped);
+        if (normalized.length >= 3) {
+          break;
+        }
+      }
+    }
+    return normalized.isEmpty ? _clarificationOptions : normalized;
+  }
+
+  String _mapClarificationOption(String raw) {
+    final q = raw.toLowerCase();
+    if (q.contains('stok') || q.contains('stock')) {
+      return 'Cek stok';
+    }
+    if (q.contains('pemasukan') ||
+        q.contains('pengeluaran') ||
+        q.contains('keuangan') ||
+        q.contains('laporan harian')) {
+      return 'Cek pemasukan/pengeluaran';
+    }
+    if (q.contains('draf') || q.contains('input') || q.contains('transaksi')) {
+      return 'Input draf transaksi';
+    }
+    if (q.contains('analisis') ||
+        q.contains('insight') ||
+        q.contains('saran')) {
+      return 'Analisis laporan';
+    }
+    if (q.contains('bantu') || q.contains('kemampuan') || q.contains('fitur')) {
+      return 'Bantuan / kemampuan bot';
+    }
+    if (q.contains('memori') || q.contains('nama')) {
+      return 'Lihat memori / nama tersimpan';
+    }
+    return raw.trim();
+  }
+
+  bool _looksHardIntentCandidate(String normalizedQuestion) {
+    final q = normalizedQuestion.toLowerCase();
+    if (_looksLikeImportAction(q) || _looksLikeTransactionListText(q)) {
+      return true;
+    }
+    final stockSignals =
+        q.contains('stok') ||
+        q.contains('stock') ||
+        q.contains('sisa') ||
+        q.contains('produk aktif') ||
+        q.contains('diarsipkan');
+    final dateSignals =
+        q.contains('hari ini') ||
+        q.contains('kemarin') ||
+        q.contains('hari lalu') ||
+        q.contains('minggu') ||
+        q.contains('bulan') ||
+        RegExp(r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b').hasMatch(q) ||
+        RegExp(r'\b\d{4}-\d{2}-\d{2}\b').hasMatch(q);
+    return stockSignals || dateSignals;
   }
 
   AiChatReply? _resolveInstantLocalReply(
