@@ -363,6 +363,10 @@ class AiChatbotService {
     final asksListOnly =
         q.contains('stoknya berapa') ||
         q.contains('stok berapa') ||
+        q.contains('sebutkan stok') ||
+        q.contains('daftar stok') ||
+        q.contains('stok selain') ||
+        q.contains('stok di atas') ||
         q.contains('masih') ||
         q.contains('sisa');
     if (!asksStock || (!asksOrder && !asksListOnly)) {
@@ -805,6 +809,7 @@ class AiChatbotService {
   }
 
   bool _isGreetingQuery(String q) {
+    final normalized = q.trim();
     const greetings = <String>{
       'halo',
       'hai',
@@ -820,17 +825,32 @@ class AiChatbotService {
       'selamat sore',
       'selamat malam',
     };
-    return greetings.contains(q);
+    if (greetings.contains(normalized)) {
+      return true;
+    }
+    if (RegExp(r'^(halo|hai|hi|tes|test)\b').hasMatch(normalized)) {
+      return true;
+    }
+    if (RegExp(r'^selamat (pagi|siang|sore|malam)\b').hasMatch(normalized)) {
+      return true;
+    }
+    return false;
   }
 
   bool _isClassicSmallTalkQuery(String q) {
+    final normalized = q.trim();
     const smallTalks = <String>{
       'apa kabar',
       'gimana kabar',
       'terima kasih',
       'makasih',
     };
-    return smallTalks.contains(q);
+    if (smallTalks.contains(normalized)) {
+      return true;
+    }
+    return RegExp(
+      r'^(apa kabar|gimana kabar|terima kasih|makasih)\b',
+    ).hasMatch(normalized);
   }
 
   String _buildBoundedPrompt({
@@ -1880,7 +1900,11 @@ $question
       final providerId = providerIds[i];
       final hasNext = i < providerIds.length - 1;
       try {
-        final text = await _requestProviderWithRetry(providerId, prompt);
+        final text = await _requestProviderWithRetry(
+          providerId,
+          prompt,
+          hasFallbackProvider: hasNext,
+        );
         return _ChatProviderResponse(providerId: providerId, text: text);
       } on AiRateLimitException catch (error) {
         lastError = error;
@@ -1915,10 +1939,12 @@ $question
 
   Future<String> _requestProviderWithRetry(
     String providerId,
-    String prompt,
-  ) async {
+    String prompt, {
+    required bool hasFallbackProvider,
+  }) async {
     Object? lastError;
-    for (var attempt = 1; attempt <= _maxProviderRetries; attempt++) {
+    final maxAttempts = hasFallbackProvider ? 1 : _maxProviderRetries;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         if (providerId == 'groq') {
           return await _requestGroq(prompt);
@@ -1926,7 +1952,7 @@ $question
         return await _requestGemini(prompt);
       } on AiRateLimitException catch (error) {
         lastError = error;
-        if (error.isDailyLimit || attempt >= _maxProviderRetries) {
+        if (error.isDailyLimit || attempt >= maxAttempts) {
           rethrow;
         }
         await Future<void>.delayed(
@@ -1938,7 +1964,7 @@ $question
         );
       } on AiProviderTemporaryException catch (error) {
         lastError = error;
-        if (attempt >= _maxProviderRetries) {
+        if (attempt >= maxAttempts || hasFallbackProvider) {
           rethrow;
         }
         await Future<void>.delayed(_nextRetryDelay(attempt));
@@ -2012,9 +2038,16 @@ $question
               },
             }),
           )
-          .timeout(const Duration(seconds: 20));
+          .timeout(const Duration(seconds: 10));
     } on SocketException {
       throw const AiProviderTemporaryException('Tidak ada koneksi internet.');
+    } on http.ClientException catch (error) {
+      final raw = error.message.trim();
+      throw AiProviderTemporaryException(
+        raw.isEmpty
+            ? 'Koneksi ke Gemini chat terputus. Sistem akan mencoba provider lain.'
+            : 'Koneksi ke Gemini chat terputus: $raw',
+      );
     } on HttpException {
       throw const AiProviderTemporaryException('Gagal menghubungi server AI.');
     } on FormatException {
@@ -2115,9 +2148,16 @@ $question
               ],
             }),
           )
-          .timeout(const Duration(seconds: 20));
+          .timeout(const Duration(seconds: 10));
     } on SocketException {
       throw const AiProviderTemporaryException('Tidak ada koneksi internet.');
+    } on http.ClientException catch (error) {
+      final raw = error.message.trim();
+      throw AiProviderTemporaryException(
+        raw.isEmpty
+            ? 'Koneksi ke Groq chat terputus. Sistem akan mencoba provider lain.'
+            : 'Koneksi ke Groq chat terputus: $raw',
+      );
     } on HttpException {
       throw const AiProviderTemporaryException('Gagal menghubungi server AI.');
     } on FormatException {

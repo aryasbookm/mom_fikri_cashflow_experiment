@@ -38,7 +38,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   int _cooldownSeconds = 0;
   bool _initialQuestionHandled = false;
   String? _pendingInitialQuestion;
-  String _chatProviderPriority = 'auto';
+  String _chatProviderPriority = 'groq_first';
   Timer? _cooldownTimer;
   static const List<String> _quickQuestions = [
     'Kamu bisa apa?',
@@ -69,9 +69,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
 
   Future<void> _loadChatSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = (prefs.getString(_chatProviderPriorityKey) ?? 'auto').trim();
-    final normalized =
-        saved == 'gemini_first' || saved == 'groq_first' ? saved : 'auto';
+    final saved =
+        (prefs.getString(_chatProviderPriorityKey) ?? 'groq_first').trim();
+    final normalized = saved == 'gemini_first' ? 'gemini_first' : 'groq_first';
     if (!mounted) {
       return;
     }
@@ -81,8 +81,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   }
 
   Future<void> _setChatProviderPriority(String value) async {
-    final normalized =
-        value == 'gemini_first' || value == 'groq_first' ? value : 'auto';
+    final normalized = value == 'gemini_first' ? 'gemini_first' : 'groq_first';
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_chatProviderPriorityKey, normalized);
     if (!mounted) {
@@ -100,7 +99,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       case 'gemini_first':
         return 'gemini,groq';
       default:
-        return null;
+        return 'groq,gemini';
     }
   }
 
@@ -111,7 +110,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       case 'gemini_first':
         return 'Gemini dulu';
       default:
-        return 'Otomatis (default: Groq dulu)';
+        return 'Groq dulu';
     }
   }
 
@@ -532,16 +531,12 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             itemBuilder:
                 (context) => const [
                   PopupMenuItem<String>(
-                    value: 'auto',
-                    child: Text('Otomatis (default: Groq dulu)'),
-                  ),
-                  PopupMenuItem<String>(
                     value: 'groq_first',
-                    child: Text('Prioritaskan Groq'),
+                    child: Text('Groq dulu (Rekomendasi)'),
                   ),
                   PopupMenuItem<String>(
                     value: 'gemini_first',
-                    child: Text('Prioritaskan Gemini'),
+                    child: Text('Gemini dulu'),
                   ),
                 ],
             icon: const Icon(Icons.tune),
@@ -550,23 +545,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             tooltip: 'Hapus chat',
             onPressed: _messages.length <= 1 ? null : _clearChat,
             icon: const Icon(Icons.delete_sweep_outlined),
-          ),
-          IconButton(
-            tooltip: 'Refresh data chat',
-            onPressed:
-                _isLoading
-                    ? null
-                    : () async {
-                      final prefs = await SharedPreferences.getInstance();
-                      await prefs.remove(_chatStoreKey);
-                      await prefs.remove(_chatSnapshotKey);
-                      await prefs.remove(_chatSavedAtKey);
-                      if (!mounted) {
-                        return;
-                      }
-                      setState(_resetChat);
-                    },
-            icon: const Icon(Icons.refresh_outlined),
           ),
         ],
       ),
@@ -788,7 +766,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                       Expanded(
                         child: TextField(
                           controller: _inputController,
-                          enabled: !_isLoading && _cooldownSeconds <= 0,
+                          enabled: _cooldownSeconds <= 0,
                           textInputAction: TextInputAction.send,
                           onSubmitted: (_) => _sendFromInput(),
                           decoration: const InputDecoration(

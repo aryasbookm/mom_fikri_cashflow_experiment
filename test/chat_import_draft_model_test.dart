@@ -255,6 +255,48 @@ void main() {
         expect(reply.text, isNot(contains('Aksi singkat:')));
       },
     );
+
+    test(
+      'handles phrase "sebutkan stok selain yang 0" deterministically',
+      () async {
+        final service = AiChatbotService();
+        final reply = await service.askFinancialAssistant(
+          question: 'sebutkan stok selain yang 0',
+          financeSnapshot: [
+            {
+              'type': 'product_catalog',
+              'name': 'Donat Mini',
+              'stock_now': 5,
+              'min_stock': 3,
+              'is_active': true,
+            },
+            {
+              'type': 'product_catalog',
+              'name': 'Roti Maros',
+              'stock_now': 6,
+              'min_stock': 2,
+              'is_active': true,
+            },
+            {
+              'type': 'product_catalog',
+              'name': 'Roti Tawar',
+              'stock_now': 0,
+              'min_stock': 1,
+              'is_active': true,
+            },
+          ],
+        );
+
+        expect(reply.providerId, 'local-deterministic');
+        expect(reply.confidenceLevel, 'high');
+        expect(reply.text, contains('Produk dengan stok lebih dari 0'));
+        expect(reply.text, contains('Donat Mini: 5'));
+        expect(reply.text, contains('Roti Maros: 6'));
+        expect(reply.text, isNot(contains('Roti Tawar')));
+        expect(reply.text, isNot(contains('Dasar data:')));
+        expect(reply.text, isNot(contains('Aksi singkat:')));
+      },
+    );
   });
 
   group('AiChatbotService capability intent', () {
@@ -271,6 +313,18 @@ void main() {
       expect(reply.text, contains('Batasan:'));
       expect(reply.text, isNot(contains('Dasar data:')));
       expect(reply.text, isNot(contains('Aksi singkat:')));
+    });
+
+    test('routes greeting with provider suffix to local smalltalk', () async {
+      final service = AiChatbotService();
+      final reply = await service.askFinancialAssistant(
+        question: 'halo gemini',
+        financeSnapshot: const [],
+      );
+
+      expect(reply.providerId, 'local-smalltalk');
+      expect(reply.confidenceLevel, 'high');
+      expect(reply.text.toLowerCase(), contains('halo'));
     });
   });
 }
