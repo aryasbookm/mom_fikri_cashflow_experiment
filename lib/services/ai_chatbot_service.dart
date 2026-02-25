@@ -17,11 +17,15 @@ class AiChatMessage {
     required this.role,
     required this.text,
     this.providerId,
+    this.confidenceLevel,
+    this.confidenceReason,
   });
 
   final String role; // "user" | "assistant"
   final String text;
   final String? providerId;
+  final String? confidenceLevel; // high | medium | low
+  final String? confidenceReason;
 }
 
 class AiChatReply {
@@ -31,6 +35,8 @@ class AiChatReply {
     required this.fromCache,
     required this.suggestedCooldownSeconds,
     this.actionDraft,
+    this.confidenceLevel = 'medium',
+    this.confidenceReason,
   });
 
   final String text;
@@ -38,6 +44,8 @@ class AiChatReply {
   final bool fromCache;
   final int suggestedCooldownSeconds;
   final ChatImportDraft? actionDraft;
+  final String confidenceLevel; // high | medium | low
+  final String? confidenceReason;
 }
 
 class AiChatbotService {
@@ -72,20 +80,31 @@ class AiChatbotService {
       financeSnapshot: financeSnapshot,
     );
     if (stockRankingReply != null) {
-      return stockRankingReply;
+      return _finalizeConfidenceReply(stockRankingReply);
+    }
+    final dateQueryReply = _resolveDeterministicDateQueryReply(
+      question: safeQuestion,
+      financeSnapshot: financeSnapshot,
+    );
+    if (dateQueryReply != null) {
+      return _finalizeConfidenceReply(dateQueryReply);
     }
     if (safeQuestion.length > 3500) {
-      return const AiChatReply(
-        text:
-            'Pertanyaan terlalu panjang untuk diproses aman dalam satu kali kirim. Pecah jadi 2-3 pesan: (1) angka/fakta utama, (2) pertanyaan analisis, (3) saran yang diinginkan.',
-        providerId: 'local-guard',
-        fromCache: false,
-        suggestedCooldownSeconds: 1,
+      return _finalizeConfidenceReply(
+        const AiChatReply(
+          text:
+              'Pertanyaan terlalu panjang untuk diproses aman dalam satu kali kirim. Pecah jadi 2-3 pesan: (1) angka/fakta utama, (2) pertanyaan analisis, (3) saran yang diinginkan.',
+          providerId: 'local-guard',
+          fromCache: false,
+          suggestedCooldownSeconds: 1,
+          confidenceLevel: 'low',
+          confidenceReason: 'Pertanyaan terlalu panjang dan berpotensi ambigu.',
+        ),
       );
     }
     final instantReply = _resolveInstantLocalReply(safeQuestion);
     if (instantReply != null) {
-      return instantReply;
+      return _finalizeConfidenceReply(instantReply);
     }
     final memory = await _memoryService.loadMemory();
     final memoryAction = _resolveMemoryAction(
@@ -93,7 +112,9 @@ class AiChatbotService {
       memory: memory,
     );
     if (memoryAction != null) {
-      return _applyMemoryAction(action: memoryAction, memory: memory);
+      return _finalizeConfidenceReply(
+        await _applyMemoryAction(action: memoryAction, memory: memory),
+      );
     }
     if (_looksLikeImportAction(safeQuestion) ||
         _looksLikeTransactionListText(safeQuestion)) {
@@ -102,21 +123,30 @@ class AiChatbotService {
         financeSnapshot: financeSnapshot,
       );
       if (action == null) {
-        return const AiChatReply(
-          text:
-              'Saya mendeteksi ini seperti daftar transaksi, tapi ada bagian yang belum cukup jelas untuk diproses aman (mis. nominal/format baris/tanggal). Coba kirim ulang dengan format 1 baris per transaksi, contoh: "Donat 20000" atau "Sosis 10000 + 5000". Jika tanggal tidak ada, saya akan pakai tanggal hari ini dan tandai untuk review.',
-          providerId: 'chat-action-intent',
-          fromCache: false,
-          suggestedCooldownSeconds: 1,
+        return _finalizeConfidenceReply(
+          const AiChatReply(
+            text:
+                'Saya mendeteksi ini seperti daftar transaksi, tapi ada bagian yang belum cukup jelas untuk diproses aman (mis. nominal/format baris/tanggal). Coba kirim ulang dengan format 1 baris per transaksi, contoh: "Donat 20000" atau "Sosis 10000 + 5000". Jika tanggal tidak ada, saya akan pakai tanggal hari ini dan tandai untuk review.',
+            providerId: 'chat-action-intent',
+            fromCache: false,
+            suggestedCooldownSeconds: 1,
+            confidenceLevel: 'low',
+            confidenceReason:
+                'Format transaksi ambigu dan belum aman diproses.',
+          ),
         );
       }
-      return AiChatReply(
-        text:
-            'Draf transaksi berhasil disiapkan. Silakan review dulu sebelum disimpan.',
-        providerId: action.providerId,
-        fromCache: false,
-        suggestedCooldownSeconds: 1,
-        actionDraft: action.draft,
+      return _finalizeConfidenceReply(
+        AiChatReply(
+          text:
+              'Draf transaksi berhasil disiapkan. Silakan review dulu sebelum disimpan.',
+          providerId: action.providerId,
+          fromCache: false,
+          suggestedCooldownSeconds: 1,
+          actionDraft: action.draft,
+          confidenceLevel: _confidenceForDraft(action.draft),
+          confidenceReason: _confidenceReasonForDraft(action.draft),
+        ),
       );
     }
 
@@ -140,11 +170,16 @@ class AiChatbotService {
 
     final cached = await _tryGetCached(fingerprint);
     if (cached != null) {
-      return AiChatReply(
-        text: cached,
-        providerId: 'cache',
-        fromCache: true,
-        suggestedCooldownSeconds: 1,
+      return _finalizeConfidenceReply(
+        AiChatReply(
+          text: cached,
+          providerId: 'cache',
+          fromCache: true,
+          suggestedCooldownSeconds: 1,
+          confidenceLevel: 'medium',
+          confidenceReason:
+              'Jawaban diambil dari cache konteks data yang sama.',
+        ),
       );
     }
 
@@ -213,19 +248,36 @@ class AiChatbotService {
       throw const AiProviderTemporaryException('Jawaban AI kosong. Coba lagi.');
     }
 
-    await _saveCache(fingerprint: fingerprint, text: cleaned);
-    return AiChatReply(
-      text: cleaned,
+    final confidenceLevel = _confidenceForProvider(
       providerId: providerId,
-      fromCache: false,
-      suggestedCooldownSeconds:
-          providerId == 'cache'
-              ? 1
-              : providerId == 'groq'
-              ? 3
-              : providerId == 'local-fallback'
-              ? 1
-              : 4,
+      response: finalParsed,
+    );
+    final confidenceReason = _confidenceReasonForProvider(
+      providerId: providerId,
+      response: finalParsed,
+    );
+    final framedText = _applyConfidenceFraming(
+      text: cleaned,
+      confidenceLevel: confidenceLevel,
+    );
+
+    await _saveCache(fingerprint: fingerprint, text: cleaned);
+    return _finalizeConfidenceReply(
+      AiChatReply(
+        text: framedText,
+        providerId: providerId,
+        fromCache: false,
+        suggestedCooldownSeconds:
+            providerId == 'cache'
+                ? 1
+                : providerId == 'groq'
+                ? 3
+                : providerId == 'local-fallback'
+                ? 1
+                : 4,
+        confidenceLevel: confidenceLevel,
+        confidenceReason: confidenceReason,
+      ),
     );
   }
 
@@ -306,6 +358,8 @@ class AiChatbotService {
         providerId: 'local-deterministic',
         fromCache: false,
         suggestedCooldownSeconds: 1,
+        confidenceLevel: 'medium',
+        confidenceReason: 'Data stok belum tersedia di snapshot saat ini.',
       );
     }
 
@@ -328,6 +382,8 @@ class AiChatbotService {
         providerId: 'local-deterministic',
         fromCache: false,
         suggestedCooldownSeconds: 1,
+        confidenceLevel: 'high',
+        confidenceReason: 'Jawaban dihitung langsung dari katalog stok lokal.',
       );
     }
 
@@ -345,6 +401,8 @@ class AiChatbotService {
       providerId: 'local-deterministic',
       fromCache: false,
       suggestedCooldownSeconds: 1,
+      confidenceLevel: 'high',
+      confidenceReason: 'Urutan stok dihitung deterministik dari data katalog.',
     );
   }
 
@@ -364,6 +422,294 @@ class AiChatbotService {
       }
     }
     return null;
+  }
+
+  String _confidenceForDraft(ChatImportDraft draft) {
+    final inferredCount =
+        draft.transactions
+            .where((item) => item.dateSource == 'inferred')
+            .length;
+    final needsReviewCount =
+        draft.transactions.where((item) => item.needsReview).length;
+    if (needsReviewCount > 0 || inferredCount > 0) {
+      return 'medium';
+    }
+    return 'high';
+  }
+
+  String _confidenceReasonForDraft(ChatImportDraft draft) {
+    final inferredCount =
+        draft.transactions
+            .where((item) => item.dateSource == 'inferred')
+            .length;
+    final needsReviewCount =
+        draft.transactions.where((item) => item.needsReview).length;
+    if (needsReviewCount > 0 || inferredCount > 0) {
+      return 'Draf mengandung item review/inferensi tanggal.';
+    }
+    return 'Draf terbaca jelas dan tidak ada item review.';
+  }
+
+  String _confidenceForProvider({
+    required String providerId,
+    required _StructuredChatResponse response,
+  }) {
+    if (providerId == 'local-deterministic') {
+      return 'high';
+    }
+    if (providerId == 'local-fallback') {
+      return 'low';
+    }
+    if (providerId == 'groq' ||
+        providerId == 'gemini' ||
+        providerId == 'cache') {
+      if (response.status == 'needs_data') {
+        return 'medium';
+      }
+      return 'high';
+    }
+    return 'medium';
+  }
+
+  String _confidenceReasonForProvider({
+    required String providerId,
+    required _StructuredChatResponse response,
+  }) {
+    if (providerId == 'local-deterministic') {
+      return 'Jawaban dihitung langsung dari data lokal secara deterministik.';
+    }
+    if (providerId == 'local-fallback') {
+      return 'Provider utama gagal format/grounding, memakai fallback lokal.';
+    }
+    if (providerId == 'cache') {
+      return 'Jawaban berasal dari cache snapshot data yang sama.';
+    }
+    if (response.status == 'needs_data') {
+      return 'Data belum lengkap untuk jawaban yang sepenuhnya pasti.';
+    }
+    return 'Jawaban berasal dari provider AI dengan validasi struktur lokal.';
+  }
+
+  String _applyConfidenceFraming({
+    required String text,
+    required String confidenceLevel,
+  }) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty || confidenceLevel == 'high') {
+      return trimmed;
+    }
+    if (confidenceLevel == 'medium') {
+      if (trimmed.toLowerCase().startsWith('berdasarkan data yang ada')) {
+        return trimmed;
+      }
+      return 'Berdasarkan data yang ada, hasil ini perlu ditinjau.\n$trimmed';
+    }
+    if (trimmed.toLowerCase().startsWith('berdasarkan data terbatas')) {
+      return trimmed;
+    }
+    return 'Berdasarkan data terbatas, hasil ini bersifat perkiraan.\n$trimmed';
+  }
+
+  AiChatReply _finalizeConfidenceReply(AiChatReply reply) {
+    final framedText = _applyConfidenceFraming(
+      text: reply.text,
+      confidenceLevel: reply.confidenceLevel,
+    );
+    if (framedText == reply.text) {
+      return reply;
+    }
+    return AiChatReply(
+      text: framedText,
+      providerId: reply.providerId,
+      fromCache: reply.fromCache,
+      suggestedCooldownSeconds: reply.suggestedCooldownSeconds,
+      actionDraft: reply.actionDraft,
+      confidenceLevel: reply.confidenceLevel,
+      confidenceReason: reply.confidenceReason,
+    );
+  }
+
+  AiChatReply? _resolveDeterministicDateQueryReply({
+    required String question,
+    required List<Map<String, dynamic>> financeSnapshot,
+  }) {
+    final q = question.toLowerCase();
+    final asksToday = q.contains('hari ini');
+    final asksYesterday = q.contains('kemarin');
+    final asksCompare =
+        q.contains('banding') ||
+        q.contains('compare') ||
+        q.contains('perbandingan') ||
+        (asksToday && asksYesterday);
+    final asksDateQuery = asksToday || asksYesterday || asksCompare;
+    if (!asksDateQuery) {
+      return null;
+    }
+
+    final dailyRows =
+        financeSnapshot
+            .where((row) => (row['type'] ?? '').toString() == 'daily_summary')
+            .toList();
+    if (dailyRows.isEmpty) {
+      return const AiChatReply(
+        text:
+            'Data harian belum tersedia, jadi saya belum bisa hitung hari ini/kemarin secara pasti. Pastikan transaksi harian sudah tercatat.',
+        providerId: 'local-deterministic',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+        confidenceLevel: 'medium',
+        confidenceReason: 'Snapshot belum memiliki data daily_summary.',
+      );
+    }
+
+    final metric = _resolveDateMetric(q);
+    final metricLabel = _metricLabel(metric);
+    final now = DateTime.now();
+    final todayKey = DateFormat('yyyy-MM-dd').format(now);
+    final yesterdayKey = DateFormat(
+      'yyyy-MM-dd',
+    ).format(now.subtract(const Duration(days: 1)));
+    final dailyMap = <String, Map<String, dynamic>>{};
+    for (final row in dailyRows) {
+      final key = (row['date'] ?? '').toString().trim();
+      if (key.isNotEmpty) {
+        dailyMap[key] = row;
+      }
+    }
+
+    final todayValue = _extractMetricValue(dailyMap[todayKey], metric);
+    final yesterdayValue = _extractMetricValue(dailyMap[yesterdayKey], metric);
+    final todayLabel = DateFormat('d MMM yyyy').format(now);
+    final yesterdayLabel = DateFormat(
+      'd MMM yyyy',
+    ).format(now.subtract(const Duration(days: 1)));
+
+    String formatCurrency(int value) =>
+        'Rp ${NumberFormat('#,##0', 'id_ID').format(value)}';
+
+    if (asksCompare) {
+      if (todayValue == null || yesterdayValue == null) {
+        return AiChatReply(
+          text:
+              'Saya butuh data harian lengkap untuk membandingkan $metricLabel hari ini vs kemarin. '
+              'Data tersedia: hari ini=${todayValue != null ? formatCurrency(todayValue) : '-'}, '
+              'kemarin=${yesterdayValue != null ? formatCurrency(yesterdayValue) : '-'}.',
+          providerId: 'local-deterministic',
+          fromCache: false,
+          suggestedCooldownSeconds: 1,
+          confidenceLevel: 'medium',
+          confidenceReason:
+              'Data hari ini/kemarin belum lengkap untuk komparasi.',
+        );
+      }
+      final delta = todayValue - yesterdayValue;
+      final trend =
+          delta > 0
+              ? 'naik'
+              : delta < 0
+              ? 'turun'
+              : 'stabil';
+      final deltaAbs = NumberFormat('#,##0', 'id_ID').format(delta.abs());
+      return AiChatReply(
+        text:
+            '$metricLabel $todayLabel: ${formatCurrency(todayValue)}\n'
+            '$metricLabel $yesterdayLabel: ${formatCurrency(yesterdayValue)}\n'
+            'Perbandingan: $trend sebesar Rp $deltaAbs.',
+        providerId: 'local-deterministic',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+        confidenceLevel: 'high',
+        confidenceReason:
+            'Komparasi dihitung deterministik dari daily_summary.',
+      );
+    }
+
+    if (asksYesterday) {
+      if (yesterdayValue == null) {
+        return AiChatReply(
+          text:
+              'Data $metricLabel untuk kemarin ($yesterdayLabel) belum tersedia.',
+          providerId: 'local-deterministic',
+          fromCache: false,
+          suggestedCooldownSeconds: 1,
+          confidenceLevel: 'medium',
+          confidenceReason: 'Nilai kemarin tidak tersedia pada data harian.',
+        );
+      }
+      return AiChatReply(
+        text:
+            '$metricLabel kemarin ($yesterdayLabel): ${formatCurrency(yesterdayValue)}.',
+        providerId: 'local-deterministic',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+        confidenceLevel: 'high',
+        confidenceReason:
+            'Nilai kemarin dihitung deterministik dari data harian.',
+      );
+    }
+
+    if (todayValue == null) {
+      return AiChatReply(
+        text: 'Data $metricLabel untuk hari ini ($todayLabel) belum tersedia.',
+        providerId: 'local-deterministic',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+        confidenceLevel: 'medium',
+        confidenceReason: 'Nilai hari ini tidak tersedia pada data harian.',
+      );
+    }
+    return AiChatReply(
+      text:
+          '$metricLabel hari ini ($todayLabel): ${formatCurrency(todayValue)}.',
+      providerId: 'local-deterministic',
+      fromCache: false,
+      suggestedCooldownSeconds: 1,
+      confidenceLevel: 'high',
+      confidenceReason:
+          'Nilai hari ini dihitung deterministik dari data harian.',
+    );
+  }
+
+  _DateMetric _resolveDateMetric(String q) {
+    if (q.contains('pengeluaran') ||
+        q.contains('biaya') ||
+        q.contains('expense')) {
+      return _DateMetric.expense;
+    }
+    if (q.contains('laba') ||
+        q.contains('selisih') ||
+        q.contains('untung') ||
+        q.contains('net')) {
+      return _DateMetric.net;
+    }
+    return _DateMetric.income;
+  }
+
+  String _metricLabel(_DateMetric metric) {
+    switch (metric) {
+      case _DateMetric.expense:
+        return 'Pengeluaran';
+      case _DateMetric.net:
+        return 'Selisih';
+      case _DateMetric.income:
+        return 'Penghasilan';
+    }
+  }
+
+  int? _extractMetricValue(Map<String, dynamic>? row, _DateMetric metric) {
+    if (row == null) {
+      return null;
+    }
+    final income = _toInt(row['income']);
+    final expense = _toInt(row['expense']);
+    switch (metric) {
+      case _DateMetric.expense:
+        return expense;
+      case _DateMetric.net:
+        return income - expense;
+      case _DateMetric.income:
+        return income;
+    }
   }
 
   bool _isCapabilityHelpQuery(String q) {
@@ -1769,3 +2115,5 @@ class _ActionIntentResult {
   final ChatImportDraft draft;
   final String providerId;
 }
+
+enum _DateMetric { income, expense, net }

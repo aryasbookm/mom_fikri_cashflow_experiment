@@ -117,6 +117,10 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                 final role = (map['role'] ?? '').toString().trim();
                 final text = (map['text'] ?? '').toString().trim();
                 final providerId = (map['provider_id'] ?? '').toString().trim();
+                final confidenceLevel =
+                    (map['confidence_level'] ?? '').toString().trim();
+                final confidenceReason =
+                    (map['confidence_reason'] ?? '').toString().trim();
                 if ((role != 'user' && role != 'assistant') || text.isEmpty) {
                   return null;
                 }
@@ -124,6 +128,10 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                   role: role,
                   text: text,
                   providerId: providerId.isEmpty ? null : providerId,
+                  confidenceLevel:
+                      confidenceLevel.isEmpty ? null : confidenceLevel,
+                  confidenceReason:
+                      confidenceReason.isEmpty ? null : confidenceReason,
                 );
               })
               .whereType<AiChatMessage>()
@@ -214,6 +222,12 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
               'text': m.text,
               if (m.providerId != null && m.providerId!.trim().isNotEmpty)
                 'provider_id': m.providerId,
+              if (m.confidenceLevel != null &&
+                  m.confidenceLevel!.trim().isNotEmpty)
+                'confidence_level': m.confidenceLevel,
+              if (m.confidenceReason != null &&
+                  m.confidenceReason!.trim().isNotEmpty)
+                'confidence_reason': m.confidenceReason,
             },
           )
           .toList(growable: false),
@@ -304,6 +318,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
               role: 'assistant',
               text: summary,
               providerId: reply.providerId,
+              confidenceLevel: reply.confidenceLevel,
+              confidenceReason: reply.confidenceReason,
             ),
           );
           _pendingDraft = reply.actionDraft;
@@ -316,6 +332,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
               role: 'assistant',
               text: reply.text,
               providerId: reply.providerId,
+              confidenceLevel: reply.confidenceLevel,
+              confidenceReason: reply.confidenceReason,
             ),
           );
         });
@@ -336,6 +354,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             role: 'assistant',
             text: error.toString(),
             providerId: 'error',
+            confidenceLevel: 'low',
+            confidenceReason:
+                'Provider mengembalikan rate-limit/error sementara.',
           ),
         );
       });
@@ -360,6 +381,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                     ? 'Gagal memproses pertanyaan. Coba lagi.'
                     : userMessage,
             providerId: 'error',
+            confidenceLevel: 'low',
+            confidenceReason: 'Terjadi error saat memproses jawaban AI.',
           ),
         );
       });
@@ -624,16 +647,43 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                           ),
                         ),
                         if (!isUser &&
-                            msg.providerId != null &&
-                            msg.providerId!.trim().isNotEmpty)
+                            ((msg.providerId != null &&
+                                    msg.providerId!.trim().isNotEmpty) ||
+                                (msg.confidenceLevel != null &&
+                                    msg.confidenceLevel!.trim().isNotEmpty)))
                           Padding(
                             padding: const EdgeInsets.only(top: 2),
-                            child: Text(
-                              'via: ${msg.providerId}',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Colors.black45,
-                              ),
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                if (msg.providerId != null &&
+                                    msg.providerId!.trim().isNotEmpty)
+                                  Text(
+                                    'via: ${msg.providerId}',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.black45,
+                                    ),
+                                  ),
+                                if (msg.confidenceLevel != null &&
+                                    msg.confidenceLevel!.trim().isNotEmpty)
+                                  Tooltip(
+                                    message:
+                                        msg.confidenceReason
+                                                    ?.trim()
+                                                    .isNotEmpty ==
+                                                true
+                                            ? msg.confidenceReason!
+                                            : _confidenceTooltip(
+                                              msg.confidenceLevel!,
+                                            ),
+                                    child: _confidenceBadge(
+                                      msg.confidenceLevel!,
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                       ],
@@ -691,5 +741,73 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         ],
       ),
     );
+  }
+
+  Widget _confidenceBadge(String levelRaw) {
+    final level = levelRaw.trim().toLowerCase();
+    final palette = _confidencePalette(level);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: palette.background,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: palette.border),
+      ),
+      child: Text(
+        _confidenceLabel(level),
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: palette.foreground,
+        ),
+      ),
+    );
+  }
+
+  String _confidenceLabel(String level) {
+    switch (level) {
+      case 'high':
+        return 'Keyakinan: Tinggi';
+      case 'low':
+        return 'Keyakinan: Rendah';
+      default:
+        return 'Keyakinan: Sedang';
+    }
+  }
+
+  String _confidenceTooltip(String level) {
+    switch (level) {
+      case 'high':
+        return 'Jawaban cukup kuat berdasarkan data saat ini.';
+      case 'low':
+        return 'Jawaban bersifat perkiraan dan perlu verifikasi manual.';
+      default:
+        return 'Jawaban memakai sebagian asumsi/data terbatas.';
+    }
+  }
+
+  ({Color background, Color border, Color foreground}) _confidencePalette(
+    String level,
+  ) {
+    switch (level) {
+      case 'high':
+        return (
+          background: const Color(0xFFE8F5E9),
+          border: const Color(0xFFA5D6A7),
+          foreground: const Color(0xFF1B5E20),
+        );
+      case 'low':
+        return (
+          background: const Color(0xFFFFEBEE),
+          border: const Color(0xFFEF9A9A),
+          foreground: const Color(0xFFB71C1C),
+        );
+      default:
+        return (
+          background: const Color(0xFFFFF8E1),
+          border: const Color(0xFFFFE082),
+          foreground: const Color(0xFFE65100),
+        );
+    }
   }
 }

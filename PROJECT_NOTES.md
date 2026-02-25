@@ -218,6 +218,14 @@ Catatan:
    - OCR salvage behavior:
     - ketika model mengembalikan `is_transaction=false` namun tetap ada kandidat item+nominal, hasil tidak lagi dibuang.
     - item dipaksa masuk mode review (`needs_review=true`) agar user tetap mendapat draft editable, bukan halaman error kosong.
+
+10. **Chat AI Keuangan (Asisten Mom Fiqry)**
+   - Pertanyaan tanggal sensitif (`hari ini`, `kemarin`, `bandingkan`) diproses dengan jalur lokal deterministik dari `daily_summary` agar tidak bergantung interpretasi LLM.
+   - Confidence-Safety Layer aktif di jawaban assistant:
+     - metadata `confidence_level` (`high|medium|low`) + `confidence_reason` disimpan per message,
+     - bubble chat menampilkan badge keyakinan dan tooltip alasan,
+     - jawaban `medium/low` dipaksa memakai framing ketidakpastian (bukan nada absolut).
+   - Jika data harian belum lengkap, assistant memberi guidance eksplisit dan tidak memaksakan angka komparatif.
    - OCR provider-trace visibility:
     - UI scan menampilkan urutan provider yang dicoba pada request aktif (contoh `Gemini -> Groq`) agar verifikasi fallback tidak perlu menebak dari hasil/error saja.
    - Output AI bersifat asistif/read-only (tidak menulis transaksi otomatis).

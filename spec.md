@@ -133,6 +133,10 @@ Setiap fitur non-trivial dinyatakan siap merge jika lolos:
   - Dialog PIN menyediakan opsi Logout/Ganti Akun (dengan konfirmasi).
 - **Dashboard Owner:** menampilkan Top Produk (7 hari) sebagai info operasional.
 - **Dashboard Owner:** menampilkan Top Produk (7 hari) + tombol `Minta Saran AI (Online)` untuk 3 insight bisnis berbasis data 30 hari.
+- **Chat AI Keuangan (`Asisten Mom Fiqry`):**
+  - mendukung jalur deterministic-date queries untuk pertanyaan `hari ini/kemarin/bandingkan` berbasis `daily_summary`,
+  - mendukung confidence-safety metadata per jawaban (`confidence_level`, `confidence_reason`),
+  - UI menampilkan badge keyakinan (`Tinggi/Sedang/Rendah`) agar user tahu tingkat kepastian jawaban.
 
 ## 6. Alur Utama
 - Buka aplikasi:

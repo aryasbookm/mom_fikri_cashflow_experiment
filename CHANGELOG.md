@@ -174,6 +174,14 @@ All notable changes to this project will be documented in this file.
 - Chat provider transparency:
   - setiap balasan assistant di layar chat kini menyimpan metadata `provider_id` dan menampilkan label kecil `via: <provider>`.
   - berlaku untuk jalur provider online, cache, local-deterministic, dan error path sehingga troubleshooting lebih mudah.
+- Deterministic date queries (chat) ditambahkan untuk pertanyaan waktu sensitif:
+  - intent `hari ini` / `kemarin` / `bandingkan` kini diproses lewat jalur lokal deterministik dari `daily_summary` (tanpa bergantung LLM),
+  - metrik yang didukung: `penghasilan`, `pengeluaran`, dan `selisih`,
+  - jika data harian tidak lengkap, sistem mengembalikan guidance eksplisit alih-alih mengarang agregat.
+- Confidence-Safety Layer (chat) ditambahkan:
+  - setiap balasan assistant membawa metadata `confidence_level` (`high|medium|low`) + `confidence_reason`,
+  - UI bubble chat menampilkan badge `Keyakinan: Tinggi/Sedang/Rendah` dengan tooltip alasan,
+  - gaya bahasa dipaksa adaptif: level `medium/low` wajib memakai framing ketidakpastian (`berdasarkan data yang ada/terbatas`) untuk mengurangi kesan kepastian palsu.
 - AI Insight kini ikut memakai strategi multi-provider fallback (urutan `AI_PROVIDER_ORDER`, default `gemini,groq`) sehingga jika provider pertama kena rate limit/temporary error, sistem otomatis mencoba provider berikutnya.
 - Seleksi provider AI kini aware konfigurasi key:
   - provider tanpa API key tidak lagi ikut antrean fallback (OCR & Insight),
