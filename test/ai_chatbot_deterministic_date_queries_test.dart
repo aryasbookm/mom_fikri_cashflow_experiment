@@ -100,7 +100,8 @@ void main() {
       expect(reply.providerId, 'local-deterministic');
       expect(reply.confidenceLevel, 'medium');
       expect(reply.text.toLowerCase(), contains('data harian lengkap'));
-      expect(reply.text.toLowerCase(), contains('kemarin=-'));
+      expect(reply.text.toLowerCase(), contains('kemarin ('));
+      expect(reply.text.toLowerCase(), contains(')=-'));
     });
 
     test('handles N days ago deterministically', () async {

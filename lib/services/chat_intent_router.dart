@@ -193,7 +193,9 @@ class ChatIntentRouter {
         q.contains('sisa') ||
         q.contains('produk aktif') ||
         q.contains('produk arsip') ||
-        q.contains('produk diarsipkan');
+        q.contains('produk diarsipkan') ||
+        (q.contains('produk') &&
+            (q.contains('diarsipkan') || q.contains('arsip')));
     final hasIntent =
         q.contains('berapa') ||
         q.contains('cek') ||
@@ -213,6 +215,9 @@ class ChatIntentRouter {
   }
 
   bool _isDateQuery(String q) {
+    if (_hasAnalysisSignal(q)) {
+      return false;
+    }
     final hasDateRef =
         q.contains('hari ini') ||
         q.contains('kemarin') ||
@@ -244,22 +249,17 @@ class ChatIntentRouter {
   }
 
   bool _isAnalysisQuery(String q) {
+    if (_hasAnalysisSignal(q)) {
+      return true;
+    }
     const keywords = <String>[
-      'analisis',
-      'kenapa',
-      'penyebab',
-      'saran',
-      'strategi',
-      'rekomendasi',
-      'prioritas',
       'kategori',
       'margin',
       'omzet',
-      'pemasukan',
-      'pengeluaran',
-      'transaksi',
       '30 hari',
       'laporan',
+      'tren',
+      'ringkasan',
     ];
     final hit = keywords.where(q.contains).length;
     if (hit >= 1 && !_isCapabilityHelp(q) && !_isSmallTalk(q)) {
@@ -269,6 +269,20 @@ class ChatIntentRouter {
         (q.contains('pemasukan') ||
             q.contains('pengeluaran') ||
             q.contains('transaksi'));
+  }
+
+  bool _hasAnalysisSignal(String q) {
+    const analysisSignals = <String>[
+      'analisis',
+      'kenapa',
+      'mengapa',
+      'penyebab',
+      'saran',
+      'strategi',
+      'rekomendasi',
+      'prioritas',
+    ];
+    return analysisSignals.any(q.contains);
   }
 
   bool _isAmbiguous(String q) {
