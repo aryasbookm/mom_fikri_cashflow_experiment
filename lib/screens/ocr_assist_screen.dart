@@ -896,8 +896,12 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
   }
 
   void _setAllType(String type) {
+    final isChatImport = _providerTrail.contains('chat-import');
     setState(() {
       for (final item in _draftItems) {
+        if (isChatImport && !_shouldBulkApplyTypeOnChatImport(item)) {
+          continue;
+        }
         item.type = type;
       }
     });
@@ -939,9 +943,69 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     if (majorityType == null) {
       return;
     }
+    final isChatImport = _providerTrail.contains('chat-import');
     for (final item in _draftItems) {
+      if (isChatImport && !_shouldBulkApplyTypeOnChatImport(item)) {
+        continue;
+      }
       item.type = majorityType;
     }
+  }
+
+  bool _shouldBulkApplyTypeOnChatImport(_EditableDraftItem item) {
+    if (item.needsReview) {
+      return true;
+    }
+    return !_hasStrongTypeSignal(item);
+  }
+
+  bool _hasStrongTypeSignal(_EditableDraftItem item) {
+    final hint = item.categoryHint.toLowerCase().trim();
+    final desc = item.descriptionController.text.toLowerCase().trim();
+    const strongOutHints = <String>[
+      'bahan baku',
+      'operasional',
+      'gaji',
+      'utang',
+      'prive',
+      'pengeluaran',
+      'expense',
+      'out',
+    ];
+    const strongInHints = <String>[
+      'penjualan',
+      'pemasukan',
+      'income',
+      'in',
+      'produk',
+      'kue',
+      'snack',
+      'minuman',
+    ];
+    for (final keyword in [...strongOutHints, ...strongInHints]) {
+      if (hint.contains(keyword)) {
+        return true;
+      }
+    }
+    const strongOutDesc = <String>[
+      'beli',
+      'bayar',
+      'gaji',
+      'sewa',
+      'listrik',
+      'air',
+      'bahan baku',
+      'operasional',
+      'pengeluaran',
+      'out',
+    ];
+    const strongInDesc = <String>['jual', 'penjualan', 'pemasukan', 'in'];
+    for (final keyword in [...strongOutDesc, ...strongInDesc]) {
+      if (desc.contains(keyword)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   bool _looksLikeProductLine(_EditableDraftItem item) {
@@ -1604,7 +1668,10 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
                         ),
                       ],
                       const SizedBox(height: 8),
-                      Row(
+                      Wrap(
+                        spacing: 4,
+                        runSpacing: 0,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           TextButton(
                             onPressed:
@@ -1619,15 +1686,17 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
                           TextButton(
                             onPressed:
                                 _isLoading ? null : () => _setAllType('IN'),
-                            child: const Text('Semua IN'),
+                            child: const Text('Set IN'),
                           ),
                           TextButton(
                             onPressed:
                                 _isLoading ? null : () => _setAllType('OUT'),
-                            child: const Text('Semua OUT'),
+                            child: const Text('Set OUT'),
                           ),
-                          const Spacer(),
-                          Text('Dipilih: $_selectedCount'),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: Text('Dipilih: $_selectedCount'),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 8),

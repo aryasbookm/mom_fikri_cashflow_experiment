@@ -143,6 +143,12 @@
   - pastikan transaksi dari jalur chat import tersimpan dengan tag audit sumber (`[chat_import:<hash8>]`)
   - setelah simpan sukses, uji `SnackBar` aksi `Urungkan` dan pastikan transaksi rollback via audit log.
   - simpan dari layar review dan validasi jumlah transaksi tersimpan sesuai item terpilih.
+- [ ] Uji UX batch 1 chat-import/OCR review:
+  - pastikan aksi `Set IN/Set OUT` tidak memaksa semua item chat-import (item dengan sinyal tipe kuat tetap dipertahankan).
+  - pastikan baris tombol aksi review tidak overflow di layar mobile kecil.
+- [ ] Uji UX bubble chat user:
+  - tombol `Salin` pada bubble user menyalin teks user.
+  - tombol `Edit` pada bubble user mengisi ulang input untuk kirim ulang (riwayat lama tidak ditimpa).
 - [ ] Jalankan regression test otomatis Phase 4:
   - `flutter test test/chat_import_draft_model_test.dart test/chat_import_audit_service_test.dart`
 - [ ] Jalankan regression test OCR parity Phase 1:

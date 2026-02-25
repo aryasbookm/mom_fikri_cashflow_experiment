@@ -176,13 +176,28 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     _scrollToBottom();
   }
 
-  Future<void> _copyMessage(String text) async {
+  Future<void> _copyMessage(
+    String text, {
+    String successMessage = 'Jawaban disalin ke clipboard.',
+  }) async {
     await Clipboard.setData(ClipboardData(text: text));
     if (!mounted) {
       return;
     }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(successMessage)));
+  }
+
+  void _editUserMessage(String text) {
+    _inputController.text = text;
+    _inputController.selection = TextSelection.fromPosition(
+      TextPosition(offset: _inputController.text.length),
+    );
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Jawaban disalin ke clipboard.')),
+      const SnackBar(
+        content: Text('Pesan dimasukkan ke input. Edit lalu kirim ulang.'),
+      ),
     );
   }
 
@@ -397,16 +412,38 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                               : CrossAxisAlignment.start,
                       children: [
                         Text(msg.text),
-                        if (!isUser)
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: IconButton(
-                              visualDensity: VisualDensity.compact,
-                              tooltip: 'Salin jawaban',
-                              onPressed: () => _copyMessage(msg.text),
-                              icon: const Icon(Icons.copy_outlined, size: 18),
-                            ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                visualDensity: VisualDensity.compact,
+                                tooltip:
+                                    isUser ? 'Salin pesan' : 'Salin jawaban',
+                                onPressed:
+                                    () => _copyMessage(
+                                      msg.text,
+                                      successMessage:
+                                          isUser
+                                              ? 'Pesan disalin ke clipboard.'
+                                              : 'Jawaban disalin ke clipboard.',
+                                    ),
+                                icon: const Icon(Icons.copy_outlined, size: 18),
+                              ),
+                              if (isUser)
+                                IconButton(
+                                  visualDensity: VisualDensity.compact,
+                                  tooltip: 'Edit & kirim ulang',
+                                  onPressed: () => _editUserMessage(msg.text),
+                                  icon: const Icon(
+                                    Icons.edit_outlined,
+                                    size: 18,
+                                  ),
+                                ),
+                            ],
                           ),
+                        ),
                       ],
                     ),
                   ),
