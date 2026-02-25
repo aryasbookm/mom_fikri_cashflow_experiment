@@ -150,6 +150,17 @@ All notable changes to this project will be documented in this file.
   - ditambahkan capability-help lokal untuk pertanyaan seperti `kamu bisa apa` / `bantuan` dengan daftar kemampuan dan batasan akses chatbot.
   - flow `Tanya Lanjutan` diubah: `initialQuestion` kini masuk sebagai draft input (prefill), tidak auto-send.
   - jika ada riwayat chat tersimpan, pengguna diminta memilih `Lanjutkan` atau `Mulai Baru` sebelum draft pertanyaan diisi.
+- Chat UX fix batch 3 (assistive parsing & confirm-to-review):
+  - chat kini bisa memicu mode import draf dari teks daftar transaksi meski tanpa trigger eksplisit (heuristik list + nominal).
+  - jika parsing belum aman, bot tidak menyerah; bot memberi penjelasan kenapa gagal dan contoh format perbaikan input.
+  - parser lokal chat import diperkuat untuk nominal duplikat/typo seperti `20.00020.000` agar dibaca sebagai `20000` (guard repeat-token).
+  - inferensi tanggal lokal kini deterministik:
+    - item tanpa tanggal di atas blok tanggal eksplisit diasumsikan hari sebelumnya,
+    - item tanpa tanggal setelah blok eksplisit melanjutkan tanggal eksplisit terakhir,
+    - jika tidak ada tanggal sama sekali, fallback ke tanggal hari ini dengan `date_source=inferred` dan warning review.
+  - untuk action import, chat tidak lagi auto-lompat ke layar review:
+    - bot menampilkan ringkasan draf (jumlah item/total/tanggal/perlu review),
+    - user menekan tombol `Lanjut ke Review` atau memilih `Edit di Chat Dulu`.
 - AI Insight kini ikut memakai strategi multi-provider fallback (urutan `AI_PROVIDER_ORDER`, default `gemini,groq`) sehingga jika provider pertama kena rate limit/temporary error, sistem otomatis mencoba provider berikutnya.
 - Seleksi provider AI kini aware konfigurasi key:
   - provider tanpa API key tidak lagi ikut antrean fallback (OCR & Insight),

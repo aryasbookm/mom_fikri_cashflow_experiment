@@ -73,7 +73,8 @@ class AiChatbotService {
     if (memoryAction != null) {
       return _applyMemoryAction(action: memoryAction, memory: memory);
     }
-    if (_looksLikeImportAction(safeQuestion)) {
+    if (_looksLikeImportAction(safeQuestion) ||
+        _looksLikeTransactionListText(safeQuestion)) {
       final action = await _tryBuildImportDraftFromQuestion(
         question: safeQuestion,
         financeSnapshot: financeSnapshot,
@@ -81,7 +82,7 @@ class AiChatbotService {
       if (action == null) {
         return const AiChatReply(
           text:
-              'Format daftar transaksi belum jelas. Kirim ulang dengan format baris per transaksi, contoh: "Bolu coklat 2x 12000".',
+              'Saya mendeteksi ini seperti daftar transaksi, tapi ada bagian yang belum cukup jelas untuk diproses aman (mis. nominal/format baris/tanggal). Coba kirim ulang dengan format 1 baris per transaksi, contoh: "Donat 20000" atau "Sosis 10000 + 5000". Jika tanggal tidak ada, saya akan pakai tanggal hari ini dan tandai untuk review.',
           providerId: 'chat-action-intent',
           fromCache: false,
           suggestedCooldownSeconds: 1,
@@ -424,6 +425,29 @@ $question
         q.contains('tambah transaksi') ||
         q.contains('import transaksi') ||
         q.contains('input transaksi ini');
+  }
+
+  bool _looksLikeTransactionListText(String question) {
+    final lines =
+        question
+            .split('\n')
+            .map((line) => line.trim())
+            .where((line) => line.isNotEmpty)
+            .toList();
+    if (lines.length < 3) {
+      return false;
+    }
+    var lineWithAmount = 0;
+    var listLike = 0;
+    for (final line in lines) {
+      if (RegExp(r'\d[\d\.,]*').hasMatch(line)) {
+        lineWithAmount += 1;
+      }
+      if (RegExp(r'^[-*•]|\b(in|out)\b', caseSensitive: false).hasMatch(line)) {
+        listLike += 1;
+      }
+    }
+    return lineWithAmount >= 3 || (lineWithAmount >= 2 && listLike >= 1);
   }
 
   Future<_ActionIntentResult?> _tryBuildImportDraftFromQuestion({

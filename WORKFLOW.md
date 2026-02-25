@@ -155,6 +155,15 @@
   - uji pertanyaan `kamu bisa apa` / `bantuan` dan pastikan bot menjelaskan kemampuan + batasan akses.
   - dari tombol `Tanya Lanjutan`, pastikan pertanyaan masuk sebagai prefill input (tidak langsung terkirim).
   - saat ada riwayat chat lama, pastikan muncul pilihan `Lanjutkan` vs `Mulai Baru` sebelum prefill diterapkan.
+- [ ] Uji UX batch 3 (assistive parser & confirm-to-review):
+  - paste daftar transaksi mentah tanpa trigger eksplisit, pastikan bot tetap mencoba parse action import.
+  - jika parse gagal, pastikan bot menjelaskan penyebab + contoh format koreksi (bukan langsung guardrail umum).
+  - uji input nominal typo `20.00020.000`, pastikan parser lokal menormalkan nominal ke `20000`.
+  - uji inferensi tanggal:
+    - blok atas sebelum tanggal eksplisit diasumsikan H-1 dan ditandai review,
+    - baris setelah tanggal eksplisit tanpa tanggal melanjutkan tanggal terakhir,
+    - jika tidak ada tanggal sama sekali, fallback ke tanggal hari ini + `date_source=inferred`.
+  - untuk action import sukses, pastikan chat menampilkan ringkasan + tombol `Lanjut ke Review` (tidak auto-push ke layar OCR).
 - [ ] Jalankan regression test otomatis Phase 4:
   - `flutter test test/chat_import_draft_model_test.dart test/chat_import_audit_service_test.dart`
 - [ ] Jalankan regression test OCR parity Phase 1:

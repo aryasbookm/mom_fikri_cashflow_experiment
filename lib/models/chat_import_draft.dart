@@ -264,12 +264,16 @@ class ChatImportDraft {
             .map((v) => v.toString().trim())
             .where((v) => v.isNotEmpty)
             .toList();
+    final normalizedTransactions = _applyDeterministicDateInference(
+      transactions: transactions,
+      inferenceNotes: inferenceNotes,
+    );
 
     return ChatImportDraft(
       intent: (json['intent'] ?? '').toString().trim(),
       source: (json['source'] ?? '').toString().trim(),
       importHash: (json['import_hash'] ?? '').toString().trim(),
-      transactions: transactions.take(30).toList(),
+      transactions: normalizedTransactions.take(30).toList(),
       notesFound: notesFound,
       ignoredLines: ignoredLines,
       confidence: confidence,
@@ -318,7 +322,8 @@ class ChatImportDraft {
     required int existingAmount,
     required String sourceText,
   }) {
-    final values = _extractAmountCandidates(sourceText);
+    final normalized = _normalizeSuspiciousAmountText(sourceText);
+    final values = _extractAmountCandidates(normalized);
     if (values.isEmpty) {
       return existingAmount > 0 ? existingAmount : 0;
     }
@@ -353,12 +358,140 @@ class ChatImportDraft {
       if (digits.isEmpty) {
         continue;
       }
-      final parsed = int.tryParse(digits);
+      final parsed = _parseDigitsWithRepeatGuard(digits);
       if (parsed != null && parsed > 0) {
         values.add(parsed);
       }
     }
     return values;
+  }
+
+  static int? _parseDigitsWithRepeatGuard(String digits) {
+    final parsed = int.tryParse(digits);
+    if (parsed == null || parsed <= 0) {
+      return null;
+    }
+    final half = _tryHalfRepeatDigits(digits);
+    if (half != null) {
+      return half;
+    }
+    return parsed;
+  }
+
+  static int? _tryHalfRepeatDigits(String digits) {
+    if (digits.length < 8 || digits.length.isOdd) {
+      return null;
+    }
+    final mid = digits.length ~/ 2;
+    final left = digits.substring(0, mid);
+    final right = digits.substring(mid);
+    if (left != right) {
+      return null;
+    }
+    return int.tryParse(left);
+  }
+
+  static String _normalizeSuspiciousAmountText(String sourceText) {
+    var text = sourceText;
+    text = text.replaceAllMapped(
+      RegExp(r'(\d{1,3}(?:[.,]\d{3})+)\s*\1'),
+      (m) => m.group(1) ?? '',
+    );
+    text = text.replaceAllMapped(
+      RegExp(r'\b(\d{4,})\s*\1\b'),
+      (m) => m.group(1) ?? '',
+    );
+    return text;
+  }
+
+  static List<ChatImportDraftItem> _applyDeterministicDateInference({
+    required List<ChatImportDraftItem> transactions,
+    required List<String> inferenceNotes,
+  }) {
+    if (transactions.isEmpty) {
+      return transactions;
+    }
+    final explicitIndices = <int>[];
+    for (var i = 0; i < transactions.length; i++) {
+      final item = transactions[i];
+      if (item.dateIso.trim().isNotEmpty && item.dateSource == 'explicit') {
+        explicitIndices.add(i);
+      }
+    }
+
+    final result = List<ChatImportDraftItem>.from(transactions);
+    if (explicitIndices.isEmpty) {
+      final now = DateTime.now();
+      final todayIso =
+          '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      for (var i = 0; i < result.length; i++) {
+        if (result[i].dateIso.trim().isNotEmpty) {
+          continue;
+        }
+        result[i] = _applyInferredDate(
+          item: result[i],
+          dateIso: todayIso,
+          extraWarning:
+              'Tanggal tidak ditemukan pada input, sistem memakai tanggal hari ini.',
+        );
+      }
+      _addUnique(
+        inferenceNotes,
+        'Sebagian tanggal tidak ditemukan; fallback ke tanggal hari ini.',
+      );
+      return result;
+    }
+
+    final firstExplicit = explicitIndices.first;
+    final firstDate = DateTime.tryParse(result[firstExplicit].dateIso);
+    if (firstDate != null) {
+      final previous = firstDate.subtract(const Duration(days: 1));
+      final previousIso =
+          '${previous.year.toString().padLeft(4, '0')}-${previous.month.toString().padLeft(2, '0')}-${previous.day.toString().padLeft(2, '0')}';
+      for (var i = 0; i < firstExplicit; i++) {
+        if (result[i].dateIso.trim().isNotEmpty) {
+          continue;
+        }
+        result[i] = _applyInferredDate(
+          item: result[i],
+          dateIso: previousIso,
+          extraWarning:
+              'Tanggal diasumsikan hari sebelumnya dari blok tanggal eksplisit berikutnya.',
+        );
+      }
+    }
+
+    String? lastKnownIso;
+    for (var i = 0; i < result.length; i++) {
+      final item = result[i];
+      if (item.dateIso.trim().isNotEmpty) {
+        lastKnownIso = item.dateIso;
+        continue;
+      }
+      if (lastKnownIso == null) {
+        continue;
+      }
+      result[i] = _applyInferredDate(
+        item: item,
+        dateIso: lastKnownIso,
+        extraWarning:
+            'Tanggal melanjutkan blok tanggal eksplisit terakhir pada input.',
+      );
+    }
+    return result;
+  }
+
+  static ChatImportDraftItem _applyInferredDate({
+    required ChatImportDraftItem item,
+    required String dateIso,
+    required String extraWarning,
+  }) {
+    return item.copyWith(
+      dateIso: dateIso,
+      dateSource: 'inferred',
+      needsReview: true,
+      warning: ChatImportDraftItem._mergeWarnings(item.warning, extraWarning),
+    );
   }
 
   static String _stripTrailingAmountTokens(String description) {

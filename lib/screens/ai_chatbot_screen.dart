@@ -4,8 +4,10 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/chat_import_draft.dart';
 import '../screens/ocr_assist_screen.dart';
 import '../services/ai_chatbot_service.dart';
 import '../services/ai_insight_service.dart';
@@ -29,6 +31,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   final TextEditingController _inputController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final List<AiChatMessage> _messages = [];
+  ChatImportDraft? _pendingDraft;
+  int? _pendingDraftMessageIndex;
 
   bool _isLoading = false;
   int _cooldownSeconds = 0;
@@ -69,6 +73,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   }
 
   void _resetChat() {
+    _pendingDraft = null;
+    _pendingDraftMessageIndex = null;
     _messages
       ..clear()
       ..add(
@@ -278,22 +284,24 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _messages.add(AiChatMessage(role: 'assistant', text: reply.text));
-      });
+      if (reply.actionDraft != null) {
+        final summary = _buildDraftSummary(reply.actionDraft!);
+        setState(() {
+          _messages.add(AiChatMessage(role: 'assistant', text: summary));
+          _pendingDraft = reply.actionDraft;
+          _pendingDraftMessageIndex = _messages.length - 1;
+        });
+      } else {
+        setState(() {
+          _messages.add(AiChatMessage(role: 'assistant', text: reply.text));
+        });
+      }
       await _persistChat();
       if (!mounted) {
         return;
       }
       _startCooldown(reply.suggestedCooldownSeconds);
       _scrollToBottom();
-      if (reply.actionDraft != null) {
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => OcrAssistScreen(chatImportDraft: reply.actionDraft),
-          ),
-        );
-      }
     } on AiRateLimitException catch (error) {
       if (!mounted) {
         return;
@@ -333,6 +341,58 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         });
       }
     }
+  }
+
+  String _buildDraftSummary(ChatImportDraft draft) {
+    final count = draft.transactions.length;
+    final total = draft.transactions.fold<int>(
+      0,
+      (sum, item) => sum + item.amount,
+    );
+    final inferredCount =
+        draft.transactions
+            .where((item) => item.dateSource == 'inferred')
+            .length;
+    final needsReview =
+        draft.transactions.where((item) => item.needsReview).length;
+    final dateLabels =
+        draft.transactions
+            .map((item) => item.dateIso.trim())
+            .where((d) => d.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+    final dateText =
+        dateLabels.isEmpty
+            ? '(tanggal perlu konfirmasi)'
+            : dateLabels.join(', ');
+    final totalText = NumberFormat('#,##0', 'id_ID').format(total);
+    return 'Draf transaksi siap ditinjau.\n'
+        '- Item: $count\n'
+        '- Total: Rp $totalText\n'
+        '- Tanggal: $dateText\n'
+        '- Perlu review: $needsReview item'
+        '${inferredCount > 0 ? ' (termasuk $inferredCount inferensi tanggal)' : ''}.\n'
+        'Tekan tombol di bawah untuk lanjut ke layar review.';
+  }
+
+  Future<void> _openPendingDraft() async {
+    final draft = _pendingDraft;
+    if (draft == null) {
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => OcrAssistScreen(chatImportDraft: draft),
+      ),
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _pendingDraft = null;
+      _pendingDraftMessageIndex = null;
+    });
   }
 
   void _startCooldown(int seconds) {
@@ -468,6 +528,38 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                               : CrossAxisAlignment.start,
                       children: [
                         Text(msg.text),
+                        if (!isUser &&
+                            _pendingDraft != null &&
+                            _pendingDraftMessageIndex == index)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                FilledButton.icon(
+                                  onPressed:
+                                      (_isLoading || _cooldownSeconds > 0)
+                                          ? null
+                                          : _openPendingDraft,
+                                  icon: const Icon(Icons.playlist_add_check),
+                                  label: const Text('Lanjut ke Review'),
+                                ),
+                                OutlinedButton(
+                                  onPressed:
+                                      (_isLoading || _cooldownSeconds > 0)
+                                          ? null
+                                          : () {
+                                            setState(() {
+                                              _pendingDraft = null;
+                                              _pendingDraftMessageIndex = null;
+                                            });
+                                          },
+                                  child: const Text('Edit di Chat Dulu'),
+                                ),
+                              ],
+                            ),
+                          ),
                         Align(
                           alignment: Alignment.centerRight,
                           child: Row(
