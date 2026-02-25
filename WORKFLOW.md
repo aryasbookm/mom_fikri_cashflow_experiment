@@ -149,6 +149,12 @@
 - [ ] Uji UX bubble chat user:
   - tombol `Salin` pada bubble user menyalin teks user.
   - tombol `Edit` pada bubble user mengisi ulang input untuk kirim ulang (riwayat lama tidak ditimpa).
+- [ ] Uji UX batch 2 (persona & flow chat):
+  - sapaan awal chatbot menampilkan identitas "Asisten Mom Fiqry".
+  - uji small-talk dasar (`halo`, `tes`, `selamat pagi`, `apa kabar`) dan pastikan bot membalas singkat lalu tetap mengarah ke fungsi finansial.
+  - uji pertanyaan `kamu bisa apa` / `bantuan` dan pastikan bot menjelaskan kemampuan + batasan akses.
+  - dari tombol `Tanya Lanjutan`, pastikan pertanyaan masuk sebagai prefill input (tidak langsung terkirim).
+  - saat ada riwayat chat lama, pastikan muncul pilihan `Lanjutkan` vs `Mulai Baru` sebelum prefill diterapkan.
 - [ ] Jalankan regression test otomatis Phase 4:
   - `flutter test test/chat_import_draft_model_test.dart test/chat_import_audit_service_test.dart`
 - [ ] Jalankan regression test OCR parity Phase 1:

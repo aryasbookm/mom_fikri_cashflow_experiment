@@ -32,8 +32,10 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
 
   bool _isLoading = false;
   int _cooldownSeconds = 0;
+  bool _initialQuestionHandled = false;
   Timer? _cooldownTimer;
   static const List<String> _quickQuestions = [
+    'Kamu bisa apa?',
     'Apa 2 aksi prioritas minggu ini?',
     'Kenapa laba turun di 30 hari terakhir?',
     'Produk mana yang perlu dipromosikan dulu?',
@@ -47,15 +49,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   void initState() {
     super.initState();
     _loadPersistedChat();
-    final initial = widget.initialQuestion?.trim();
-    if (initial != null && initial.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) {
-          return;
-        }
-        _sendQuestion(initial);
-      });
-    }
   }
 
   @override
@@ -82,7 +75,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         const AiChatMessage(
           role: 'assistant',
           text:
-              'Halo, saya asisten keuangan toko. Tanyakan ringkasan laba, biaya, tren produk, atau rekomendasi aksi.',
+              'Halo, saya Asisten Mom Fiqry. Saya bisa bantu analisis data keuangan toko dan menyiapkan draf transaksi dari chat.',
         ),
       );
   }
@@ -128,13 +121,76 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         _messages
           ..clear()
           ..addAll(restored);
-        if (mounted) {
-          setState(() {});
-        }
       }
     } catch (_) {
+      // Keep default chat state and still continue initial-question flow.
+    }
+    if (!mounted) {
       return;
     }
+    setState(() {});
+    _prepareInitialQuestionFlowIfAny();
+  }
+
+  Future<void> _prepareInitialQuestionFlowIfAny() async {
+    if (_initialQuestionHandled || !mounted) {
+      return;
+    }
+    final initial = widget.initialQuestion?.trim();
+    if (initial == null || initial.isEmpty) {
+      _initialQuestionHandled = true;
+      return;
+    }
+    _initialQuestionHandled = true;
+
+    var useExistingContext = true;
+    final hasPersistedConversation = _messages.length > 1;
+    if (hasPersistedConversation) {
+      final decision = await showDialog<bool>(
+        context: context,
+        builder:
+            (context) => AlertDialog(
+              title: const Text('Lanjutkan atau Mulai Baru?'),
+              content: const Text(
+                'Terdapat riwayat chat sebelumnya. Lanjutkan konteks lama atau mulai chat baru?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Mulai Baru'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('Lanjutkan'),
+                ),
+              ],
+            ),
+      );
+      if (!mounted || decision == null) {
+        return;
+      }
+      useExistingContext = decision;
+    }
+
+    if (!useExistingContext) {
+      setState(_resetChat);
+      await _persistChat();
+    }
+
+    _inputController.text = initial;
+    _inputController.selection = TextSelection.fromPosition(
+      TextPosition(offset: _inputController.text.length),
+    );
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Pertanyaan lanjutan sudah diisi ke kolom chat. Edit jika perlu lalu tekan Kirim.',
+        ),
+      ),
+    );
   }
 
   Future<void> _persistChat() async {
@@ -323,7 +379,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Chat AI Keuangan'),
+        title: const Text('Asisten Mom Fiqry'),
         actions: [
           IconButton(
             tooltip: 'Hapus chat',

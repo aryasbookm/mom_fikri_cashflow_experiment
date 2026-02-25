@@ -61,6 +61,10 @@ class AiChatbotService {
     List<AiChatMessage> history = const [],
   }) async {
     final safeQuestion = question.trim();
+    final instantReply = _resolveInstantLocalReply(safeQuestion);
+    if (instantReply != null) {
+      return instantReply;
+    }
     final memory = await _memoryService.loadMemory();
     final memoryAction = _resolveMemoryAction(
       question: safeQuestion,
@@ -191,6 +195,83 @@ class AiChatbotService {
               ? 1
               : 4,
     );
+  }
+
+  AiChatReply? _resolveInstantLocalReply(String question) {
+    final q = question.trim().toLowerCase();
+    if (q.isEmpty) {
+      return null;
+    }
+
+    if (_isCapabilityHelpQuery(q)) {
+      return const AiChatReply(
+        text:
+            'Saya Asisten Mom Fiqry. Saya bisa: analisis data keuangan 30 hari, jawab tanya kategori pemasukan/pengeluaran, dan ubah daftar chat jadi draf transaksi untuk direview sebelum simpan. Saya tidak bisa: menjalankan aksi di luar data toko, mengakses internet bebas, atau menyimpan transaksi tanpa konfirmasi Anda.',
+        providerId: 'local-smalltalk',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+      );
+    }
+
+    if (_isGreetingQuery(q)) {
+      return const AiChatReply(
+        text:
+            'Halo, saya Asisten Mom Fiqry. Saya siap bantu analisis keuangan toko atau susun draf transaksi dari chat.',
+        providerId: 'local-smalltalk',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+      );
+    }
+
+    if (_isClassicSmallTalkQuery(q)) {
+      return const AiChatReply(
+        text:
+            'Kabar baik, terima kasih. Saya fokus membantu urusan keuangan toko. Kalau mau, kirim data transaksi atau pertanyaan analisis.',
+        providerId: 'local-smalltalk',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+      );
+    }
+
+    return null;
+  }
+
+  bool _isCapabilityHelpQuery(String q) {
+    return q.contains('kamu bisa apa') ||
+        q.contains('bisa apa saja') ||
+        q.contains('fitur kamu') ||
+        q.contains('bantuan') ||
+        q.contains('help') ||
+        q.contains('cara pakai');
+  }
+
+  bool _isGreetingQuery(String q) {
+    const greetings = <String>{
+      'halo',
+      'hai',
+      'hi',
+      'tes',
+      'test',
+      'pagi',
+      'siang',
+      'sore',
+      'malam',
+      'selamat pagi',
+      'selamat siang',
+      'selamat sore',
+      'selamat malam',
+    };
+    return greetings.contains(q);
+  }
+
+  bool _isClassicSmallTalkQuery(String q) {
+    const smallTalks = <String>{
+      'apa kabar',
+      'gimana kabar',
+      'terima kasih',
+      'makasih',
+    };
+    return smallTalks.contains(q);
   }
 
   String _buildBoundedPrompt({

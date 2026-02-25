@@ -144,6 +144,12 @@ All notable changes to this project will be documented in this file.
   - aksi bulk type di layar review chat-import (`Set IN/Set OUT` + default majority) kini hanya diterapkan ke item ambigu, sehingga item dengan sinyal tipe kuat tidak lagi tertimpa massal.
   - baris aksi di layar review (`Pilih Semua`, `Batal Pilihan`, `Set IN`, `Set OUT`) diubah menjadi layout `Wrap` agar tidak overflow di layar mobile sempit.
   - bubble pesan user di layar chatbot kini mendukung tombol `Salin` dan `Edit` (edit mengisi ulang input untuk kirim ulang tanpa mengubah riwayat lama).
+- Chat UX fix batch 2 (persona & chat flow):
+  - identitas chatbot dipertegas menjadi **Asisten Mom Fiqry** (title layar + sapaan awal).
+  - ditambahkan local instant replies untuk small-talk dasar (`halo`, `tes`, `selamat pagi/siang/sore/malam`, `apa kabar`) agar interaksi awal terasa natural.
+  - ditambahkan capability-help lokal untuk pertanyaan seperti `kamu bisa apa` / `bantuan` dengan daftar kemampuan dan batasan akses chatbot.
+  - flow `Tanya Lanjutan` diubah: `initialQuestion` kini masuk sebagai draft input (prefill), tidak auto-send.
+  - jika ada riwayat chat tersimpan, pengguna diminta memilih `Lanjutkan` atau `Mulai Baru` sebelum draft pertanyaan diisi.
 - AI Insight kini ikut memakai strategi multi-provider fallback (urutan `AI_PROVIDER_ORDER`, default `gemini,groq`) sehingga jika provider pertama kena rate limit/temporary error, sistem otomatis mencoba provider berikutnya.
 - Seleksi provider AI kini aware konfigurasi key:
   - provider tanpa API key tidak lagi ikut antrean fallback (OCR & Insight),
