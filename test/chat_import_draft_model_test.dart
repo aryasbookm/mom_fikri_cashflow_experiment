@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mom_fikri_cashflow/models/chat_import_draft.dart';
+import 'package:mom_fikri_cashflow/services/ai_chatbot_service.dart';
 
 void main() {
   group('ChatImportDraftItem.fromJson', () {
@@ -176,6 +177,48 @@ void main() {
       expect(
         draft.inferenceNotes.join(' ').toLowerCase(),
         contains('fallback'),
+      );
+    });
+  });
+
+  group('AiChatbotService deterministic stock ranking', () {
+    test('returns sorted stock list and excludes zero when requested', () async {
+      final service = AiChatbotService();
+      final reply = await service.askFinancialAssistant(
+        question:
+            'berapa stok saat ini? urutkan dari yang tertinggi ke yang terendah tanpa menyebutkan yang saat ini 0',
+        financeSnapshot: [
+          {
+            'type': 'product_catalog',
+            'name': 'Donat',
+            'stock_now': 12,
+            'min_stock': 3,
+            'is_active': true,
+          },
+          {
+            'type': 'product_catalog',
+            'name': 'Bolu Coklat',
+            'stock_now': 30,
+            'min_stock': 5,
+            'is_active': true,
+          },
+          {
+            'type': 'product_catalog',
+            'name': 'Roti Tawar',
+            'stock_now': 0,
+            'min_stock': 2,
+            'is_active': true,
+          },
+        ],
+      );
+
+      expect(reply.providerId, 'local-deterministic');
+      expect(reply.text, contains('Bolu Coklat: 30'));
+      expect(reply.text, contains('Donat: 12'));
+      expect(reply.text, isNot(contains('Roti Tawar')));
+      expect(
+        reply.text.indexOf('Bolu Coklat'),
+        lessThan(reply.text.indexOf('Donat')),
       );
     });
   });

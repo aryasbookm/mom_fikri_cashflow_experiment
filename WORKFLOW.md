@@ -168,6 +168,10 @@
   - kirim pertanyaan komparatif multi-intent (contoh: "berapa penghasilan kemarin, hari ini, bandingkan, analisis dan saran") dan pastikan jawaban lebih detail dari mode ringkas biasa.
   - pastikan jawaban detail tetap menyertakan basis data (tidak halusinasi angka).
   - kirim input sangat panjang (>3500 karakter), pastikan bot tidak crash dan memberi arahan split pertanyaan menjadi beberapa langkah.
+- [ ] Uji deterministic stock ranking:
+  - tanya "urutkan stok tertinggi-ke-terendah tanpa stok 0" dan pastikan hasil tidak menyebut item `stock_now == 0`.
+  - pastikan urutan benar-benar descending berdasarkan angka `stock_now` (bukan urut alfabet).
+  - uji `top N` (contoh: `top 5`) dan pastikan jumlah item sesuai.
 - [ ] Jalankan regression test otomatis Phase 4:
   - `flutter test test/chat_import_draft_model_test.dart test/chat_import_audit_service_test.dart`
 - [ ] Jalankan regression test OCR parity Phase 1:

@@ -167,6 +167,10 @@ All notable changes to this project will be documented in this file.
   - output token budget dinaikkan (`700 -> 900`) agar analisis detail tidak mudah terpotong.
   - ditambahkan guard input terlalu panjang: jika pesan > 3500 karakter, bot memberi arahan memecah pertanyaan menjadi beberapa langkah agar kualitas tetap stabil.
   - fallback lokal untuk mode detail ikut diperkaya agar tetap memberi analisis yang lebih actionable saat provider utama gagal format.
+- Deterministic stock ranking (chat):
+  - pertanyaan ranking stok seperti "urutkan stok tertinggi-ke-terendah" kini diproses via jalur deterministik lokal (tanpa bergantung LLM).
+  - aturan lokal: filter stok 0 jika diminta, urut desc `stock_now`, dukung limit `top N` (default 10).
+  - hasil dikembalikan sebagai daftar terstruktur agar konsisten dan bebas halusinasi urutan angka.
 - AI Insight kini ikut memakai strategi multi-provider fallback (urutan `AI_PROVIDER_ORDER`, default `gemini,groq`) sehingga jika provider pertama kena rate limit/temporary error, sistem otomatis mencoba provider berikutnya.
 - Seleksi provider AI kini aware konfigurasi key:
   - provider tanpa API key tidak lagi ikut antrean fallback (OCR & Insight),

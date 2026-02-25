@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/chat_import_draft.dart';
@@ -61,6 +62,13 @@ class AiChatbotService {
     List<AiChatMessage> history = const [],
   }) async {
     final safeQuestion = question.trim();
+    final stockRankingReply = _resolveDeterministicStockRankingReply(
+      question: safeQuestion,
+      financeSnapshot: financeSnapshot,
+    );
+    if (stockRankingReply != null) {
+      return stockRankingReply;
+    }
     if (safeQuestion.length > 3500) {
       return const AiChatReply(
         text:
@@ -252,6 +260,104 @@ class AiChatbotService {
       );
     }
 
+    return null;
+  }
+
+  AiChatReply? _resolveDeterministicStockRankingReply({
+    required String question,
+    required List<Map<String, dynamic>> financeSnapshot,
+  }) {
+    final q = question.toLowerCase();
+    final asksStock = q.contains('stok') || q.contains('stock');
+    final asksOrder =
+        q.contains('urut') ||
+        q.contains('ranking') ||
+        q.contains('tertinggi') ||
+        q.contains('terendah');
+    if (!asksStock || !asksOrder) {
+      return null;
+    }
+
+    final products =
+        financeSnapshot
+            .where(
+              (row) =>
+                  (row['type'] ?? '').toString().trim() == 'product_catalog',
+            )
+            .map((row) {
+              final name = (row['name'] ?? '').toString().trim();
+              final stock = _toInt(row['stock_now']);
+              if (name.isEmpty) {
+                return null;
+              }
+              return <String, dynamic>{'name': name, 'stock_now': stock};
+            })
+            .whereType<Map<String, dynamic>>()
+            .toList();
+    if (products.isEmpty) {
+      return const AiChatReply(
+        text:
+            'Data stok produk belum tersedia di konteks chat saat ini. Coba refresh data dashboard lalu tanyakan lagi.',
+        providerId: 'local-deterministic',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+      );
+    }
+
+    final hideZero =
+        q.contains('tanpa') && q.contains('0') ||
+        q.contains('di atas 0') ||
+        q.contains('> 0') ||
+        q.contains('bukan 0');
+    var rows = List<Map<String, dynamic>>.from(products);
+    if (hideZero) {
+      rows = rows.where((row) => _toInt(row['stock_now']) > 0).toList();
+    }
+    rows.sort(
+      (a, b) => _toInt(b['stock_now']).compareTo(_toInt(a['stock_now'])),
+    );
+    if (rows.isEmpty) {
+      return const AiChatReply(
+        text:
+            'Semua stok saat ini bernilai 0, jadi tidak ada item untuk ditampilkan.',
+        providerId: 'local-deterministic',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+      );
+    }
+
+    final limit = _extractTopLimit(q) ?? 10;
+    final topRows = rows.take(limit).toList();
+    final lines = <String>[
+      'Stok saat ini (urut tertinggi ke terendah${hideZero ? ', tanpa stok 0' : ''}):',
+      ...topRows.map(
+        (row) =>
+            '- ${row['name']}: ${NumberFormat('#,##0', 'id_ID').format(_toInt(row['stock_now']))}',
+      ),
+    ];
+    return AiChatReply(
+      text: lines.join('\n'),
+      providerId: 'local-deterministic',
+      fromCache: false,
+      suggestedCooldownSeconds: 1,
+    );
+  }
+
+  int? _extractTopLimit(String q) {
+    final topMatch = RegExp(r'\btop\s+(\d{1,2})\b').firstMatch(q);
+    if (topMatch != null) {
+      final parsed = int.tryParse(topMatch.group(1)!);
+      if (parsed != null && parsed > 0) {
+        return parsed.clamp(1, 50);
+      }
+    }
+    final firstNum = RegExp(r'\b(\d{1,2})\b').firstMatch(q);
+    if (firstNum != null) {
+      final parsed = int.tryParse(firstNum.group(1)!);
+      if (parsed != null && parsed > 0 && parsed <= 50) {
+        return parsed;
+      }
+    }
     return null;
   }
 
