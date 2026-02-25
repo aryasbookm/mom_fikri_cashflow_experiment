@@ -221,5 +221,56 @@ void main() {
         lessThan(reply.text.indexOf('Donat')),
       );
     });
+
+    test(
+      'answers stock query without ordering keywords and excludes zero stock',
+      () async {
+        final service = AiChatbotService();
+        final reply = await service.askFinancialAssistant(
+          question: 'sebutkan stoknya berapa selain yang 0',
+          financeSnapshot: [
+            {
+              'type': 'product_catalog',
+              'name': 'Bento Cake',
+              'stock_now': 2,
+              'min_stock': 3,
+              'is_active': true,
+            },
+            {
+              'type': 'product_catalog',
+              'name': 'Roti Tawar',
+              'stock_now': 0,
+              'min_stock': 2,
+              'is_active': true,
+            },
+          ],
+        );
+
+        expect(reply.providerId, 'local-deterministic');
+        expect(reply.confidenceLevel, 'high');
+        expect(reply.text, contains('Produk dengan stok lebih dari 0'));
+        expect(reply.text, contains('Bento Cake: 2'));
+        expect(reply.text, isNot(contains('Roti Tawar')));
+        expect(reply.text, isNot(contains('Dasar data:')));
+        expect(reply.text, isNot(contains('Aksi singkat:')));
+      },
+    );
+  });
+
+  group('AiChatbotService capability intent', () {
+    test('routes capability variant to local template response', () async {
+      final service = AiChatbotService();
+      final reply = await service.askFinancialAssistant(
+        question: 'apa yang bisa kau lakukan?',
+        financeSnapshot: const [],
+      );
+
+      expect(reply.providerId, 'local-smalltalk');
+      expect(reply.confidenceLevel, 'high');
+      expect(reply.text, contains('Saya bisa membantu:'));
+      expect(reply.text, contains('Batasan:'));
+      expect(reply.text, isNot(contains('Dasar data:')));
+      expect(reply.text, isNot(contains('Aksi singkat:')));
+    });
   });
 }

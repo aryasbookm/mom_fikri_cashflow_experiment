@@ -136,7 +136,9 @@ Setiap fitur non-trivial dinyatakan siap merge jika lolos:
 - **Chat AI Keuangan (`Asisten Mom Fiqry`):**
   - mendukung jalur deterministic-date queries untuk pertanyaan `hari ini/kemarin/bandingkan` berbasis `daily_summary`,
   - mendukung confidence-safety metadata per jawaban (`confidence_level`, `confidence_reason`),
-  - UI menampilkan badge keyakinan (`Tinggi/Sedang/Rendah`) agar user tahu tingkat kepastian jawaban.
+  - UI menampilkan indikator dot keyakinan dengan panel penjelasan saat ditekan,
+  - mendukung preferensi prioritas provider (`Otomatis`, `Groq dulu`, `Gemini dulu`) dengan fallback otomatis antar-provider saat limit/error,
+  - intent capability/help diprioritaskan ke template lokal untuk konsistensi jawaban non-analitik.
 
 ## 6. Alur Utama
 - Buka aplikasi:

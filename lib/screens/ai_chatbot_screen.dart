@@ -37,6 +37,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   bool _isLoading = false;
   int _cooldownSeconds = 0;
   bool _initialQuestionHandled = false;
+  String? _pendingInitialQuestion;
   String _chatProviderPriority = 'auto';
   Timer? _cooldownTimer;
   static const List<String> _quickQuestions = [
@@ -247,20 +248,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       await _persistChat();
     }
 
-    _inputController.text = initial;
-    _inputController.selection = TextSelection.fromPosition(
-      TextPosition(offset: _inputController.text.length),
-    );
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Pertanyaan lanjutan sudah diisi ke kolom chat. Edit jika perlu lalu tekan Kirim.',
-        ),
-      ),
-    );
+    setState(() {
+      _pendingInitialQuestion = initial;
+    });
   }
 
   Future<void> _persistChat() async {
@@ -315,17 +305,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     _scrollToBottom();
   }
 
-  Future<void> _copyMessage(
-    String text, {
-    String successMessage = 'Jawaban disalin ke clipboard.',
-  }) async {
+  Future<void> _copyMessage(String text) async {
     await Clipboard.setData(ClipboardData(text: text));
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(successMessage)));
+    await HapticFeedback.selectionClick();
   }
 
   void _editUserMessage(String text) {
@@ -333,11 +315,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     _inputController.selection = TextSelection.fromPosition(
       TextPosition(offset: _inputController.text.length),
     );
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Pesan dimasukkan ke input. Edit lalu kirim ulang.'),
-      ),
-    );
+    HapticFeedback.selectionClick();
   }
 
   Future<void> _sendQuestion(String question) async {
@@ -600,6 +578,30 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.fromLTRB(12, 6, 12, 2),
               children:
+                  [
+                    if (_pendingInitialQuestion != null &&
+                        _pendingInitialQuestion!.trim().isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ActionChip(
+                          label: const Text('Gunakan Tanya Lanjutan'),
+                          onPressed:
+                              (_isLoading || _cooldownSeconds > 0)
+                                  ? null
+                                  : () async {
+                                    final text =
+                                        _pendingInitialQuestion?.trim() ?? '';
+                                    if (text.isEmpty) {
+                                      return;
+                                    }
+                                    setState(() {
+                                      _pendingInitialQuestion = null;
+                                    });
+                                    await _sendQuestion(text);
+                                  },
+                        ),
+                      ),
+                  ] +
                   _quickQuestions
                       .map(
                         (q) => Padding(
@@ -706,14 +708,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                                 visualDensity: VisualDensity.compact,
                                 tooltip:
                                     isUser ? 'Salin pesan' : 'Salin jawaban',
-                                onPressed:
-                                    () => _copyMessage(
-                                      msg.text,
-                                      successMessage:
-                                          isUser
-                                              ? 'Pesan disalin ke clipboard.'
-                                              : 'Jawaban disalin ke clipboard.',
-                                    ),
+                                onPressed: () => _copyMessage(msg.text),
                                 icon: const Icon(Icons.copy_outlined, size: 18),
                               ),
                               if (isUser)
@@ -753,17 +748,13 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                                 if (msg.confidenceLevel != null &&
                                     msg.confidenceLevel!.trim().isNotEmpty)
                                   Tooltip(
-                                    message:
-                                        msg.confidenceReason
-                                                    ?.trim()
-                                                    .isNotEmpty ==
-                                                true
-                                            ? msg.confidenceReason!
-                                            : _confidenceTooltip(
-                                              msg.confidenceLevel!,
-                                            ),
+                                    message: _confidenceTooltip(
+                                      msg.confidenceLevel!,
+                                      reason: msg.confidenceReason,
+                                    ),
                                     child: _confidenceBadge(
                                       msg.confidenceLevel!,
+                                      reason: msg.confidenceReason,
                                     ),
                                   ),
                               ],
@@ -826,70 +817,92 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     );
   }
 
-  Widget _confidenceBadge(String levelRaw) {
+  Widget _confidenceBadge(String levelRaw, {String? reason}) {
     final level = levelRaw.trim().toLowerCase();
     final palette = _confidencePalette(level);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: palette.background,
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: palette.border),
-      ),
-      child: Text(
-        _confidenceLabel(level),
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-          color: palette.foreground,
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: () => _showConfidenceInfo(level, reason: reason),
+      child: Container(
+        width: 32,
+        height: 32,
+        alignment: Alignment.center,
+        child: Container(
+          width: 14,
+          height: 14,
+          decoration: BoxDecoration(
+            color: palette.background,
+            shape: BoxShape.circle,
+            border: Border.all(color: palette.border),
+          ),
         ),
       ),
     );
   }
 
-  String _confidenceLabel(String level) {
+  Future<void> _showConfidenceInfo(String level, {String? reason}) async {
+    final title = switch (level) {
+      'high' => 'Keyakinan Tinggi',
+      'low' => 'Keyakinan Rendah',
+      _ => 'Keyakinan Sedang',
+    };
+    final desc = _confidenceTooltip(level, reason: reason);
+    if (!mounted) {
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder:
+          (context) => Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(desc),
+              ],
+            ),
+          ),
+    );
+  }
+
+  String _confidenceTooltip(String level, {String? reason}) {
+    final trimmedReason = reason?.trim() ?? '';
+    final suffix = trimmedReason.isEmpty ? '' : '\nAlasan: $trimmedReason';
     switch (level) {
       case 'high':
-        return 'Keyakinan: Tinggi';
+        return 'Indikator hijau: keyakinan tinggi.$suffix';
       case 'low':
-        return 'Keyakinan: Rendah';
+        return 'Indikator merah: keyakinan rendah.$suffix';
       default:
-        return 'Keyakinan: Sedang';
+        return 'Indikator kuning: keyakinan sedang.$suffix';
     }
   }
 
-  String _confidenceTooltip(String level) {
-    switch (level) {
-      case 'high':
-        return 'Jawaban cukup kuat berdasarkan data saat ini.';
-      case 'low':
-        return 'Jawaban bersifat perkiraan dan perlu verifikasi manual.';
-      default:
-        return 'Jawaban memakai sebagian asumsi/data terbatas.';
-    }
-  }
-
-  ({Color background, Color border, Color foreground}) _confidencePalette(
-    String level,
-  ) {
+  ({Color background, Color border}) _confidencePalette(String level) {
     switch (level) {
       case 'high':
         return (
           background: const Color(0xFFE8F5E9),
           border: const Color(0xFFA5D6A7),
-          foreground: const Color(0xFF1B5E20),
         );
       case 'low':
         return (
           background: const Color(0xFFFFEBEE),
           border: const Color(0xFFEF9A9A),
-          foreground: const Color(0xFFB71C1C),
         );
       default:
         return (
           background: const Color(0xFFFFF8E1),
           border: const Color(0xFFFFE082),
-          foreground: const Color(0xFFE65100),
         );
     }
   }

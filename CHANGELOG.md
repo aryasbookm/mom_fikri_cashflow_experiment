@@ -182,6 +182,17 @@ All notable changes to this project will be documented in this file.
   - setiap balasan assistant membawa metadata `confidence_level` (`high|medium|low`) + `confidence_reason`,
   - UI bubble chat menampilkan badge `Keyakinan: Tinggi/Sedang/Rendah` dengan tooltip alasan,
   - gaya bahasa dipaksa adaptif: level `medium/low` wajib memakai framing ketidakpastian (`berdasarkan data yang ada/terbatas`) untuk mengurangi kesan kepastian palsu.
+- Chat provider priority preference:
+  - pengguna kini bisa memilih prioritas provider chat (`Otomatis`, `Groq dulu`, `Gemini dulu`) dari menu layar chat,
+  - preferensi disimpan lokal dan dipakai untuk request chat berikutnya,
+  - fallback otomatis antar-provider tetap aktif saat provider prioritas terkena limit/error sementara.
+- Chat UX & reliability polishing:
+  - feedback copy/edit di bubble chat tidak lagi memakai snackbar bawah (diganti haptic) agar tidak menutup area input,
+  - flow `Tanya Lanjutan` tidak lagi auto-fill input; kini jadi aksi eksplisit via chip `Gunakan Tanya Lanjutan`,
+  - indikator confidence diubah menjadi dot warna dengan hit-area lebih besar dan bisa dibuka via tap (bottom sheet penjelasan),
+  - intent capability/help (termasuk variasi kalimat seperti `apa yang bisa kau lakukan`) diperketat ke jalur local template agar konsisten dan human-readable,
+  - respons non-analitik kini tidak lagi merender blok `Dasar data` / `Aksi singkat`,
+  - error Gemini chat `404/401/403` kini diperlakukan sebagai fallbackable temporary error agar otomatis lanjut ke provider berikutnya.
 - AI Insight kini ikut memakai strategi multi-provider fallback (urutan `AI_PROVIDER_ORDER`, default `gemini,groq`) sehingga jika provider pertama kena rate limit/temporary error, sistem otomatis mencoba provider berikutnya.
 - Seleksi provider AI kini aware konfigurasi key:
   - provider tanpa API key tidak lagi ikut antrean fallback (OCR & Insight),

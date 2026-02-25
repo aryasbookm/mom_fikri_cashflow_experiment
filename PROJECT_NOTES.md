@@ -223,9 +223,20 @@ Catatan:
    - Pertanyaan tanggal sensitif (`hari ini`, `kemarin`, `bandingkan`) diproses dengan jalur lokal deterministik dari `daily_summary` agar tidak bergantung interpretasi LLM.
    - Confidence-Safety Layer aktif di jawaban assistant:
      - metadata `confidence_level` (`high|medium|low`) + `confidence_reason` disimpan per message,
-     - bubble chat menampilkan badge keyakinan dan tooltip alasan,
+     - bubble chat menampilkan indikator dot keyakinan (tap untuk membuka penjelasan level + alasan),
      - jawaban `medium/low` dipaksa memakai framing ketidakpastian (bukan nada absolut).
    - Jika data harian belum lengkap, assistant memberi guidance eksplisit dan tidak memaksakan angka komparatif.
+   - Provider priority preference untuk chat:
+     - user dapat memilih urutan prioritas (`Otomatis`, `Groq dulu`, `Gemini dulu`) dari UI,
+     - preferensi disimpan lokal dan dipakai untuk routing provider berikutnya,
+     - fallback antar-provider tetap otomatis saat provider prioritas limit/error.
+   - UX chat disederhanakan:
+     - aksi copy/edit di bubble menggunakan haptic (tanpa snackbar bawah),
+     - `Tanya Lanjutan` tidak auto-fill input; user mengeksekusi eksplisit via chip.
+   - Guard reliability:
+     - intent capability/help diperketat ke local template untuk mencegah drift respons,
+     - blok `Dasar data/Aksi singkat` hanya tampil pada respons analitik,
+     - error Gemini chat `404/401/403` diperlakukan sebagai temporary fallback agar tidak berhenti di jalur `via: error`.
    - OCR provider-trace visibility:
     - UI scan menampilkan urutan provider yang dicoba pada request aktif (contoh `Gemini -> Groq`) agar verifikasi fallback tidak perlu menebak dari hasil/error saja.
    - Output AI bersifat asistif/read-only (tidak menulis transaksi otomatis).

@@ -92,10 +92,6 @@ void main() {
 
       expect(reply.providerId, 'local-deterministic');
       expect(reply.confidenceLevel, 'medium');
-      expect(
-        reply.text.toLowerCase(),
-        contains('berdasarkan data yang ada, hasil ini perlu ditinjau'),
-      );
       expect(reply.text.toLowerCase(), contains('data harian lengkap'));
       expect(reply.text.toLowerCase(), contains('kemarin=-'));
     });

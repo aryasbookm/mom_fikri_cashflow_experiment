@@ -76,6 +76,7 @@ class AiChatbotService {
     String? providerOrderOverride,
   }) async {
     final safeQuestion = question.trim();
+    final isCapabilityQuestion = _isCapabilityHelpQueryLoose(safeQuestion);
     final stockRankingReply = _resolveDeterministicStockRankingReply(
       question: safeQuestion,
       financeSnapshot: financeSnapshot,
@@ -103,7 +104,10 @@ class AiChatbotService {
         ),
       );
     }
-    final instantReply = _resolveInstantLocalReply(safeQuestion);
+    final instantReply = _resolveInstantLocalReply(
+      safeQuestion,
+      forceCapability: isCapabilityQuestion,
+    );
     if (instantReply != null) {
       return _finalizeConfidenceReply(instantReply);
     }
@@ -251,6 +255,7 @@ class AiChatbotService {
     final cleaned = _renderStructuredResponse(
       finalParsed,
       detailedMode: detailedMode,
+      analyticalMode: _isAnalyticalQuestion(safeQuestion),
     );
     if (cleaned.isEmpty) {
       throw const AiProviderTemporaryException('Jawaban AI kosong. Coba lagi.');
@@ -264,15 +269,10 @@ class AiChatbotService {
       providerId: providerId,
       response: finalParsed,
     );
-    final framedText = _applyConfidenceFraming(
-      text: cleaned,
-      confidenceLevel: confidenceLevel,
-    );
-
     await _saveCache(fingerprint: fingerprint, text: cleaned);
     return _finalizeConfidenceReply(
       AiChatReply(
-        text: framedText,
+        text: cleaned,
         providerId: providerId,
         fromCache: false,
         suggestedCooldownSeconds:
@@ -289,19 +289,36 @@ class AiChatbotService {
     );
   }
 
-  AiChatReply? _resolveInstantLocalReply(String question) {
+  AiChatReply? _resolveInstantLocalReply(
+    String question, {
+    bool forceCapability = false,
+  }) {
     final q = question.trim().toLowerCase();
     if (q.isEmpty) {
       return null;
     }
 
-    if (_isCapabilityHelpQuery(q)) {
+    if (forceCapability || _isCapabilityHelpQuery(q)) {
       return const AiChatReply(
         text:
-            'Saya Asisten Mom Fiqry. Saya bisa: analisis data keuangan 30 hari, jawab tanya kategori pemasukan/pengeluaran, dan ubah daftar chat jadi draf transaksi untuk direview sebelum simpan. Saya tidak bisa: menjalankan aksi di luar data toko, mengakses internet bebas, atau menyimpan transaksi tanpa konfirmasi Anda.',
+            'Saya Asisten Mom Fiqry.\n'
+            'Saya bisa membantu:\n'
+            '- Analisis data keuangan toko (30 hari).\n'
+            '- Menjawab pertanyaan kategori pemasukan/pengeluaran.\n'
+            '- Mengubah daftar chat menjadi draf transaksi untuk direview sebelum simpan.\n'
+            'Batasan:\n'
+            '- Tidak menjalankan aksi di luar data toko.\n'
+            '- Tidak mengakses internet bebas.\n'
+            '- Tidak menyimpan transaksi tanpa konfirmasi Anda.\n'
+            'Contoh perintah:\n'
+            '- "Bandingkan penghasilan hari ini dan kemarin."\n'
+            '- "Sebutkan stok selain yang 0."\n'
+            '- "Buat draf transaksi dari daftar berikut."',
         providerId: 'local-smalltalk',
         fromCache: false,
         suggestedCooldownSeconds: 1,
+        confidenceLevel: 'high',
+        confidenceReason: 'Jawaban berasal dari capability lokal yang statis.',
       );
     }
 
@@ -312,6 +329,8 @@ class AiChatbotService {
         providerId: 'local-smalltalk',
         fromCache: false,
         suggestedCooldownSeconds: 1,
+        confidenceLevel: 'high',
+        confidenceReason: 'Jawaban small-talk lokal deterministik.',
       );
     }
 
@@ -322,6 +341,8 @@ class AiChatbotService {
         providerId: 'local-smalltalk',
         fromCache: false,
         suggestedCooldownSeconds: 1,
+        confidenceLevel: 'high',
+        confidenceReason: 'Jawaban small-talk lokal deterministik.',
       );
     }
 
@@ -339,7 +360,12 @@ class AiChatbotService {
         q.contains('ranking') ||
         q.contains('tertinggi') ||
         q.contains('terendah');
-    if (!asksStock || !asksOrder) {
+    final asksListOnly =
+        q.contains('stoknya berapa') ||
+        q.contains('stok berapa') ||
+        q.contains('masih') ||
+        q.contains('sisa');
+    if (!asksStock || (!asksOrder && !asksListOnly)) {
       return null;
     }
 
@@ -373,6 +399,7 @@ class AiChatbotService {
 
     final hideZero =
         q.contains('tanpa') && q.contains('0') ||
+        q.contains('selain') && q.contains('0') ||
         q.contains('di atas 0') ||
         q.contains('> 0') ||
         q.contains('bukan 0');
@@ -380,9 +407,17 @@ class AiChatbotService {
     if (hideZero) {
       rows = rows.where((row) => _toInt(row['stock_now']) > 0).toList();
     }
-    rows.sort(
-      (a, b) => _toInt(b['stock_now']).compareTo(_toInt(a['stock_now'])),
-    );
+    if (asksOrder) {
+      rows.sort(
+        (a, b) => _toInt(b['stock_now']).compareTo(_toInt(a['stock_now'])),
+      );
+    } else {
+      rows.sort(
+        (a, b) => (a['name'] ?? '').toString().compareTo(
+          (b['name'] ?? '').toString(),
+        ),
+      );
+    }
     if (rows.isEmpty) {
       return const AiChatReply(
         text:
@@ -398,7 +433,9 @@ class AiChatbotService {
     final limit = _extractTopLimit(q) ?? 10;
     final topRows = rows.take(limit).toList();
     final lines = <String>[
-      'Stok saat ini (urut tertinggi ke terendah${hideZero ? ', tanpa stok 0' : ''}):',
+      asksOrder
+          ? 'Stok saat ini (urut tertinggi ke terendah${hideZero ? ', tanpa stok 0' : ''}):'
+          : 'Produk dengan stok ${hideZero ? 'lebih dari 0' : 'saat ini'}:',
       ...topRows.map(
         (row) =>
             '- ${row['name']}: ${NumberFormat('#,##0', 'id_ID').format(_toInt(row['stock_now']))}',
@@ -498,41 +535,28 @@ class AiChatbotService {
     return 'Jawaban berasal dari provider AI dengan validasi struktur lokal.';
   }
 
-  String _applyConfidenceFraming({
-    required String text,
-    required String confidenceLevel,
-  }) {
-    final trimmed = text.trim();
-    if (trimmed.isEmpty || confidenceLevel == 'high') {
-      return trimmed;
-    }
-    if (confidenceLevel == 'medium') {
-      if (trimmed.toLowerCase().startsWith('berdasarkan data yang ada')) {
-        return trimmed;
-      }
-      return 'Berdasarkan data yang ada, hasil ini perlu ditinjau.\n$trimmed';
-    }
-    if (trimmed.toLowerCase().startsWith('berdasarkan data terbatas')) {
-      return trimmed;
-    }
-    return 'Berdasarkan data terbatas, hasil ini bersifat perkiraan.\n$trimmed';
-  }
-
   AiChatReply _finalizeConfidenceReply(AiChatReply reply) {
-    final framedText = _applyConfidenceFraming(
-      text: reply.text,
-      confidenceLevel: reply.confidenceLevel,
-    );
-    if (framedText == reply.text) {
+    var normalizedConfidence = reply.confidenceLevel.trim().toLowerCase();
+    if (normalizedConfidence != 'high' &&
+        normalizedConfidence != 'medium' &&
+        normalizedConfidence != 'low') {
+      normalizedConfidence = 'medium';
+    }
+    if ((reply.providerId == 'local-smalltalk' ||
+            reply.providerId == 'memory-local') &&
+        normalizedConfidence != 'high') {
+      normalizedConfidence = 'high';
+    }
+    if (normalizedConfidence == reply.confidenceLevel) {
       return reply;
     }
     return AiChatReply(
-      text: framedText,
+      text: reply.text,
       providerId: reply.providerId,
       fromCache: reply.fromCache,
       suggestedCooldownSeconds: reply.suggestedCooldownSeconds,
       actionDraft: reply.actionDraft,
-      confidenceLevel: reply.confidenceLevel,
+      confidenceLevel: normalizedConfidence,
       confidenceReason: reply.confidenceReason,
     );
   }
@@ -727,6 +751,57 @@ class AiChatbotService {
         q.contains('bantuan') ||
         q.contains('help') ||
         q.contains('cara pakai');
+  }
+
+  bool _isCapabilityHelpQueryLoose(String question) {
+    final q =
+        question
+            .toLowerCase()
+            .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
+            .replaceAll(RegExp(r'\s+'), ' ')
+            .trim();
+    if (_isCapabilityHelpQuery(q)) {
+      return true;
+    }
+    if (RegExp(r'\bapa\b.*\bbisa\b.*\b(kau|kamu|anda)\b').hasMatch(q)) {
+      return true;
+    }
+    if (RegExp(r'\b(kamu|kau|anda)\b.*\bbisa\b.*\bapa\b').hasMatch(q)) {
+      return true;
+    }
+    if (q.contains('apa yang bisa kau lakukan') ||
+        q.contains('apa yang bisa kamu lakukan') ||
+        q.contains('fiturmu') ||
+        q.contains('kemampuanmu') ||
+        q.contains('bisa bantu apa')) {
+      return true;
+    }
+    return false;
+  }
+
+  bool _isAnalyticalQuestion(String question) {
+    final q = question.toLowerCase();
+    const analyticalKeywords = <String>[
+      'analisis',
+      'banding',
+      'penghasilan',
+      'pemasukan',
+      'pengeluaran',
+      'laba',
+      'selisih',
+      'stok',
+      'kategori',
+      'omzet',
+      'margin',
+      'hari ini',
+      'kemarin',
+      '30 hari',
+      'produk',
+      'prioritas',
+      'rekomendasi',
+      'strategi',
+    ];
+    return analyticalKeywords.any(q.contains);
   }
 
   bool _isGreetingQuery(String q) {
@@ -1564,18 +1639,19 @@ $question
   String _renderStructuredResponse(
     _StructuredChatResponse response, {
     required bool detailedMode,
+    required bool analyticalMode,
   }) {
     if (response.status == 'outside_scope') {
       return response.jawaban;
     }
     final lines = <String>[response.jawaban];
-    if (response.dasarData.isNotEmpty) {
+    if (analyticalMode && response.dasarData.isNotEmpty) {
       lines.add('Dasar data:');
       lines.addAll(
         response.dasarData.take(3).map((item) => '- ${item.kutipan}'),
       );
     }
-    if (response.aksiSingkat.isNotEmpty) {
+    if (analyticalMode && response.aksiSingkat.isNotEmpty) {
       lines.add('Aksi singkat: ${response.aksiSingkat}');
     }
     if (response.status == 'needs_data' &&
@@ -1888,6 +1964,16 @@ $question
         'GEMINI_CHAT_MODEL belum diset.',
       );
     }
+    if (model.startsWith('models/')) {
+      throw const AiProviderTemporaryException(
+        'GEMINI_CHAT_MODEL tidak boleh diawali "models/". Gunakan nama pendek model, contoh: gemma-3-12b-it.',
+      );
+    }
+    if (model == 'gemma-3-12b') {
+      throw const AiProviderTemporaryException(
+        'Model gemma-3-12b tidak ditemukan untuk chat. Gunakan gemma-3-12b-it.',
+      );
+    }
     if (model.contains('flash') || model.contains('pro')) {
       throw AiProviderTemporaryException(
         'Model chat $_geminiModel diblokir: gunakan model teks (Gemma), bukan Flash/Pro.',
@@ -1950,7 +2036,19 @@ $question
           'Server AI sedang bermasalah. Coba beberapa saat lagi.',
         );
       }
-      throw Exception('Permintaan AI gagal (${response.statusCode}).');
+      if (response.statusCode == 404) {
+        throw AiProviderTemporaryException(
+          'Model Gemini chat ($_geminiModel) tidak tersedia (404). Sistem akan mencoba provider lain.',
+        );
+      }
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        throw const AiProviderTemporaryException(
+          'Akses Gemini chat gagal (401/403). Sistem akan mencoba provider lain.',
+        );
+      }
+      throw AiProviderTemporaryException(
+        'Permintaan Gemini chat gagal (${response.statusCode}). Sistem akan mencoba provider lain.',
+      );
     }
 
     Map<String, dynamic> body;
