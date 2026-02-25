@@ -1,8 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mom_fikri_cashflow/models/chat_import_draft.dart';
 import 'package:mom_fikri_cashflow/services/ai_chatbot_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+  });
+
   group('ChatImportDraftItem.fromJson', () {
     test('forces inferred date to needsReview with deterministic warning', () {
       final item = ChatImportDraftItem.fromJson({

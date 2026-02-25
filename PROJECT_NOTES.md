@@ -236,7 +236,9 @@ Catatan:
    - Guard reliability:
      - intent capability/help diperketat ke local template untuk mencegah drift respons,
      - blok `Dasar data/Aksi singkat` hanya tampil pada respons analitik,
-     - error Gemini chat `404/401/403` diperlakukan sebagai temporary fallback agar tidak berhenti di jalur `via: error`.
+     - error Gemini chat `404/401/403` diperlakukan sebagai temporary fallback agar tidak berhenti di jalur `via: error`,
+     - intent router berjenjang aktif sebagai gatekeeper (`local fast intent -> AI classifier fallback -> clarification/outside-scope`) sebelum jalur LLM,
+     - normalisasi intent memakai seed map typo/singkatan/slang ringan, divalidasi dengan golden tests intent 40+ kasus.
    - OCR provider-trace visibility:
     - UI scan menampilkan urutan provider yang dicoba pada request aktif (contoh `Gemini -> Groq`) agar verifikasi fallback tidak perlu menebak dari hasil/error saja.
    - Output AI bersifat asistif/read-only (tidak menulis transaksi otomatis).

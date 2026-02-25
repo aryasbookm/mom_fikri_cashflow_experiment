@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/chat_import_draft.dart';
 import 'ai_chatbot_memory_service.dart';
+import 'chat_intent_router.dart';
 import 'ai_insight_service.dart';
 import 'ai_providers/ai_vision_provider.dart';
 
@@ -63,11 +64,18 @@ class AiChatbotService {
   static const int _maxHistoryMessages = 8;
   static const int _maxProviderRetries = 2;
   static const Duration _cacheTtl = Duration(minutes: 10);
+  static const List<String> _clarificationOptions = <String>[
+    'Cek stok',
+    'Cek pemasukan/pengeluaran',
+    'Input draf transaksi',
+    'Analisis laporan',
+  ];
 
   static const String _cacheKeyText = 'ai_chat_cache_text_v1';
   static const String _cacheKeyHash = 'ai_chat_cache_hash_v1';
   static const String _cacheKeyEpoch = 'ai_chat_cache_epoch_v1';
   final AiChatbotMemoryService _memoryService = AiChatbotMemoryService();
+  final ChatIntentRouter _intentRouter = ChatIntentRouter();
 
   Future<AiChatReply> askFinancialAssistant({
     required String question,
@@ -76,21 +84,6 @@ class AiChatbotService {
     String? providerOrderOverride,
   }) async {
     final safeQuestion = question.trim();
-    final isCapabilityQuestion = _isCapabilityHelpQueryLoose(safeQuestion);
-    final stockRankingReply = _resolveDeterministicStockRankingReply(
-      question: safeQuestion,
-      financeSnapshot: financeSnapshot,
-    );
-    if (stockRankingReply != null) {
-      return _finalizeConfidenceReply(stockRankingReply);
-    }
-    final dateQueryReply = _resolveDeterministicDateQueryReply(
-      question: safeQuestion,
-      financeSnapshot: financeSnapshot,
-    );
-    if (dateQueryReply != null) {
-      return _finalizeConfidenceReply(dateQueryReply);
-    }
     if (safeQuestion.length > 3500) {
       return _finalizeConfidenceReply(
         const AiChatReply(
@@ -104,13 +97,6 @@ class AiChatbotService {
         ),
       );
     }
-    final instantReply = _resolveInstantLocalReply(
-      safeQuestion,
-      forceCapability: isCapabilityQuestion,
-    );
-    if (instantReply != null) {
-      return _finalizeConfidenceReply(instantReply);
-    }
     final memory = await _memoryService.loadMemory();
     final memoryAction = _resolveMemoryAction(
       question: safeQuestion,
@@ -121,6 +107,49 @@ class AiChatbotService {
         await _applyMemoryAction(action: memoryAction, memory: memory),
       );
     }
+
+    final localIntent = _intentRouter.classify(safeQuestion);
+    final localRoutedReply = await _routeIntentDecision(
+      decision: localIntent,
+      question: safeQuestion,
+      financeSnapshot: financeSnapshot,
+      providerOrderOverride: providerOrderOverride,
+    );
+    if (localRoutedReply != null) {
+      return _finalizeConfidenceReply(localRoutedReply);
+    }
+
+    if (localIntent.type == ChatIntentType.unknown ||
+        localIntent.type == ChatIntentType.ambiguous ||
+        localIntent.type == ChatIntentType.outsideScope) {
+      final aiIntent = await _classifyIntentWithAi(
+        question: safeQuestion,
+        providerOrderOverride: providerOrderOverride,
+      );
+      if (aiIntent != null) {
+        final aiRoutedReply = await _routeIntentDecision(
+          decision: aiIntent,
+          question: safeQuestion,
+          financeSnapshot: financeSnapshot,
+          providerOrderOverride: providerOrderOverride,
+        );
+        if (aiRoutedReply != null) {
+          return _finalizeConfidenceReply(aiRoutedReply);
+        }
+        if (aiIntent.type == ChatIntentType.outsideScope) {
+          return _finalizeConfidenceReply(_buildOutsideScopeReply());
+        }
+      }
+
+      if (localIntent.type == ChatIntentType.outsideScope) {
+        return _finalizeConfidenceReply(_buildOutsideScopeReply());
+      }
+      if (localIntent.type == ChatIntentType.unknown ||
+          localIntent.type == ChatIntentType.ambiguous) {
+        return _finalizeConfidenceReply(_buildClarificationReply(localIntent));
+      }
+    }
+
     if (_looksLikeImportAction(safeQuestion) ||
         _looksLikeTransactionListText(safeQuestion)) {
       final action = await _tryBuildImportDraftFromQuestion(
@@ -190,7 +219,7 @@ class AiChatbotService {
     }
 
     final prompt = _buildBoundedPrompt(
-      question: safeQuestion,
+      question: localIntent.normalizedQuestion,
       financeSnapshot: financeSnapshot,
       history: boundedHistory,
       memory: memory,
@@ -198,7 +227,7 @@ class AiChatbotService {
     );
 
     final askedCategories = _extractAskedCategories(
-      question: safeQuestion,
+      question: localIntent.normalizedQuestion,
       financeSnapshot: financeSnapshot,
     );
 
@@ -217,7 +246,7 @@ class AiChatbotService {
     var providerId = firstResponse.providerId;
     if (firstIssue != null) {
       final retryPrompt = _buildStrictRetryPrompt(
-        question: safeQuestion,
+        question: localIntent.normalizedQuestion,
         financeSnapshot: financeSnapshot,
         history: boundedHistory,
         askedCategories: askedCategories,
@@ -255,7 +284,7 @@ class AiChatbotService {
     final cleaned = _renderStructuredResponse(
       finalParsed,
       detailedMode: detailedMode,
-      analyticalMode: _isAnalyticalQuestion(safeQuestion),
+      analyticalMode: _isAnalyticalQuestion(localIntent.normalizedQuestion),
     );
     if (cleaned.isEmpty) {
       throw const AiProviderTemporaryException('Jawaban AI kosong. Coba lagi.');
@@ -287,6 +316,272 @@ class AiChatbotService {
         confidenceReason: confidenceReason,
       ),
     );
+  }
+
+  Future<AiChatReply?> _routeIntentDecision({
+    required ChatIntentDecision decision,
+    required String question,
+    required List<Map<String, dynamic>> financeSnapshot,
+    String? providerOrderOverride,
+  }) async {
+    switch (decision.type) {
+      case ChatIntentType.capabilityHelp:
+        return _resolveInstantLocalReply(
+          decision.normalizedQuestion,
+          forceCapability: true,
+        );
+      case ChatIntentType.smallTalk:
+        return _resolveInstantLocalReply(decision.normalizedQuestion);
+      case ChatIntentType.stockQuery:
+        return _resolveDeterministicStockRankingReply(
+          question: decision.normalizedQuestion,
+          financeSnapshot: financeSnapshot,
+        );
+      case ChatIntentType.dateQuery:
+        return _resolveDeterministicDateQueryReply(
+          question: decision.normalizedQuestion,
+          financeSnapshot: financeSnapshot,
+        );
+      case ChatIntentType.importDraft:
+        final action = await _tryBuildImportDraftFromQuestion(
+          question: question,
+          financeSnapshot: financeSnapshot,
+          providerOrderOverride: providerOrderOverride,
+        );
+        if (action == null) {
+          return const AiChatReply(
+            text:
+                'Saya mendeteksi ini seperti daftar transaksi, tapi ada bagian yang belum cukup jelas untuk diproses aman (mis. nominal/format baris/tanggal). Coba kirim ulang dengan format 1 baris per transaksi, contoh: "Donat 20000" atau "Sosis 10000 + 5000". Jika tanggal tidak ada, saya akan pakai tanggal hari ini dan tandai untuk review.',
+            providerId: 'chat-action-intent',
+            fromCache: false,
+            suggestedCooldownSeconds: 1,
+            confidenceLevel: 'low',
+            confidenceReason:
+                'Format transaksi ambigu dan belum aman diproses.',
+          );
+        }
+        return AiChatReply(
+          text:
+              'Draf transaksi berhasil disiapkan. Silakan review dulu sebelum disimpan.',
+          providerId: action.providerId,
+          fromCache: false,
+          suggestedCooldownSeconds: 1,
+          actionDraft: action.draft,
+          confidenceLevel: _confidenceForDraft(action.draft),
+          confidenceReason: _confidenceReasonForDraft(action.draft),
+        );
+      case ChatIntentType.analysis:
+      case ChatIntentType.outsideScope:
+      case ChatIntentType.ambiguous:
+      case ChatIntentType.unknown:
+        return null;
+    }
+  }
+
+  AiChatReply _buildClarificationReply(ChatIntentDecision decision) {
+    final options =
+        decision.clarificationOptions.isEmpty
+            ? _clarificationOptions
+            : decision.clarificationOptions;
+    final lines = <String>[
+      'Maksud Anda yang mana?',
+      ...options.map((option) => '- $option'),
+      'Balas salah satu opsi di atas agar saya proses dengan tepat.',
+    ];
+    return AiChatReply(
+      text: lines.join('\n'),
+      providerId: 'local-clarification',
+      fromCache: false,
+      suggestedCooldownSeconds: 1,
+      confidenceLevel: 'medium',
+      confidenceReason: 'Pertanyaan ambigu dan butuh klarifikasi intent.',
+    );
+  }
+
+  AiChatReply _buildOutsideScopeReply() {
+    return const AiChatReply(
+      text: 'Saya hanya bisa membantu analisis data keuangan toko Anda.',
+      providerId: 'local-scope-guard',
+      fromCache: false,
+      suggestedCooldownSeconds: 1,
+      confidenceLevel: 'high',
+      confidenceReason: 'Topik di luar cakupan asisten keuangan toko.',
+    );
+  }
+
+  Future<ChatIntentDecision?> _classifyIntentWithAi({
+    required String question,
+    String? providerOrderOverride,
+  }) async {
+    final normalized = _intentRouter.normalize(question);
+    if (normalized.isEmpty) {
+      return null;
+    }
+
+    final prompt = _buildIntentClassifierPrompt(normalized);
+    try {
+      final response = await _requestWithFallback(
+        prompt,
+        providerOrderOverride: providerOrderOverride,
+      );
+      return _tryParseIntentClassifierDecision(
+        rawText: response.text,
+        normalizedQuestion: normalized,
+      );
+    } on AiRateLimitException {
+      return null;
+    } on AiProviderTemporaryException {
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _buildIntentClassifierPrompt(String question) {
+    return '''
+Anda adalah classifier intent untuk asisten keuangan toko.
+Tugas Anda hanya klasifikasi intent, bukan menjawab pertanyaan.
+
+Pilih SATU intent dari daftar berikut:
+- capability_help
+- small_talk
+- stock_query
+- date_query
+- import_draft
+- analysis
+- outside_scope
+- ambiguous
+- unknown
+
+WAJIB output JSON valid saja tanpa markdown:
+{"intent":"...","confidence":0-100,"reason":"..."}
+
+Aturan:
+- Jika user menyapa atau tes singkat => small_talk.
+- Jika user tanya kemampuan bot/cara pakai => capability_help.
+- Jika user tanya stok/ranking/list stok => stock_query.
+- Jika user tanya hari ini/kemarin/bandingkan metrik => date_query.
+- Jika user ingin mengubah daftar transaksi jadi draf => import_draft.
+- Jika user minta insight/saran/analisis dari data toko => analysis.
+- Jika topik jelas di luar keuangan toko => outside_scope.
+- Jika maksud belum jelas => ambiguous.
+- confidence wajib angka 0..100.
+
+Teks user:
+$question
+''';
+  }
+
+  ChatIntentDecision? _tryParseIntentClassifierDecision({
+    required String rawText,
+    required String normalizedQuestion,
+  }) {
+    final trimmed = rawText.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+
+    Map<String, dynamic>? decoded;
+    try {
+      final direct = jsonDecode(trimmed);
+      if (direct is Map<String, dynamic>) {
+        decoded = direct;
+      } else if (direct is Map) {
+        decoded = Map<String, dynamic>.from(direct);
+      }
+    } catch (_) {
+      final start = trimmed.indexOf('{');
+      final end = trimmed.lastIndexOf('}');
+      if (start >= 0 && end > start) {
+        final candidate = trimmed.substring(start, end + 1);
+        try {
+          final loose = jsonDecode(candidate);
+          if (loose is Map<String, dynamic>) {
+            decoded = loose;
+          } else if (loose is Map) {
+            decoded = Map<String, dynamic>.from(loose);
+          }
+        } catch (_) {
+          return null;
+        }
+      }
+    }
+    if (decoded == null) {
+      return null;
+    }
+
+    final intentRaw =
+        (decoded['intent'] ?? decoded['label'] ?? '').toString().trim();
+    final intent = _parseIntentType(intentRaw);
+    if (intent == null) {
+      return null;
+    }
+
+    final rawConfidence = decoded['confidence'];
+    double confidence = 0.0;
+    if (rawConfidence is num) {
+      confidence = rawConfidence.toDouble();
+    } else {
+      confidence = double.tryParse(rawConfidence?.toString() ?? '') ?? 0.0;
+    }
+    if (confidence > 1.0) {
+      confidence = confidence / 100.0;
+    }
+    confidence = confidence.clamp(0.0, 1.0);
+    final reason =
+        (decoded['reason'] ?? 'ai_intent_classifier').toString().trim();
+    final clarifications =
+        intent == ChatIntentType.ambiguous || intent == ChatIntentType.unknown
+            ? _clarificationOptions
+            : const <String>[];
+    return ChatIntentDecision(
+      type: intent,
+      confidence: confidence,
+      normalizedQuestion: normalizedQuestion,
+      reason: reason.isEmpty ? 'ai_intent_classifier' : reason,
+      clarificationOptions: clarifications,
+    );
+  }
+
+  ChatIntentType? _parseIntentType(String raw) {
+    final value = raw.trim().toLowerCase();
+    switch (value) {
+      case 'capability_help':
+      case 'capabilityhelp':
+      case 'help':
+        return ChatIntentType.capabilityHelp;
+      case 'small_talk':
+      case 'smalltalk':
+      case 'greeting':
+        return ChatIntentType.smallTalk;
+      case 'stock_query':
+      case 'stock':
+      case 'stok_query':
+        return ChatIntentType.stockQuery;
+      case 'date_query':
+      case 'date':
+      case 'tanggal':
+        return ChatIntentType.dateQuery;
+      case 'import_draft':
+      case 'import':
+      case 'import_transactions':
+        return ChatIntentType.importDraft;
+      case 'analysis':
+      case 'insight':
+      case 'analytical':
+        return ChatIntentType.analysis;
+      case 'outside_scope':
+      case 'out_of_scope':
+      case 'outside':
+        return ChatIntentType.outsideScope;
+      case 'ambiguous':
+      case 'clarification':
+        return ChatIntentType.ambiguous;
+      case 'unknown':
+        return ChatIntentType.unknown;
+      default:
+        return null;
+    }
   }
 
   AiChatReply? _resolveInstantLocalReply(
@@ -755,32 +1050,6 @@ class AiChatbotService {
         q.contains('bantuan') ||
         q.contains('help') ||
         q.contains('cara pakai');
-  }
-
-  bool _isCapabilityHelpQueryLoose(String question) {
-    final q =
-        question
-            .toLowerCase()
-            .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
-            .replaceAll(RegExp(r'\s+'), ' ')
-            .trim();
-    if (_isCapabilityHelpQuery(q)) {
-      return true;
-    }
-    if (RegExp(r'\bapa\b.*\bbisa\b.*\b(kau|kamu|anda)\b').hasMatch(q)) {
-      return true;
-    }
-    if (RegExp(r'\b(kamu|kau|anda)\b.*\bbisa\b.*\bapa\b').hasMatch(q)) {
-      return true;
-    }
-    if (q.contains('apa yang bisa kau lakukan') ||
-        q.contains('apa yang bisa kamu lakukan') ||
-        q.contains('fiturmu') ||
-        q.contains('kemampuanmu') ||
-        q.contains('bisa bantu apa')) {
-      return true;
-    }
-    return false;
   }
 
   bool _isAnalyticalQuestion(String question) {

@@ -193,6 +193,12 @@ All notable changes to this project will be documented in this file.
   - intent capability/help (termasuk variasi kalimat seperti `apa yang bisa kau lakukan`) diperketat ke jalur local template agar konsisten dan human-readable,
   - respons non-analitik kini tidak lagi merender blok `Dasar data` / `Aksi singkat`,
   - error Gemini chat `404/401/403` kini diperlakukan sebagai fallbackable temporary error agar otomatis lanjut ke provider berikutnya.
+- Intent router berjenjang (chat) ditambahkan:
+  - `ChatIntentRouter` baru sebagai gatekeeper sebelum LLM, dengan urutan: klasifikasi lokal cepat -> (opsional) AI intent classifier fallback -> klarifikasi/outside-scope guard.
+  - normalisasi ringan berbasis seed map (singkatan, typo umum, slang/daerah) untuk menekan false-negative intent tanpa fuzzy engine berat.
+  - intent konkret (`capability_help`, `small_talk`, `stock_query`, `date_query`, `import_draft`) langsung dirutekan ke jalur lokal/deterministik.
+  - parse draft import di service kembali memakai teks asli user (bukan teks ternormalisasi) agar struktur baris/nominal tidak rusak.
+  - golden tests baru `test/chat_intent_router_test.dart` (40+ kasus) ditambahkan untuk menjaga stabilitas intent pada typo/singkatan/bahasa campuran.
 - AI Insight kini ikut memakai strategi multi-provider fallback (urutan `AI_PROVIDER_ORDER`, default `gemini,groq`) sehingga jika provider pertama kena rate limit/temporary error, sistem otomatis mencoba provider berikutnya.
 - Seleksi provider AI kini aware konfigurasi key:
   - provider tanpa API key tidak lagi ikut antrean fallback (OCR & Insight),

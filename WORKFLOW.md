@@ -172,6 +172,10 @@
   - tanya "urutkan stok tertinggi-ke-terendah tanpa stok 0" dan pastikan hasil tidak menyebut item `stock_now == 0`.
   - pastikan urutan benar-benar descending berdasarkan angka `stock_now` (bukan urut alfabet).
   - uji `top N` (contoh: `top 5`) dan pastikan jumlah item sesuai.
+- [ ] Uji intent router berjenjang:
+  - jalankan `flutter test test/chat_intent_router_test.dart` untuk validasi 40+ kasus intent (typo/singkatan/slang).
+  - verifikasi query `kamu bisa apa`/`halo` selalu lewat local template (bukan drift ke LLM analitik).
+  - verifikasi query ambigu pendek (`cek`, `tolong`) mengembalikan klarifikasi opsi intent.
 - [ ] Jalankan regression test otomatis Phase 4:
   - `flutter test test/chat_import_draft_model_test.dart test/chat_import_audit_service_test.dart`
 - [ ] Jalankan regression test OCR parity Phase 1:

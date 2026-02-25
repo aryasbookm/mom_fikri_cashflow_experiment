@@ -138,7 +138,9 @@ Setiap fitur non-trivial dinyatakan siap merge jika lolos:
   - mendukung confidence-safety metadata per jawaban (`confidence_level`, `confidence_reason`),
   - UI menampilkan indikator dot keyakinan dengan panel penjelasan saat ditekan,
   - mendukung preferensi prioritas provider (`Otomatis`, `Groq dulu`, `Gemini dulu`) dengan fallback otomatis antar-provider saat limit/error,
-  - intent capability/help diprioritaskan ke template lokal untuk konsistensi jawaban non-analitik.
+  - intent capability/help diprioritaskan ke template lokal untuk konsistensi jawaban non-analitik,
+  - intent routing memakai alur berjenjang (`local intent -> AI intent classifier fallback -> clarification/outside-scope`) sebelum masuk LLM analitik,
+  - normalisasi intent ringan (typo/singkatan/slang) wajib aktif untuk menekan false-positive out-of-scope.
 
 ## 6. Alur Utama
 - Buka aplikasi:
