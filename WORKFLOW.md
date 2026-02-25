@@ -141,6 +141,7 @@
   - uji baris non-transaksi (`Total`, `Uang Bersih`, `Saldo`) dan pastikan tidak masuk daftar transaksi tersimpan
   - uji anti-duplikasi: simpan draf yang sama 2x dalam 72 jam, pastikan muncul dialog konfirmasi duplikasi hash
   - pastikan transaksi dari jalur chat import tersimpan dengan tag audit sumber (`[chat_import:<hash8>]`)
+  - setelah simpan sukses, uji `SnackBar` aksi `Urungkan` dan pastikan transaksi rollback via audit log.
   - simpan dari layar review dan validasi jumlah transaksi tersimpan sesuai item terpilih.
 - [ ] Jalankan regression test otomatis Phase 4:
   - `flutter test test/chat_import_draft_model_test.dart test/chat_import_audit_service_test.dart`

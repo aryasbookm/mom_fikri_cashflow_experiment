@@ -109,10 +109,11 @@ class TransactionProvider extends ChangeNotifier {
     return totals.values.toList()..sort((a, b) => a.date.compareTo(b.date));
   }
 
-  Future<void> addTransaction(TransactionModel transaction) async {
+  Future<int> addTransaction(TransactionModel transaction) async {
     final Database db = await DatabaseHelper.instance.database;
-    await db.insert('transactions', transaction.toMap());
+    final id = await db.insert('transactions', transaction.toMap());
     await loadTransactions();
+    return id;
   }
 
   Future<void> addTransactionWithItems({

@@ -105,6 +105,10 @@ All notable changes to this project will be documented in this file.
   - penambahan test OCR untuk item tanggal inferensi/parsial agar aturan review wajib tetap terjaga pada payload edge case.
   - penambahan test batas `maxItems` untuk memastikan payload OCR besar tetap dipotong aman sesuai limit.
   - penambahan test dedup OCR untuk kasus hash tidak cocok (dalam window) agar tidak terjadi false-positive duplicate.
+- Undo quick-win (OCR + chat import save flow):
+  - setelah simpan dari layar OCR assist, aplikasi menampilkan `SnackBar` dengan aksi `Urungkan` selama 12 detik.
+  - aksi `Urungkan` melakukan rollback transaksi yang baru dibuat (soft-delete via audit log), berlaku untuk jalur OCR kamera dan chat import.
+  - `TransactionProvider.addTransaction` kini mengembalikan `id` transaksi baru agar rollback dapat menargetkan transaksi yang tepat.
 - Payload AI kini menyertakan agregat kategori 30 hari (pemasukan/pengeluaran) untuk Insight dan Chatbot agar jawaban lebih spesifik.
 - Fondasi service chatbot finansial ditambahkan (`AiChatbotService`):
   - bounded context (hanya jawab konteks keuangan toko),

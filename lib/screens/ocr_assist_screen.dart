@@ -757,6 +757,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     var success = 0;
     var failed = 0;
     var savedAmountTotal = 0;
+    final savedTransactions = <TransactionModel>[];
     final learningPairs = <String, String>{};
     for (final item in selected) {
       final amount = _parseAmountInput(item.amountController.text);
@@ -783,7 +784,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
               ? DateTime.tryParse(item.dateIso)
               : null;
       final now = DateTime.now();
-      final txDate = DateTime(
+      final txDateValue = DateTime(
         parsedDate?.year ?? now.year,
         parsedDate?.month ?? now.month,
         parsedDate?.day ?? now.day,
@@ -793,18 +794,31 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
       );
 
       try {
-        await transactionProvider.addTransaction(
-          TransactionModel(
-            type: item.type,
-            amount: amount,
-            categoryId: categoryId,
-            description: auditedDescription,
-            date: txDate.toIso8601String(),
-            userId: userId,
-          ),
+        final created = TransactionModel(
+          type: item.type,
+          amount: amount,
+          categoryId: categoryId,
+          description: auditedDescription,
+          date: txDateValue.toIso8601String(),
+          userId: userId,
         );
+        final insertedId = await transactionProvider.addTransaction(created);
         success += 1;
         savedAmountTotal += amount;
+        savedTransactions.add(
+          TransactionModel(
+            id: insertedId,
+            type: created.type,
+            amount: created.amount,
+            categoryId: created.categoryId,
+            description: created.description,
+            date: created.date,
+            userId: created.userId,
+            categoryName: created.categoryName,
+            productId: created.productId,
+            quantity: created.quantity,
+          ),
+        );
         if (item.originalDescription.trim().isNotEmpty &&
             description.isNotEmpty &&
             item.originalDescription.trim() != description) {
@@ -840,25 +854,37 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
       _isLoading = false;
     });
 
-    if (success > 0 && failed == 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Berhasil menyimpan $success transaksi.')),
+    final sourceLabel =
+        _providerTrail.contains('chat-import') ? 'chat import' : 'scan OCR';
+    final message =
+        success <= 0
+            ? 'Tidak ada transaksi yang berhasil disimpan. Periksa data lalu coba lagi.'
+            : failed == 0
+            ? 'Berhasil menyimpan $success transaksi dari $sourceLabel.'
+            : 'Selesai: berhasil $success, gagal $failed. Kamu bisa urungkan transaksi yang berhasil disimpan.';
+    final shouldPopAfterSave = success > 0 && failed == 0;
+    final messenger = ScaffoldMessenger.of(context);
+    if (success > 0) {
+      _showUndoSaveSnackBar(
+        messenger: messenger,
+        transactionProvider: transactionProvider,
+        auth: auth,
+        savedTransactions: savedTransactions,
+        message: message,
       );
+    } else {
+      messenger.showSnackBar(SnackBar(content: Text(message)));
+    }
+
+    if (shouldPopAfterSave) {
       _clearDraftItems();
       _detectedDate = '';
       _notesFound.clear();
       _ignoredLines.clear();
-      Navigator.of(context).pop();
-      return;
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
     }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Selesai: berhasil $success, gagal $failed. Periksa data yang belum valid.',
-        ),
-      ),
-    );
   }
 
   void _selectAll(bool selected) {
@@ -983,6 +1009,58 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
       return clean;
     }
     return '$clean $suffix'.trim();
+  }
+
+  void _showUndoSaveSnackBar({
+    required ScaffoldMessengerState messenger,
+    required TransactionProvider transactionProvider,
+    required AuthProvider auth,
+    required List<TransactionModel> savedTransactions,
+    required String message,
+  }) {
+    if (savedTransactions.isEmpty) {
+      messenger.showSnackBar(SnackBar(content: Text(message)));
+      return;
+    }
+    var undone = false;
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 12),
+        action: SnackBarAction(
+          label: 'Urungkan',
+          onPressed: () async {
+            if (undone) {
+              return;
+            }
+            undone = true;
+            var reverted = 0;
+            final deletedBy = auth.currentUser?.username ?? 'system';
+            for (final tx in savedTransactions) {
+              if (tx.id == null) {
+                continue;
+              }
+              try {
+                await transactionProvider.deleteTransactionWithAudit(
+                  transaction: tx,
+                  reason: 'Urungkan simpan cepat OCR/Chat import',
+                  deletedBy: deletedBy,
+                );
+                reverted += 1;
+              } catch (_) {}
+            }
+            messenger.showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Urungkan selesai: $reverted transaksi dibatalkan.',
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
   }
 
   String _buildOcrScanHash({
