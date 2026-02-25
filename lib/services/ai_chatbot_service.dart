@@ -20,6 +20,8 @@ class AiChatMessage {
     this.providerId,
     this.confidenceLevel,
     this.confidenceReason,
+    this.executionPath,
+    this.executionReason,
   });
 
   final String role; // "user" | "assistant"
@@ -27,6 +29,8 @@ class AiChatMessage {
   final String? providerId;
   final String? confidenceLevel; // high | medium | low
   final String? confidenceReason;
+  final String? executionPath; // local | local_ai | llm
+  final String? executionReason;
 }
 
 class AiChatReply {
@@ -38,6 +42,8 @@ class AiChatReply {
     this.actionDraft,
     this.confidenceLevel = 'medium',
     this.confidenceReason,
+    this.executionPath,
+    this.executionReason,
   });
 
   final String text;
@@ -47,6 +53,8 @@ class AiChatReply {
   final ChatImportDraft? actionDraft;
   final String confidenceLevel; // high | medium | low
   final String? confidenceReason;
+  final String? executionPath; // local | local_ai | llm
+  final String? executionReason;
 }
 
 class AiChatbotService {
@@ -324,6 +332,14 @@ class AiChatbotService {
     required List<Map<String, dynamic>> financeSnapshot,
     String? providerOrderOverride,
   }) async {
+    final smartSearchReply = _resolveDeterministicSmartSearchReply(
+      question: question,
+      financeSnapshot: financeSnapshot,
+    );
+    if (smartSearchReply != null) {
+      return smartSearchReply;
+    }
+
     switch (decision.type) {
       case ChatIntentType.capabilityHelp:
         return _resolveInstantLocalReply(
@@ -790,7 +806,212 @@ $question
       suggestedCooldownSeconds: 1,
       confidenceLevel: 'high',
       confidenceReason: 'Urutan stok dihitung deterministik dari data katalog.',
+      executionPath: 'local',
+      executionReason: 'Query stok dieksekusi langsung dari snapshot lokal.',
     );
+  }
+
+  AiChatReply? _resolveDeterministicSmartSearchReply({
+    required String question,
+    required List<Map<String, dynamic>> financeSnapshot,
+  }) {
+    final q = question.toLowerCase().trim();
+    final asksSearch =
+        q.contains('cari ') ||
+        q.startsWith('cari') ||
+        q.contains('temukan') ||
+        q.contains('filter') ||
+        q.contains('riwayat') ||
+        q.contains('tampilkan');
+    if (!asksSearch) {
+      return null;
+    }
+
+    final minAmount = _extractMinimumAmount(q);
+    final asksIncome = q.contains('pemasukan') || q.contains('penghasilan');
+    final asksExpense = q.contains('pengeluaran') || q.contains('biaya');
+    final asksCategory = q.contains('kategori');
+    final asksProduct = q.contains('produk') || q.contains('stok');
+    final asksDate = q.contains('tanggal') || q.contains('hari');
+
+    var rows = List<Map<String, dynamic>>.from(financeSnapshot);
+    if (asksCategory && (asksIncome || asksExpense)) {
+      rows =
+          rows.where((row) {
+            final type = (row['type'] ?? '').toString();
+            if (asksIncome && !asksExpense) {
+              return type == 'income_category_30d';
+            }
+            if (asksExpense && !asksIncome) {
+              return type == 'expense_category_30d';
+            }
+            return type == 'income_category_30d' ||
+                type == 'expense_category_30d';
+          }).toList();
+      if (minAmount != null) {
+        rows =
+            rows
+                .where((row) => _toInt(row['total_amount']) >= minAmount)
+                .toList();
+      }
+      rows.sort(
+        (a, b) =>
+            _toInt(b['total_amount']).compareTo(_toInt(a['total_amount'])),
+      );
+      final limited = rows.take(8).toList();
+      if (limited.isEmpty) {
+        return const AiChatReply(
+          text:
+              'Tidak ada kategori yang cocok dengan filter pencarian Anda pada data 30 hari ini.',
+          providerId: 'local-deterministic',
+          fromCache: false,
+          suggestedCooldownSeconds: 1,
+          confidenceLevel: 'high',
+          confidenceReason:
+              'Filter kategori dihitung deterministik dari snapshot.',
+          executionPath: 'local',
+          executionReason:
+              'Pencarian kategori dieksekusi langsung dari snapshot lokal.',
+        );
+      }
+      final lines = limited
+          .map((row) {
+            final label = (row['category'] ?? '-').toString();
+            final amount = NumberFormat(
+              '#,##0',
+              'id_ID',
+            ).format(_toInt(row['total_amount']));
+            final side =
+                (row['type'] ?? '').toString() == 'income_category_30d'
+                    ? 'IN'
+                    : 'OUT';
+            return '- [$side] $label: Rp $amount';
+          })
+          .join('\n');
+      return AiChatReply(
+        text: 'Hasil pencarian kategori:\n$lines',
+        providerId: 'local-deterministic',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+        confidenceLevel: 'high',
+        confidenceReason:
+            'Filter kategori dihitung deterministik dari snapshot.',
+        executionPath: 'local',
+        executionReason:
+            'Pencarian kategori dieksekusi langsung dari snapshot lokal.',
+      );
+    }
+
+    if (asksProduct) {
+      rows =
+          rows
+              .where(
+                (row) => (row['type'] ?? '').toString() == 'product_catalog',
+              )
+              .toList();
+      if (minAmount != null) {
+        rows =
+            rows.where((row) => _toInt(row['stock_now']) >= minAmount).toList();
+      }
+      final limited = rows.take(10).toList();
+      if (limited.isEmpty) {
+        return const AiChatReply(
+          text: 'Tidak ada produk yang cocok dengan filter pencarian tersebut.',
+          providerId: 'local-deterministic',
+          fromCache: false,
+          suggestedCooldownSeconds: 1,
+          confidenceLevel: 'high',
+          confidenceReason:
+              'Filter produk dihitung deterministik dari snapshot.',
+          executionPath: 'local',
+          executionReason:
+              'Pencarian produk dieksekusi langsung dari snapshot lokal.',
+        );
+      }
+      final lines = limited
+          .map((row) {
+            final name = (row['name'] ?? '-').toString();
+            final stock = _toInt(row['stock_now']);
+            return '- $name: stok $stock';
+          })
+          .join('\n');
+      return AiChatReply(
+        text: 'Hasil pencarian produk:\n$lines',
+        providerId: 'local-deterministic',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+        confidenceLevel: 'high',
+        confidenceReason: 'Filter produk dihitung deterministik dari snapshot.',
+        executionPath: 'local',
+        executionReason:
+            'Pencarian produk dieksekusi langsung dari snapshot lokal.',
+      );
+    }
+
+    if (asksDate) {
+      rows =
+          rows
+              .where((row) => (row['type'] ?? '').toString() == 'daily_summary')
+              .toList();
+      rows.sort(
+        (a, b) => (b['date'] ?? '').toString().compareTo(
+          (a['date'] ?? '').toString(),
+        ),
+      );
+      final limited = rows.take(7).toList();
+      if (limited.isEmpty) {
+        return null;
+      }
+      final lines = limited
+          .map((row) {
+            final date = (row['date'] ?? '-').toString();
+            final income = NumberFormat(
+              '#,##0',
+              'id_ID',
+            ).format(_toInt(row['income']));
+            final expense = NumberFormat(
+              '#,##0',
+              'id_ID',
+            ).format(_toInt(row['expense']));
+            return '- $date | IN Rp $income | OUT Rp $expense';
+          })
+          .join('\n');
+      return AiChatReply(
+        text: 'Riwayat harian terbaru:\n$lines',
+        providerId: 'local-deterministic',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+        confidenceLevel: 'high',
+        confidenceReason: 'Data harian diambil deterministik dari snapshot.',
+        executionPath: 'local',
+        executionReason:
+            'Pencarian riwayat harian dieksekusi dari snapshot lokal.',
+      );
+    }
+
+    return null;
+  }
+
+  int? _extractMinimumAmount(String q) {
+    final match = RegExp(
+      r'(?:di atas|lebih dari|minimal|>=?)\s*(\d{1,3}(?:[.,]\d{3})+|\d+)\s*(ribu|rb|juta|jt)?',
+    ).firstMatch(q);
+    if (match == null) {
+      return null;
+    }
+    final numberText = (match.group(1) ?? '').replaceAll(RegExp(r'[.,]'), '');
+    final base = int.tryParse(numberText);
+    if (base == null) {
+      return null;
+    }
+    final unit = (match.group(2) ?? '').trim();
+    if (unit == 'ribu' || unit == 'rb') {
+      return base * 1000;
+    }
+    if (unit == 'juta' || unit == 'jt') {
+      return base * 1000000;
+    }
+    return base;
   }
 
   int? _extractTopLimit(String q) {
@@ -889,7 +1110,22 @@ $question
         normalizedConfidence != 'high') {
       normalizedConfidence = 'high';
     }
-    if (normalizedConfidence == reply.confidenceLevel) {
+    final normalizedPath =
+        (reply.executionPath ?? _inferExecutionPath(reply.providerId)).trim();
+    final finalPath =
+        normalizedPath.isEmpty
+            ? _inferExecutionPath(reply.providerId)
+            : normalizedPath;
+    final finalReason =
+        (reply.executionReason ?? '').trim().isEmpty
+            ? _inferExecutionReason(
+              providerId: reply.providerId,
+              path: finalPath,
+            )
+            : reply.executionReason;
+    if (normalizedConfidence == reply.confidenceLevel &&
+        finalPath == (reply.executionPath ?? '') &&
+        finalReason == reply.executionReason) {
       return reply;
     }
     return AiChatReply(
@@ -900,7 +1136,39 @@ $question
       actionDraft: reply.actionDraft,
       confidenceLevel: normalizedConfidence,
       confidenceReason: reply.confidenceReason,
+      executionPath: finalPath,
+      executionReason: finalReason,
     );
+  }
+
+  String _inferExecutionPath(String providerId) {
+    if (providerId == 'groq' ||
+        providerId == 'gemini' ||
+        providerId == 'cache') {
+      return 'llm';
+    }
+    if (providerId == 'local-deterministic' ||
+        providerId == 'local-smalltalk' ||
+        providerId == 'memory-local' ||
+        providerId == 'local-scope-guard' ||
+        providerId == 'local-clarification' ||
+        providerId == 'local-fallback') {
+      return 'local';
+    }
+    return 'local';
+  }
+
+  String _inferExecutionReason({
+    required String providerId,
+    required String path,
+  }) {
+    if (path == 'llm') {
+      return 'Jawaban utama dirender oleh provider AI dengan validasi lokal.';
+    }
+    if (providerId == 'local-fallback') {
+      return 'Jawaban fallback lokal karena format/grounding provider utama tidak valid.';
+    }
+    return 'Jawaban dirender deterministik oleh engine lokal.';
   }
 
   Future<AiChatReply?> _resolveDeterministicDateQueryReply({
@@ -939,6 +1207,11 @@ $question
 
     final metric = _resolveDateMetric(q);
     final metricLabel = _metricLabel(metric);
+    final executionPath = resolved.source == 'ai' ? 'local_ai' : 'local';
+    final executionReason =
+        resolved.source == 'ai'
+            ? 'Tanggal dinormalisasi oleh AI, lalu perhitungan nominal dieksekusi lokal.'
+            : 'Tanggal dan nominal diproses deterministik oleh engine lokal.';
     final dailyMap = <String, Map<String, dynamic>>{};
     for (final row in dailyRows) {
       final key = (row['date'] ?? '').toString().trim();
@@ -963,6 +1236,8 @@ $question
           confidenceLevel: 'medium',
           confidenceReason:
               'Data harian pada tanggal yang diminta belum tersedia.',
+          executionPath: executionPath,
+          executionReason: executionReason,
         );
       }
       return AiChatReply(
@@ -974,6 +1249,8 @@ $question
         confidenceLevel: 'high',
         confidenceReason:
             'Nilai dihitung deterministik dari daily_summary (${resolved.source}).',
+        executionPath: executionPath,
+        executionReason: executionReason,
       );
     }
 
@@ -990,6 +1267,8 @@ $question
         suggestedCooldownSeconds: 1,
         confidenceLevel: 'medium',
         confidenceReason: 'Sebagian data tanggal pembanding belum tersedia.',
+        executionPath: executionPath,
+        executionReason: executionReason,
       );
     }
 
@@ -1012,6 +1291,8 @@ $question
       confidenceLevel: 'high',
       confidenceReason:
           'Komparasi dihitung deterministik dari daily_summary (${resolved.source}).',
+      executionPath: executionPath,
+      executionReason: executionReason,
     );
   }
 

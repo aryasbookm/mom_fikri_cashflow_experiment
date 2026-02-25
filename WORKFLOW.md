@@ -180,6 +180,12 @@
   - verifikasi `N hari lalu` (contoh 2/4/5 hari lalu) mengarah ke tanggal benar.
   - verifikasi query rentang (`dari 01-02-2026 sampai 03-02-2026`) dan explicit date (`2026-02-24`) menghasilkan agregasi sesuai `daily_summary`.
   - verifikasi komparasi (`2 hari lalu vs kemarin`) tidak fallback ke pasangan default `hari ini vs kemarin`.
+- [ ] Uji explainability chatbot:
+  - verifikasi indikator mode eksekusi muncul di bubble asisten (local/local+ai/llm) dan dapat ditekan untuk melihat detail.
+  - pastikan mode `local_ai` muncul saat parser tanggal butuh normalisasi AI namun nominal tetap dihitung lokal.
+- [ ] Uji smart search chatbot:
+  - query `cari kategori pengeluaran di atas 50 ribu` menampilkan hasil filter kategori dari snapshot lokal.
+  - query `cari produk`/`tampilkan riwayat harian` tidak memaksa jalur LLM saat data lokal cukup.
 - [ ] Jalankan regression test otomatis Phase 4:
   - `flutter test test/chat_import_draft_model_test.dart test/chat_import_audit_service_test.dart`
 - [ ] Jalankan regression test OCR parity Phase 1:

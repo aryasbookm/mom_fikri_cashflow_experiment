@@ -172,6 +172,10 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                     (map['confidence_level'] ?? '').toString().trim();
                 final confidenceReason =
                     (map['confidence_reason'] ?? '').toString().trim();
+                final executionPath =
+                    (map['execution_path'] ?? '').toString().trim();
+                final executionReason =
+                    (map['execution_reason'] ?? '').toString().trim();
                 if ((role != 'user' && role != 'assistant') || text.isEmpty) {
                   return null;
                 }
@@ -183,6 +187,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                       confidenceLevel.isEmpty ? null : confidenceLevel,
                   confidenceReason:
                       confidenceReason.isEmpty ? null : confidenceReason,
+                  executionPath: executionPath.isEmpty ? null : executionPath,
+                  executionReason:
+                      executionReason.isEmpty ? null : executionReason,
                 );
               })
               .whereType<AiChatMessage>()
@@ -268,6 +275,11 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
               if (m.confidenceReason != null &&
                   m.confidenceReason!.trim().isNotEmpty)
                 'confidence_reason': m.confidenceReason,
+              if (m.executionPath != null && m.executionPath!.trim().isNotEmpty)
+                'execution_path': m.executionPath,
+              if (m.executionReason != null &&
+                  m.executionReason!.trim().isNotEmpty)
+                'execution_reason': m.executionReason,
             },
           )
           .toList(growable: false),
@@ -349,6 +361,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
               providerId: reply.providerId,
               confidenceLevel: reply.confidenceLevel,
               confidenceReason: reply.confidenceReason,
+              executionPath: reply.executionPath,
+              executionReason: reply.executionReason,
             ),
           );
           _pendingDraft = reply.actionDraft;
@@ -363,6 +377,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
               providerId: reply.providerId,
               confidenceLevel: reply.confidenceLevel,
               confidenceReason: reply.confidenceReason,
+              executionPath: reply.executionPath,
+              executionReason: reply.executionReason,
             ),
           );
         });
@@ -386,6 +402,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             confidenceLevel: 'low',
             confidenceReason:
                 'Provider mengembalikan rate-limit/error sementara.',
+            executionPath: 'llm',
+            executionReason: 'Request gagal di sisi provider AI.',
           ),
         );
       });
@@ -412,6 +430,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             providerId: 'error',
             confidenceLevel: 'low',
             confidenceReason: 'Terjadi error saat memproses jawaban AI.',
+            executionPath: 'llm',
+            executionReason: 'Request gagal di sisi provider AI.',
           ),
         );
       });
@@ -705,6 +725,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                         if (!isUser &&
                             ((msg.providerId != null &&
                                     msg.providerId!.trim().isNotEmpty) ||
+                                (msg.executionPath != null &&
+                                    msg.executionPath!.trim().isNotEmpty) ||
                                 (msg.confidenceLevel != null &&
                                     msg.confidenceLevel!.trim().isNotEmpty)))
                           Padding(
@@ -721,6 +743,18 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                                     style: const TextStyle(
                                       fontSize: 11,
                                       color: Colors.black45,
+                                    ),
+                                  ),
+                                if (msg.executionPath != null &&
+                                    msg.executionPath!.trim().isNotEmpty)
+                                  Tooltip(
+                                    message: _executionTooltip(
+                                      msg.executionPath!,
+                                      reason: msg.executionReason,
+                                    ),
+                                    child: _executionBadge(
+                                      msg.executionPath!,
+                                      reason: msg.executionReason,
                                     ),
                                   ),
                                 if (msg.confidenceLevel != null &&
@@ -816,6 +850,96 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         ),
       ),
     );
+  }
+
+  Widget _executionBadge(String pathRaw, {String? reason}) {
+    final path = pathRaw.trim().toLowerCase();
+    final palette = _executionPalette(path);
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: () => _showExecutionInfo(path, reason: reason),
+      child: Container(
+        width: 32,
+        height: 32,
+        alignment: Alignment.center,
+        child: Container(
+          width: 14,
+          height: 14,
+          decoration: BoxDecoration(
+            color: palette.background,
+            shape: BoxShape.circle,
+            border: Border.all(color: palette.border),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showExecutionInfo(String path, {String? reason}) async {
+    final title = switch (path) {
+      'local_ai' => 'Mode Hybrid (Lokal + AI)',
+      'llm' => 'Mode LLM Penuh',
+      _ => 'Mode Lokal',
+    };
+    final desc = _executionTooltip(path, reason: reason);
+    if (!mounted) {
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder:
+          (context) => Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(desc),
+              ],
+            ),
+          ),
+    );
+  }
+
+  String _executionTooltip(String path, {String? reason}) {
+    final trimmedReason = reason?.trim() ?? '';
+    final suffix = trimmedReason.isEmpty ? '' : '\nDetail: $trimmedReason';
+    switch (path) {
+      case 'local_ai':
+        return 'Indikator biru: query dieksekusi lokal, AI hanya bantu parsing/normalisasi.$suffix';
+      case 'llm':
+        return 'Indikator ungu: jawaban utama dirender provider AI.$suffix';
+      default:
+        return 'Indikator hijau-biru: jawaban dihitung/difilter langsung oleh engine lokal.$suffix';
+    }
+  }
+
+  ({Color background, Color border}) _executionPalette(String path) {
+    switch (path) {
+      case 'local_ai':
+        return (
+          background: const Color(0xFFE3F2FD),
+          border: const Color(0xFF90CAF9),
+        );
+      case 'llm':
+        return (
+          background: const Color(0xFFF3E5F5),
+          border: const Color(0xFFCE93D8),
+        );
+      default:
+        return (
+          background: const Color(0xFFE0F2F1),
+          border: const Color(0xFF80CBC4),
+        );
+    }
   }
 
   Future<void> _showConfidenceInfo(String level, {String? reason}) async {

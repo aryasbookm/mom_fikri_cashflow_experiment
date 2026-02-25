@@ -40,6 +40,7 @@ void main() {
 
         expect(reply.providerId, 'local-deterministic');
         expect(reply.confidenceLevel, 'high');
+        expect(reply.executionPath, 'local');
         expect(reply.text.toLowerCase(), contains('penghasilan kemarin'));
         expect(reply.text, contains('250.000'));
       },

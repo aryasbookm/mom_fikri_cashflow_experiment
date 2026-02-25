@@ -10,6 +10,13 @@ All notable changes to this project will be documented in this file.
 *Fokus: Pencarian Global, Reminder Backup, Insight Produk Lambat*
 
 ### Added
+- Chatbot explainability indicator:
+  - metadata mode eksekusi jawaban ditambahkan (`local`, `local_ai`, `llm`) dan disimpan di riwayat chat.
+  - bubble asisten kini menampilkan indikator mode eksekusi terpisah dari confidence; tekan indikator untuk melihat penjelasan sumber proses jawaban.
+- Smart search deterministik (MVP):
+  - query berbasis kata kunci `cari/filter/temukan/riwayat/tampilkan` dapat dieksekusi lokal untuk filter cepat pada snapshot (kategori 30 hari, katalog produk, ringkasan harian) tanpa wajib melewati LLM.
+  - dukungan filter nominal minimum pada query pencarian (contoh: `di atas 50 ribu` / `minimal 100000`).
+
 - Chatbot intent router tuning (batch reliability):
   - intent stok dilonggarkan untuk frasa operasional pendek (`cek stok`, `stok saat ini`, `stok produk saat ini`) agar langsung masuk jalur deterministik lokal.
   - dukungan status produk ditambahkan pada jalur stok deterministik (`produk aktif`, `produk arsip/diarsipkan/nonaktif`) dengan filter berbasis `is_active`.

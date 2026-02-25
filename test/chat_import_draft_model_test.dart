@@ -357,6 +357,31 @@ void main() {
       expect(reply.text, contains('Brownies Lama'));
       expect(reply.text, isNot(contains('Donat Mini')));
     });
+
+    test('handles smart search category with deterministic filter', () async {
+      final service = AiChatbotService();
+      final reply = await service.askFinancialAssistant(
+        question: 'cari kategori pengeluaran di atas 50 ribu',
+        financeSnapshot: const [
+          {
+            'type': 'expense_category_30d',
+            'category': 'Bahan Baku',
+            'total_amount': 120000,
+          },
+          {
+            'type': 'expense_category_30d',
+            'category': 'Operasional',
+            'total_amount': 20000,
+          },
+        ],
+      );
+
+      expect(reply.providerId, 'local-deterministic');
+      expect(reply.executionPath, 'local');
+      expect(reply.text, contains('Hasil pencarian kategori'));
+      expect(reply.text, contains('Bahan Baku'));
+      expect(reply.text, isNot(contains('Operasional')));
+    });
   });
 
   group('AiChatbotService capability intent', () {
