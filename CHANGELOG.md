@@ -171,6 +171,9 @@ All notable changes to this project will be documented in this file.
   - pertanyaan ranking stok seperti "urutkan stok tertinggi-ke-terendah" kini diproses via jalur deterministik lokal (tanpa bergantung LLM).
   - aturan lokal: filter stok 0 jika diminta, urut desc `stock_now`, dukung limit `top N` (default 10).
   - hasil dikembalikan sebagai daftar terstruktur agar konsisten dan bebas halusinasi urutan angka.
+- Chat provider transparency:
+  - setiap balasan assistant di layar chat kini menyimpan metadata `provider_id` dan menampilkan label kecil `via: <provider>`.
+  - berlaku untuk jalur provider online, cache, local-deterministic, dan error path sehingga troubleshooting lebih mudah.
 - AI Insight kini ikut memakai strategi multi-provider fallback (urutan `AI_PROVIDER_ORDER`, default `gemini,groq`) sehingga jika provider pertama kena rate limit/temporary error, sistem otomatis mencoba provider berikutnya.
 - Seleksi provider AI kini aware konfigurasi key:
   - provider tanpa API key tidak lagi ikut antrean fallback (OCR & Insight),

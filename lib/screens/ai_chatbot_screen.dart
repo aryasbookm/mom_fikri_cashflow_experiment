@@ -116,10 +116,15 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                 final map = Map<String, dynamic>.from(row);
                 final role = (map['role'] ?? '').toString().trim();
                 final text = (map['text'] ?? '').toString().trim();
+                final providerId = (map['provider_id'] ?? '').toString().trim();
                 if ((role != 'user' && role != 'assistant') || text.isEmpty) {
                   return null;
                 }
-                return AiChatMessage(role: role, text: text);
+                return AiChatMessage(
+                  role: role,
+                  text: text,
+                  providerId: providerId.isEmpty ? null : providerId,
+                );
               })
               .whereType<AiChatMessage>()
               .toList();
@@ -203,7 +208,14 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     final prefs = await SharedPreferences.getInstance();
     final encoded = jsonEncode(
       _messages
-          .map((m) => {'role': m.role, 'text': m.text})
+          .map(
+            (m) => {
+              'role': m.role,
+              'text': m.text,
+              if (m.providerId != null && m.providerId!.trim().isNotEmpty)
+                'provider_id': m.providerId,
+            },
+          )
           .toList(growable: false),
     );
     await prefs.setString(_chatStoreKey, encoded);
@@ -287,13 +299,25 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       if (reply.actionDraft != null) {
         final summary = _buildDraftSummary(reply.actionDraft!);
         setState(() {
-          _messages.add(AiChatMessage(role: 'assistant', text: summary));
+          _messages.add(
+            AiChatMessage(
+              role: 'assistant',
+              text: summary,
+              providerId: reply.providerId,
+            ),
+          );
           _pendingDraft = reply.actionDraft;
           _pendingDraftMessageIndex = _messages.length - 1;
         });
       } else {
         setState(() {
-          _messages.add(AiChatMessage(role: 'assistant', text: reply.text));
+          _messages.add(
+            AiChatMessage(
+              role: 'assistant',
+              text: reply.text,
+              providerId: reply.providerId,
+            ),
+          );
         });
       }
       await _persistChat();
@@ -307,7 +331,13 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         return;
       }
       setState(() {
-        _messages.add(AiChatMessage(role: 'assistant', text: error.toString()));
+        _messages.add(
+          AiChatMessage(
+            role: 'assistant',
+            text: error.toString(),
+            providerId: 'error',
+          ),
+        );
       });
       await _persistChat();
       if (!error.isDailyLimit) {
@@ -329,6 +359,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                 userMessage.isEmpty
                     ? 'Gagal memproses pertanyaan. Coba lagi.'
                     : userMessage,
+            providerId: 'error',
           ),
         );
       });
@@ -592,6 +623,19 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                             ],
                           ),
                         ),
+                        if (!isUser &&
+                            msg.providerId != null &&
+                            msg.providerId!.trim().isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              'via: ${msg.providerId}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.black45,
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),

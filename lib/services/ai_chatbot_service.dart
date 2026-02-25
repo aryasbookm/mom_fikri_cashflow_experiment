@@ -13,10 +13,15 @@ import 'ai_insight_service.dart';
 import 'ai_providers/ai_vision_provider.dart';
 
 class AiChatMessage {
-  const AiChatMessage({required this.role, required this.text});
+  const AiChatMessage({
+    required this.role,
+    required this.text,
+    this.providerId,
+  });
 
   final String role; // "user" | "assistant"
   final String text;
+  final String? providerId;
 }
 
 class AiChatReply {
