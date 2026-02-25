@@ -114,7 +114,8 @@ class AiProviderRouter {
   static List<String> _geminiOcrModelsFromEnvironment() {
     final chain = String.fromEnvironment(
       'GEMINI_OCR_MODEL_CHAIN',
-      defaultValue: 'gemini-2.5-flash,gemini-3-flash,gemini-2.5-flash-lite',
+      defaultValue:
+          'gemini-2.5-flash-lite,gemini-3-flash-preview,gemini-2.5-flash,gemini-3.1-pro-preview',
     );
     final models =
         chain
