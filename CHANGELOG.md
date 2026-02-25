@@ -22,6 +22,9 @@ All notable changes to this project will be documented in this file.
   - hard-intent ambigu (stok/tanggal/import) kini dikunci ke klarifikasi lokal kontekstual tanpa melewati AI classifier.
   - AI classifier dipersempit untuk soft-intent (capability/small-talk/analysis/outside-scope) dengan threshold confidence sebelum eksekusi.
   - prompt classifier diperkuat dengan few-shot + dukungan `suggestions` agar opsi klarifikasi lebih relevan (tidak selalu 4 opsi generik).
+- OCR fallback transparency log:
+  - panel status OCR kini menampilkan log langkah per model/provider dengan format eksplisit: `model`, `status`, `reason`, dan `latency`.
+  - status kegagalan umum dipetakan ke alasan yang mudah dibaca (`429 quota`, `404 model`, `auth`, `network`, dll) agar debugging fallback lebih cepat.
 
 - Chatbot intent router tuning (batch reliability):
   - intent stok dilonggarkan untuk frasa operasional pendek (`cek stok`, `stok saat ini`, `stok produk saat ini`) agar langsung masuk jalur deterministik lokal.

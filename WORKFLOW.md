@@ -191,6 +191,9 @@
   - hard-intent ambigu (contoh tanggal mentah tanpa metrik) harus memunculkan klarifikasi lokal kontekstual (stok/arus kas/import), bukan fallback AI classifier.
   - soft-intent ambigu harus melewati AI classifier dulu; klarifikasi muncul hanya saat confidence rendah.
   - uji frasa identitas/memori (`siapa nama mu`, `siapa nama ku`, `nama ku ...`) agar tidak jatuh ke klarifikasi generik.
+- [ ] Uji OCR fallback transparency log:
+  - setelah scan, panel log harus menampilkan urutan model/provider yang dicoba dengan status (`Trying/Success/Failed`), alasan, dan latency.
+  - verifikasi fallback case (contoh model utama kena limit) menampilkan penyebab eksplisit per langkah.
 - [ ] Jalankan regression test otomatis Phase 4:
   - `flutter test test/chat_import_draft_model_test.dart test/chat_import_audit_service_test.dart`
 - [ ] Jalankan regression test OCR parity Phase 1:

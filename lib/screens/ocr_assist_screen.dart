@@ -37,6 +37,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
   String? _imageMimeType;
   final List<_EditableDraftItem> _draftItems = [];
   final List<String> _providerTrail = [];
+  final List<_ProviderAttemptLog> _providerAttemptLogs = [];
   String _detectedDate = '';
   final List<String> _notesFound = [];
   final List<String> _ignoredLines = [];
@@ -232,30 +233,91 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     );
   }
 
-  String get _providerTrailText {
-    if (_providerTrail.isEmpty) {
-      return '';
+  String _providerLabel(String providerId) {
+    switch (providerId) {
+      case 'groq':
+        return 'groq';
+      case 'chat-import':
+        return 'chat-import';
+      default:
+        return providerId;
     }
-    final ordered = <String>[];
-    for (final id in _providerTrail) {
-      if (!ordered.contains(id)) {
-        ordered.add(id);
+  }
+
+  void _recordProviderEvent(String providerId, String status, String? detail) {
+    final now = DateTime.now();
+    if (status == 'try') {
+      _providerAttemptLogs.add(
+        _ProviderAttemptLog(
+          providerId: providerId,
+          status: status,
+          detail: detail,
+          startedAt: now,
+        ),
+      );
+      return;
+    }
+    for (var i = _providerAttemptLogs.length - 1; i >= 0; i--) {
+      final log = _providerAttemptLogs[i];
+      if (log.providerId == providerId && log.status == 'try') {
+        _providerAttemptLogs[i] = log.copyWith(
+          status: status,
+          detail: detail,
+          elapsedMs: now.difference(log.startedAt).inMilliseconds,
+        );
+        return;
       }
     }
-    return ordered
-        .map((id) {
-          switch (id) {
-            case 'gemini':
-              return 'Gemini';
-            case 'groq':
-              return 'Groq';
-            case 'chat-import':
-              return 'Chat Import';
-            default:
-              return id;
-          }
-        })
-        .join(' -> ');
+    _providerAttemptLogs.add(
+      _ProviderAttemptLog(
+        providerId: providerId,
+        status: status,
+        detail: detail,
+        startedAt: now,
+      ),
+    );
+  }
+
+  String _providerStatusLabel(_ProviderAttemptLog log) {
+    switch (log.status) {
+      case 'ok':
+        return 'Success';
+      case 'rate_limit':
+        return 'Failed (429)';
+      case 'temporary':
+        return 'Failed (Temporary)';
+      case 'error':
+        return 'Failed';
+      case 'try':
+        return 'Trying...';
+      default:
+        return log.status;
+    }
+  }
+
+  String _providerDetailLabel(_ProviderAttemptLog log) {
+    final detail = (log.detail ?? '').trim();
+    if (detail.isEmpty) {
+      return '-';
+    }
+    if (detail.contains('429')) {
+      return 'Error 429: Quota/Rate limit.';
+    }
+    if (detail.contains('404')) {
+      return 'Error 404: Model tidak ditemukan/tidak tersedia.';
+    }
+    if (detail.contains('401') || detail.contains('403')) {
+      return 'Auth error: akses key/model ditolak.';
+    }
+    if (detail.toLowerCase().contains('socket') ||
+        detail.toLowerCase().contains('connection') ||
+        detail.toLowerCase().contains('timed out')) {
+      return 'Network error.';
+    }
+    if (detail.length > 120) {
+      return '${detail.substring(0, 120)}...';
+    }
+    return detail;
   }
 
   @override
@@ -427,6 +489,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
       _imageMimeType = null;
       _clearDraftItems();
       _providerTrail.clear();
+      _providerAttemptLogs.clear();
       _chatImportHash = '';
       _ocrScanHash = '';
       _detectedDate = '';
@@ -478,6 +541,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
       _isLoading = true;
       _lastErrorMessage = null;
       _providerTrail.clear();
+      _providerAttemptLogs.clear();
     });
 
     try {
@@ -492,6 +556,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
             if (status == 'try' && !_providerTrail.contains(providerId)) {
               _providerTrail.add(providerId);
             }
+            _recordProviderEvent(providerId, status, detail);
           });
         },
       );
@@ -1446,23 +1511,42 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
             ),
           ],
           const SizedBox(height: 16),
-          if (_providerTrail.isNotEmpty)
+          if (_providerAttemptLogs.isNotEmpty)
             Container(
               margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
               decoration: BoxDecoration(
                 color: const Color(0xFFF3F4F6),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: const Color(0xFFE5E7EB)),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.alt_route, size: 16, color: Colors.black54),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'Provider dicoba: $_providerTrailText',
-                      style: const TextStyle(fontSize: 12),
+                  const Row(
+                    children: [
+                      Icon(Icons.alt_route, size: 16, color: Colors.black54),
+                      SizedBox(width: 6),
+                      Text(
+                        'Log Fallback OCR',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  ..._providerAttemptLogs.map(
+                    (log) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        '${_providerLabel(log.providerId)}: '
+                        '${_providerStatusLabel(log)} | '
+                        'Reason: ${_providerDetailLabel(log)} | '
+                        'Latency: ${log.elapsedMs > 0 ? '${log.elapsedMs} ms' : '-'}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
                     ),
                   ),
                 ],
@@ -1786,6 +1870,38 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     _quotaTimer?.cancel();
     _clearDraftItems();
     super.dispose();
+  }
+}
+
+class _ProviderAttemptLog {
+  const _ProviderAttemptLog({
+    required this.providerId,
+    required this.status,
+    required this.detail,
+    required this.startedAt,
+    this.elapsedMs = 0,
+  });
+
+  final String providerId;
+  final String status;
+  final String? detail;
+  final DateTime startedAt;
+  final int elapsedMs;
+
+  _ProviderAttemptLog copyWith({
+    String? providerId,
+    String? status,
+    String? detail,
+    DateTime? startedAt,
+    int? elapsedMs,
+  }) {
+    return _ProviderAttemptLog(
+      providerId: providerId ?? this.providerId,
+      status: status ?? this.status,
+      detail: detail ?? this.detail,
+      startedAt: startedAt ?? this.startedAt,
+      elapsedMs: elapsedMs ?? this.elapsedMs,
+    );
   }
 }
 
