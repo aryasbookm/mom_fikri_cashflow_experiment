@@ -115,6 +115,35 @@ class OwnerDashboardState extends State<OwnerDashboard> {
     );
   }
 
+  Future<void> _openAddTransaction(String type) async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AddTransactionScreen(initialType: type),
+      ),
+    );
+    if (!mounted || result is! Map || result['saved'] != true) {
+      return;
+    }
+    final amountValue = result['amount'];
+    final amount =
+        amountValue is int ? amountValue : int.tryParse('$amountValue') ?? 0;
+    final formattedAmount = NumberFormat('#,##0', 'id_ID').format(amount);
+    final label = type == 'IN' ? 'pemasukan' : 'pengeluaran';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Berhasil menambahkan $label Rp $formattedAmount.'),
+        action: SnackBarAction(
+          label: 'Lihat Riwayat',
+          onPressed: () {
+            Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const HistoryScreen()));
+          },
+        ),
+      ),
+    );
+  }
+
   Future<void> triggerAiInsightFromAppBar() async {
     if (_isGeneratingAiInsight) {
       return;
@@ -881,16 +910,7 @@ class OwnerDashboardState extends State<OwnerDashboard> {
                           icon: Icons.attach_money,
                           title: 'Catat Pemasukan',
                           color: Colors.green,
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder:
-                                    (_) => const AddTransactionScreen(
-                                      initialType: 'IN',
-                                    ),
-                              ),
-                            );
-                          },
+                          onTap: () => _openAddTransaction('IN'),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -899,16 +919,7 @@ class OwnerDashboardState extends State<OwnerDashboard> {
                           icon: Icons.shopping_basket,
                           title: 'Catat Pengeluaran',
                           color: Colors.orange,
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder:
-                                    (_) => const AddTransactionScreen(
-                                      initialType: 'OUT',
-                                    ),
-                              ),
-                            );
-                          },
+                          onTap: () => _openAddTransaction('OUT'),
                         ),
                       ),
                     ],

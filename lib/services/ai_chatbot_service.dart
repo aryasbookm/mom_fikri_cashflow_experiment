@@ -2263,9 +2263,8 @@ $question
     }
 
     if (_isGreetingQuery(q)) {
-      return const AiChatReply(
-        text:
-            'Halo, saya Asisten Mom Fiqry. Saya siap bantu analisis keuangan toko atau susun draf transaksi dari chat.',
+      return AiChatReply(
+        text: _buildGreetingSmalltalkReply(q),
         providerId: 'local-smalltalk',
         fromCache: false,
         suggestedCooldownSeconds: 1,
@@ -3564,6 +3563,26 @@ $question
     return RegExp(
       r'^(apa kabar|gimana kabar|terima kasih|makasih)\b',
     ).hasMatch(normalized);
+  }
+
+  String _buildGreetingSmalltalkReply(String normalizedQuestion) {
+    final q = normalizedQuestion.trim().toLowerCase();
+    if (q.contains('selamat malam') || q == 'malam') {
+      return 'Selamat malam. Saya siap bantu analisis keuangan toko atau susun draf transaksi dari chat.';
+    }
+    if (q.contains('selamat sore') || q == 'sore') {
+      return 'Selamat sore. Saya siap bantu analisis keuangan toko atau susun draf transaksi dari chat.';
+    }
+    if (q.contains('selamat siang') || q == 'siang') {
+      return 'Selamat siang. Saya siap bantu analisis keuangan toko atau susun draf transaksi dari chat.';
+    }
+    if (q.contains('selamat pagi') || q == 'pagi') {
+      return 'Selamat pagi. Saya siap bantu analisis keuangan toko atau susun draf transaksi dari chat.';
+    }
+    if (q == 'tes' || q == 'test') {
+      return 'Tes diterima. Saya siap bantu urusan keuangan toko.';
+    }
+    return 'Halo, saya Asisten Mom Fiqry. Saya siap bantu analisis keuangan toko atau susun draf transaksi dari chat.';
   }
 
   String _buildBoundedPrompt({

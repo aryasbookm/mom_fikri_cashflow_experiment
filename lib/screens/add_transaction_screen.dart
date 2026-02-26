@@ -479,7 +479,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       _isLoading = false;
     });
 
-    Navigator.of(context).pop(true);
+    Navigator.of(context).pop({
+      'saved': true,
+      'source': 'manual-entry',
+      'type': _type,
+      'amount': amount,
+    });
   }
 
   @override
@@ -652,7 +657,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                             child: _ProductGrid(
                               currency: currency,
                               onUserScrollDirection: (direction) {
-                                final shouldShow = direction != ScrollDirection.reverse;
+                                final shouldShow =
+                                    direction != ScrollDirection.reverse;
                                 if (_showCartBar != shouldShow) {
                                   setState(() {
                                     _showCartBar = shouldShow;
@@ -1077,9 +1083,7 @@ class _ProductGrid extends StatelessWidget {
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
                               color:
-                                  inCart
-                                      ? Colors.orange.shade50
-                                      : Colors.white,
+                                  inCart ? Colors.orange.shade50 : Colors.white,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
                                 color:

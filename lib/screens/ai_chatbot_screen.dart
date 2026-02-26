@@ -679,8 +679,12 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       return 'Tanggal "${current.description}" diubah menjadi $nextDateIso.\n\n${_buildDraftSummary(_pendingDraft!)}';
     }
 
-    final descriptionUpdate = _extractDraftDescriptionUpdate(question);
-    if (descriptionUpdate != null) {
+    final amounts = _extractAmountsFromText(question);
+    if (amounts.isEmpty) {
+      final descriptionUpdate = _extractDraftDescriptionUpdate(question);
+      if (descriptionUpdate == null) {
+        return null;
+      }
       final targetIndex = _resolveDraftTargetIndex(
         normalized: normalized,
         draft: draft,
@@ -704,11 +708,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       );
       _pendingDraft = draft.copyWith(transactions: updated);
       return 'Nama item "${current.description}" diubah menjadi "$nextDesc".\n\n${_buildDraftSummary(_pendingDraft!)}';
-    }
-
-    final amounts = _extractAmountsFromText(question);
-    if (amounts.isEmpty) {
-      return null;
     }
 
     final descTarget = _extractDescriptionTarget(normalized);
@@ -861,9 +860,13 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     );
     final match = regex.firstMatch(normalized);
     if (match != null) {
+      final nextDescription = (match.group(2) ?? '').trim();
+      if (_looksLikeAmountOnlyPhrase(nextDescription)) {
+        return null;
+      }
       return _DraftDescriptionUpdate(
         sourceHint: (match.group(1) ?? '').trim(),
-        newDescription: _toTitleWords((match.group(2) ?? '').trim()),
+        newDescription: _toTitleWords(nextDescription),
       );
     }
 
@@ -874,10 +877,25 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     if (generic == null) {
       return null;
     }
+    final nextDescription = (generic.group(1) ?? '').trim();
+    if (_looksLikeAmountOnlyPhrase(nextDescription)) {
+      return null;
+    }
     return _DraftDescriptionUpdate(
       sourceHint: '',
-      newDescription: _toTitleWords((generic.group(1) ?? '').trim()),
+      newDescription: _toTitleWords(nextDescription),
     );
+  }
+
+  bool _looksLikeAmountOnlyPhrase(String value) {
+    final normalized = value.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return false;
+    }
+    return RegExp(
+      r'^\d+(?:[.,]\d+)?\s*(k|rb|ribu|jt|juta)?$',
+      caseSensitive: false,
+    ).hasMatch(normalized);
   }
 
   String _toTitleWords(String value) {
@@ -1131,6 +1149,10 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       return false;
     }
     if (provider.startsWith('local-') || provider == 'error') {
+      return false;
+    }
+    final executionPath = (msg.executionPath ?? '').trim().toLowerCase();
+    if (executionPath != 'llm') {
       return false;
     }
     return provider.contains('groq') || provider.contains('gemini');
@@ -1399,7 +1421,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                                           ? null
                                           : () {
                                             setState(() {
-                                              _pendingDraft = null;
                                               _pendingDraftMessageIndex = null;
                                             });
                                           },
@@ -1537,6 +1558,38 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (_pendingDraft != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primaryContainer
+                              .withValues(alpha: 0.35),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.black12),
+                        ),
+                        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                        child: Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Draf masih pending. Kamu bisa lanjut ke review kapan saja.',
+                                style: TextStyle(fontSize: 12),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            FilledButton.icon(
+                              onPressed:
+                                  (_isLoading || _cooldownSeconds > 0)
+                                      ? null
+                                      : _openPendingDraft,
+                              icon: const Icon(Icons.playlist_add_check),
+                              label: const Text('Lanjut ke Review'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   if (_cooldownSeconds > 0)
                     Text(
                       'Tunggu $_cooldownSeconds detik sebelum kirim lagi.',

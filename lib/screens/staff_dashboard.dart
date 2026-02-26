@@ -83,11 +83,23 @@ class _StaffDashboardState extends State<StaffDashboard> {
   }
 
   Future<void> _openAddTransaction(String type) async {
-    await Navigator.of(context).push(
+    final result = await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => AddTransactionScreen(initialType: type),
       ),
     );
+    if (mounted && result is Map && result['saved'] == true) {
+      final amountValue = result['amount'];
+      final amount =
+          amountValue is int ? amountValue : int.tryParse('$amountValue') ?? 0;
+      final formattedAmount = NumberFormat('#,##0', 'id_ID').format(amount);
+      final label = type == 'IN' ? 'pemasukan' : 'pengeluaran';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Berhasil menambahkan $label Rp $formattedAmount.'),
+        ),
+      );
+    }
     if (_userId != null && mounted) {
       Provider.of<TransactionProvider>(
         context,
