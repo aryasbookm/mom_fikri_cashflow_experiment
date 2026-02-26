@@ -47,5 +47,7 @@
 	<true/>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Izinkan aplikasi mengakses galeri untuk foto profil.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Gunakan Face ID/Touch ID untuk login cepat dan aman.</string>
 </dict>
 </plist>

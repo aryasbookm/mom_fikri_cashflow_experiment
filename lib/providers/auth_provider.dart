@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../database/database_helper.dart';
@@ -8,6 +9,11 @@ import '../models/user_model.dart';
 import '../utils/password_hasher.dart';
 
 class AuthProvider extends ChangeNotifier {
+  static const String _cachedUserIdKey = 'auth.cached_user_id';
+  static const String _cachedUsernameKey = 'auth.cached_username';
+  static const String _cachedRoleKey = 'auth.cached_role';
+  static const String _biometricEnabledKey = 'auth.biometric_enabled';
+
   User? _currentUser;
   bool _isOwnerAuthenticated = false;
   DateTime? _ownerAuthExpiresAt;
@@ -49,6 +55,7 @@ class AuthProvider extends ChangeNotifier {
     if (storedPin == hashedInput) {
       _currentUser = User.fromMap(userMap);
       _resetOwnerAuth(notify: false);
+      await _cacheBiometricSession(_currentUser!);
       notifyListeners();
       return true;
     }
@@ -63,6 +70,7 @@ class AuthProvider extends ChangeNotifier {
       userMap['pin'] = hashedInput;
       _currentUser = User.fromMap(userMap);
       _resetOwnerAuth(notify: false);
+      await _cacheBiometricSession(_currentUser!);
       notifyListeners();
       return true;
     }
@@ -137,6 +145,89 @@ class AuthProvider extends ChangeNotifier {
     _currentUser = null;
     _resetOwnerAuth(notify: false);
     notifyListeners();
+  }
+
+  Future<bool> isBiometricQuickLoginEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_biometricEnabledKey) ?? true;
+  }
+
+  Future<void> setBiometricQuickLoginEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_biometricEnabledKey, enabled);
+  }
+
+  Future<bool> hasBiometricSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    final enabled = prefs.getBool(_biometricEnabledKey) ?? true;
+    final userId = prefs.getInt(_cachedUserIdKey);
+    final username = prefs.getString(_cachedUsernameKey);
+    final role = prefs.getString(_cachedRoleKey);
+    if (!enabled || role != 'owner') {
+      return false;
+    }
+    return userId != null || (username != null && username.trim().isNotEmpty);
+  }
+
+  Future<User?> loginWithBiometricSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getInt(_cachedUserIdKey);
+    final username = prefs.getString(_cachedUsernameKey)?.trim();
+    if (userId == null && (username == null || username.isEmpty)) {
+      return null;
+    }
+
+    final Database db = await DatabaseHelper.instance.database;
+    final List<Map<String, dynamic>> result =
+        userId != null
+            ? await db.query(
+              'users',
+              where: 'id = ?',
+              whereArgs: [userId],
+              limit: 1,
+            )
+            : await db.query(
+              'users',
+              where: 'username = ?',
+              whereArgs: [username],
+              limit: 1,
+            );
+
+    if (result.isEmpty) {
+      await clearBiometricSession();
+      return null;
+    }
+
+    final user = User.fromMap(result.first);
+    if (user.role != 'owner') {
+      await clearBiometricSession();
+      return null;
+    }
+    _currentUser = user;
+    _resetOwnerAuth(notify: false);
+    notifyListeners();
+    return _currentUser;
+  }
+
+  Future<void> clearBiometricSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_cachedUserIdKey);
+    await prefs.remove(_cachedUsernameKey);
+    await prefs.remove(_cachedRoleKey);
+    await prefs.setBool(_biometricEnabledKey, false);
+  }
+
+  Future<void> _cacheBiometricSession(User user) async {
+    if (user.role != 'owner') {
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    if (user.id != null) {
+      await prefs.setInt(_cachedUserIdKey, user.id!);
+    }
+    await prefs.setString(_cachedUsernameKey, user.username);
+    await prefs.setString(_cachedRoleKey, user.role);
+    await prefs.setBool(_biometricEnabledKey, true);
   }
 
   void _resetOwnerAuth({bool notify = true}) {
