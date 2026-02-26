@@ -225,9 +225,30 @@ class OcrPostProcessor {
   }
 
   static int _normalizeConfidence(OcrTransactionDraft item) {
-    if (item.confidence > 0) {
-      return item.confidence.clamp(1, 100);
+    final heuristic = _heuristicConfidence(item);
+    final modelConfidence = item.confidence.clamp(0, 100);
+    if (modelConfidence <= 0) {
+      return heuristic;
     }
+    final warning = item.warning.trim().toLowerCase();
+    var blended = ((modelConfidence * 0.45) + (heuristic * 0.55)).round();
+    if (item.needsReview) {
+      blended -= 6;
+    }
+    if (warning.contains('ambigu') || warning.contains('tidak diketahui')) {
+      blended -= 6;
+    }
+    if (item.dateSource == 'explicit' &&
+        !item.needsReview &&
+        warning.isEmpty &&
+        item.amount > 0 &&
+        item.description.trim().length >= 4) {
+      blended += 4;
+    }
+    return blended.clamp(35, 98);
+  }
+
+  static int _heuristicConfidence(OcrTransactionDraft item) {
     var score = 55;
     final desc = item.description.trim();
     final raw = item.rawText.trim();
@@ -290,17 +311,30 @@ class OcrPostProcessor {
           desc.contains('total') ||
           desc.contains('jumlah') ||
           desc.contains('saldo');
-      final looksSummary =
-          summaryTotals.contains(row.amount) && genericDesc;
+      final looksSummary = summaryTotals.contains(row.amount) && genericDesc;
       final looksOutlierGrandTotal = _looksLikeAccidentalGrandTotal(
         row: row,
         rows: rows,
         totalAll: totalAll,
       );
-      if (!looksSummary) {
-        if (!looksOutlierGrandTotal) {
-          result.add(row);
-        }
+      final looksDetachedGrandTotal = _looksLikeDetachedGrandTotalRow(
+        row: row,
+        rows: rows,
+        totalAll: totalAll,
+      );
+      if (!looksSummary &&
+          !looksOutlierGrandTotal &&
+          !looksDetachedGrandTotal) {
+        result.add(row);
+        continue;
+      }
+      final noteSource =
+          row.rawText.trim().isNotEmpty
+              ? row.rawText.trim()
+              : row.description.trim();
+      if (noteSource.isNotEmpty) {
+        notesFound.add(noteSource);
+        ignoredLines.add(noteSource);
       }
     }
     return result.isEmpty ? rows : result;
@@ -315,8 +349,8 @@ class OcrPostProcessor {
       return false;
     }
 
-    final amounts = rows.map((e) => e.amount).where((e) => e > 0).toList()
-      ..sort();
+    final amounts =
+        rows.map((e) => e.amount).where((e) => e > 0).toList()..sort();
     if (amounts.length < 6) {
       return false;
     }
@@ -343,7 +377,7 @@ class OcrPostProcessor {
     // If the biggest amount is very close to sum of remaining rows,
     // it's likely a copied "grand total" accidentally parsed as a row.
     final delta = (row.amount - sumOthers).abs();
-    final tolerance = ((sumOthers * 0.08).round()).clamp(5000, 30000);
+    final tolerance = ((sumOthers * 0.12).round()).clamp(5000, 80000);
     if (delta > tolerance) {
       return false;
     }
@@ -352,6 +386,53 @@ class OcrPostProcessor {
     final desc = row.description.toLowerCase().trim();
     final descWords = desc.split(RegExp(r'\s+')).where((w) => w.isNotEmpty);
     return desc == 'unknown' || descWords.length <= 2;
+  }
+
+  static bool _looksLikeDetachedGrandTotalRow({
+    required OcrTransactionDraft row,
+    required List<OcrTransactionDraft> rows,
+    required int totalAll,
+  }) {
+    if (rows.length < 5 || row.amount < 180000) {
+      return false;
+    }
+    final amounts =
+        rows.map((e) => e.amount).where((e) => e > 0).toList()..sort();
+    if (amounts.length < 5 || row.amount != amounts.last) {
+      return false;
+    }
+    final secondMax = amounts[amounts.length - 2];
+    if (secondMax <= 0 || row.amount < (secondMax * 2.5)) {
+      return false;
+    }
+
+    final raw = row.rawText.trim().toLowerCase();
+    final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) {
+      return false;
+    }
+    final hasLetters = RegExp(r'[a-z]').hasMatch(raw);
+    final rawMostlyNumeric = !hasLetters || raw.length <= digits.length + 3;
+    if (!rawMostlyNumeric) {
+      return false;
+    }
+
+    final sumOthers = totalAll - row.amount;
+    if (sumOthers <= 0) {
+      return false;
+    }
+    final ratio = row.amount / sumOthers;
+    if (ratio < 0.8 || ratio > 1.35) {
+      return false;
+    }
+
+    final desc = row.description.toLowerCase().trim();
+    final descWords =
+        desc.split(RegExp(r'\s+|,')).where((w) => w.trim().isNotEmpty).length;
+    if (desc == 'unknown' || descWords <= 2) {
+      return true;
+    }
+    return false;
   }
 
   static Set<int> _extractSummaryTotals(List<String> lines) {

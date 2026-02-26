@@ -229,10 +229,14 @@ flutter build apk --release \
   - verifikasi observability tersimpan pada reply metadata (`action_intent`, `action_confidence`, `action_reason`, `action_raw_json_valid`).
   - uji malformed JSON dari classifier (simulasi teks non-JSON/markdown wrapper) dan pastikan app tidak crash, lalu turun ke fallback aman.
   - uji state `drafting`: perintah edit lanjutan (`ubah 10k jadi 15k`, `ubah nama`, `ubah jadi keluar`, `hapus item`) memodifikasi draf aktif, bukan jatuh ke intent umum.
+  - verifikasi aksi sensitif `delete_transaction` dan `create_category` selalu melalui konfirmasi 2 langkah (`ya/tidak`) sebelum eksekusi DB.
+  - verifikasi UI tidak menampilkan toggle `Mode Standar/Mode AI`; mode aman/fleksibel harus berjalan otomatis di background.
   - uji query "produk terjual/laku hari ini" dan pastikan dijawab deterministik dari data transaksi, bukan klarifikasi generik.
 - [ ] Uji OCR fallback transparency log:
   - setelah scan, panel log harus menampilkan urutan model/provider yang dicoba dengan status (`Trying/Success/Failed`), alasan, dan latency.
   - verifikasi fallback case (contoh model utama kena limit) menampilkan penyebab eksplisit per langkah.
+  - verifikasi pada mode akurat, hasil structuring tidak memangkas transaksi hanya menjadi "baris paling jelas"; baris ambigu tetap masuk sebagai `needs_review`.
+  - verifikasi baris grand total (`Total/Jumlah/Uang Bersih/Saldo`) tidak ikut masuk sebagai transaksi produk.
 - [ ] Jalankan regression test otomatis Phase 4:
   - `flutter test test/chat_import_draft_model_test.dart test/chat_import_audit_service_test.dart`
 - [ ] Jalankan regression test OCR parity Phase 1:

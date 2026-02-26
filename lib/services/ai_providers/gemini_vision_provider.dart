@@ -12,14 +12,13 @@ import 'ocr_post_processing.dart';
 class GeminiVisionProvider implements AiVisionProvider {
   static const int maxItemsPerScan = 30;
   static const int _maxVisionOutputTokens = 3200;
-  static const int _maxStructuringOutputTokens = 2500;
+  static const int _maxStructuringOutputTokens = 3600;
   static const String _apiKey = String.fromEnvironment('GEMINI_API_KEY');
   static const String _defaultModel = String.fromEnvironment(
     'GEMINI_MODEL',
     defaultValue: 'gemini-2.5-flash',
   );
-  static const String _defaultTextStructuringModelChain =
-      'gemma-3-12b-it,gemini-2.5-flash-lite';
+  static const String _defaultTextStructuringModelChain = 'gemma-3-12b-it';
   static const String _textStructuringModelChain = String.fromEnvironment(
     'GEMINI_OCR_TEXT_MODEL_CHAIN',
     defaultValue: _defaultTextStructuringModelChain,
@@ -260,11 +259,14 @@ Ubah OCR mentah berikut menjadi JSON transaksi keuangan.
 Keluarkan HANYA JSON object valid, tanpa markdown dan tanpa teks lain.
 
 Aturan inti:
-- Maksimal $maxItemsPerScan transaksi paling jelas.
-- Jika ada minimal 1 pasangan item + nominal masuk akal => is_transaction=true.
+- Maksimal $maxItemsPerScan transaksi kandidat.
+- Jangan hanya ambil "baris paling jelas". Ambil semua baris yang mengandung nominal dan terlihat seperti item transaksi.
+- Jika ragu pada suatu baris, tetap masukkan sebagai transaksi dengan needs_review=true + warning yang jelas.
+- Satu baris nominal = satu transaksi (jangan menggabungkan beberapa baris produk menjadi satu transaksi besar).
 - Nominal wajib integer rupiah tanpa titik/koma.
 - Nominal gabungan (contoh "20.000 + 20.000") => amount = total akhir (40000).
-- Baris Total/Jumlah/Uang Bersih/Saldo Akhir bukan transaksi => pindah ke summary.notes_found atau ignored_lines.
+- Jika menemukan baris total/ringkasan (Total/Jumlah/Uang Bersih/Saldo Akhir) jangan masukkan ke transactions, pindahkan ke summary.notes_found atau ignored_lines.
+- Jika ada angka tunggal sangat besar tanpa konteks item yang jelas di bagian bawah catatan, anggap ringkasan/non-transaksi (notes_found/ignored_lines), bukan transaksi.
 - Jika tanggal tidak tertulis jelas tapi ditebak konteks => date_source="inferred" dan needs_review=true.
 
 Schema wajib:

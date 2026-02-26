@@ -51,7 +51,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   bool _initialQuestionHandled = false;
   String? _pendingInitialQuestion;
   String _chatProviderPriority = 'groq_first';
-  String _intentRoutingMode = 'safe';
   bool _showTechnicalMeta = false;
   final Map<int, int> _assistantFeedback = <int, int>{}; // -1 | 1
   Set<String> _escalationPhrases = <String>{};
@@ -67,8 +66,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   static const String _chatSnapshotKey = 'ai_chat_snapshot_hash_v1';
   static const String _chatSavedAtKey = 'ai_chat_saved_at_v1';
   static const String _chatProviderPriorityKey = 'ai_chat_provider_priority_v1';
-  static const String _chatIntentRoutingModeKey =
-      'ai_chat_intent_routing_mode_v1';
   static const String _chatShowTechnicalMetaKey =
       'ai_chat_show_technical_meta_v1';
 
@@ -92,10 +89,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     final saved =
         (prefs.getString(_chatProviderPriorityKey) ?? 'groq_first').trim();
     final normalized = saved == 'gemini_first' ? 'gemini_first' : 'groq_first';
-    final savedIntentMode =
-        (prefs.getString(_chatIntentRoutingModeKey) ?? 'safe').trim();
-    final normalizedIntentMode =
-        savedIntentMode == 'flexible' ? 'flexible' : 'safe';
     final escalationRaw =
         await DatabaseHelper.instance.getChatPreferAiPhrases();
     final showTechnicalMeta = prefs.getBool(_chatShowTechnicalMetaKey) ?? false;
@@ -104,7 +97,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     }
     setState(() {
       _chatProviderPriority = normalized;
-      _intentRoutingMode = normalizedIntentMode;
       _escalationPhrases = escalationRaw;
       _showTechnicalMeta = showTechnicalMeta;
     });
@@ -134,18 +126,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     });
   }
 
-  Future<void> _setIntentRoutingMode(String value) async {
-    final normalized = value == 'flexible' ? 'flexible' : 'safe';
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_chatIntentRoutingModeKey, normalized);
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _intentRoutingMode = normalized;
-    });
-  }
-
   String? _providerOrderOverride() {
     switch (_chatProviderPriority) {
       case 'groq_first':
@@ -166,10 +146,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       default:
         return 'Groq dulu';
     }
-  }
-
-  String _intentRoutingModeLabel() {
-    return _intentRoutingMode == 'flexible' ? 'Mode AI' : 'Mode Standar';
   }
 
   Future<void> _sendFromInput() async {
@@ -493,29 +469,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
 
     final normalizedQuestionKey = _normalizeIntentKey(question);
     final shouldAutoEscalate =
-        _intentRoutingMode == 'safe' &&
-        (_isLikelyRetryQuestion(normalizedQuestionKey) ||
-            _matchesEscalationPhrase(normalizedQuestionKey));
-    final effectiveMode = shouldAutoEscalate ? 'flexible' : _intentRoutingMode;
-    if (shouldAutoEscalate && mounted) {
-      setState(() {
-        _messages.add(
-          const AiChatMessage(
-            role: 'assistant',
-            text:
-                'Saya pindahkan ke Mode AI untuk pertanyaan ini agar lebih luwes.',
-            providerId: 'local-mode-switch',
-            confidenceLevel: 'high',
-            confidenceReason:
-                'Pertanyaan berulang/bermasalah pada mode standar.',
-            executionPath: 'local',
-            executionReason: 'Auto-switch satu kali ke mode AI.',
-          ),
-        );
-      });
-      await _persistChat();
-      _scrollToBottom();
-    }
+        _isLikelyRetryQuestion(normalizedQuestionKey) ||
+        _matchesEscalationPhrase(normalizedQuestionKey);
+    final effectiveMode = shouldAutoEscalate ? 'flexible' : 'safe';
 
     try {
       final reply = await _chatbotService.askFinancialAssistant(
@@ -694,7 +650,10 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         return 'Tipe transaksi sudah ${nextType == 'IN' ? 'MASUK' : 'KELUAR'}.';
       }
       final updated = List<ChatImportDraftItem>.from(draft.transactions);
-      updated[targetIndex] = current.copyWith(type: nextType, needsReview: false);
+      updated[targetIndex] = current.copyWith(
+        type: nextType,
+        needsReview: false,
+      );
       _pendingDraft = draft.copyWith(transactions: updated);
       return 'Tipe "${current.description}" diubah menjadi ${nextType == 'IN' ? 'MASUK' : 'KELUAR'}.\n\n${_buildDraftSummary(_pendingDraft!)}';
     }
@@ -802,8 +761,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     String? descriptionHint,
     required bool fallbackToFirst,
   }) {
-    final itemMatch = RegExp(r'\b(?:item|transaksi)\s+(\d{1,2})\b')
-        .firstMatch(normalized);
+    final itemMatch = RegExp(
+      r'\b(?:item|transaksi)\s+(\d{1,2})\b',
+    ).firstMatch(normalized);
     if (itemMatch != null) {
       final raw = int.tryParse(itemMatch.group(1) ?? '');
       if (raw != null && raw >= 1 && raw <= draft.transactions.length) {
@@ -859,9 +819,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       return DateFormat('yyyy-MM-dd').format(now);
     }
     if (normalized.contains('kemarin')) {
-      return DateFormat('yyyy-MM-dd').format(
-        now.subtract(const Duration(days: 1)),
-      );
+      return DateFormat(
+        'yyyy-MM-dd',
+      ).format(now.subtract(const Duration(days: 1)));
     }
     final isoMatch = RegExp(r'\b(\d{4}-\d{2}-\d{2})\b').firstMatch(normalized);
     if (isoMatch != null) {
@@ -870,10 +830,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         return value;
       }
     }
-    final dmyMatch =
-        RegExp(r'\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b').firstMatch(
-          normalized,
-        );
+    final dmyMatch = RegExp(
+      r'\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b',
+    ).firstMatch(normalized);
     if (dmyMatch == null) {
       return null;
     }
@@ -1156,8 +1115,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       SnackBar(
         content: Text(
           value < 0
-              ? 'Masukan disimpan. Pertanyaan serupa akan diarahkan ke Mode AI.'
-              : 'Terima kasih. Pertanyaan serupa kembali diprioritaskan di Mode Standar.',
+              ? 'Masukan disimpan. Pertanyaan serupa akan diproses lebih luwes.'
+              : 'Terima kasih. Pertanyaan serupa diproses dengan aturan ketat.',
         ),
       ),
     );
@@ -1301,23 +1260,6 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                 ],
             icon: const Icon(Icons.tune),
           ),
-          PopupMenuButton<String>(
-            tooltip: 'Mode intent chat',
-            initialValue: _intentRoutingMode,
-            onSelected: _setIntentRoutingMode,
-            itemBuilder:
-                (context) => const [
-                  PopupMenuItem<String>(
-                    value: 'safe',
-                    child: Text('Mode Standar (Default)'),
-                  ),
-                  PopupMenuItem<String>(
-                    value: 'flexible',
-                    child: Text('Mode AI'),
-                  ),
-                ],
-            icon: const Icon(Icons.psychology_alt_outlined),
-          ),
           IconButton(
             tooltip:
                 _showTechnicalMeta
@@ -1390,7 +1332,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                'Prioritas AI: ${_chatProviderPriorityLabel()} • Mode: ${_intentRoutingModeLabel()}',
+                'Prioritas AI: ${_chatProviderPriorityLabel()}',
                 style: const TextStyle(fontSize: 11, color: Colors.black54),
               ),
             ),

@@ -10,6 +10,10 @@ All notable changes to this project will be documented in this file.
 *Fokus: Pencarian Global, Reminder Backup, Insight Produk Lambat*
 
 ### Added
+- Action Engine phase-2 (chat safety actions):
+  - action `delete_transaction` ditambahkan ke registry aksi dengan konfirmasi 2 langkah (`ya/tidak`) sebelum eksekusi hapus ke SQLite.
+  - action `create_category` ditambahkan ke registry aksi dengan konfirmasi 2 langkah dan validasi duplikasi/reaktivasi kategori arsip.
+  - alur konfirmasi disimpan sebagai pending-action di metadata percakapan agar aman dari eksekusi tanpa persetujuan.
 - Login sidik jari (biometric quick login):
   - tombol `Masuk dengan Sidik Jari` ditambahkan di layar login jika perangkat mendukung biometric dan sesi login terakhir tersedia.
   - sesi login cepat disimpan lokal setelah login manual sukses (berbasis user terakhir), sehingga login berikutnya bisa lewat biometric.
@@ -175,6 +179,13 @@ All notable changes to this project will be documented in this file.
   - PDF menampilkan ringkasan produk untuk transaksi pemasukan (hybrid) dan tetap menyertakan detail item agar lebih mudah dibaca owner.
 
 ### Changed
+- Chat Smart Mode UX:
+  - toggle manual mode pada layar chatbot dihapus dari UI; mode aman/fleksibel kini berjalan otomatis di background sesuai konteks pertanyaan.
+  - pesan transisi internal `local-mode-switch` tidak lagi ditampilkan sebagai bubble agar percakapan lebih bersih.
+- OCR structuring & post-processing tuning:
+  - prompt structuring two-pass diperketat agar tidak memilih "baris paling jelas" saja, melainkan mempertahankan semua kandidat transaksi bernominal dan menandai baris ambigu sebagai `needs_review`.
+  - heuristik confidence OCR diubah dari model-score mentah menjadi blended score (model + rule lokal), sehingga nilai tidak mentok di angka statis seperti 75%.
+  - filter grand total diperkuat untuk kasus "angka total ikut terbaca jadi item produk" (termasuk baris angka besar yang terlepas dari konteks item).
 - Integrasi platform untuk biometric login:
   - Android `MainActivity` dipindah ke `FlutterFragmentActivity` agar kompatibel plugin biometric.
   - Android manifest menambahkan izin `USE_BIOMETRIC`.

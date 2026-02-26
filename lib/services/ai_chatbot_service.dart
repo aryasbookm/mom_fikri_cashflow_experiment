@@ -98,6 +98,34 @@ class AiChatbotService {
     'menu',
     'menu utama',
   ];
+  static const Set<String> _confirmCommands = <String>{
+    'ya',
+    'iya',
+    'y',
+    'yes',
+    'ok',
+    'oke',
+    'baik',
+    'betul',
+    'sudah benar',
+    'lanjut',
+    'setuju',
+    'benar',
+    'konfirmasi',
+  };
+  static const Set<String> _cancelCommands = <String>{
+    'tidak',
+    'tidak jadi',
+    'ga',
+    'ngga',
+    'nggak',
+    'batal',
+    'cancel',
+    'jangan',
+    'stop',
+  };
+  static const String _pendingActionPrefix = 'pending_action:';
+  static const String _pendingActionDonePrefix = 'pending_action_done:';
   final AiChatbotMemoryService _memoryService = AiChatbotMemoryService();
   final ChatIntentRouter _intentRouter = ChatIntentRouter();
 
@@ -131,6 +159,14 @@ class AiChatbotService {
       return _finalizeConfidenceReply(
         await _applyMemoryAction(action: memoryAction, memory: memory),
       );
+    }
+
+    final pendingActionReply = await _resolvePendingActionConfirmation(
+      question: safeQuestion,
+      history: history,
+    );
+    if (pendingActionReply != null) {
+      return _finalizeConfidenceReply(pendingActionReply);
     }
 
     final mode =
@@ -595,6 +631,128 @@ class AiChatbotService {
     return 'idle';
   }
 
+  Future<AiChatReply?> _resolvePendingActionConfirmation({
+    required String question,
+    required List<AiChatMessage> history,
+  }) async {
+    final pending = _extractPendingActionFromHistory(history);
+    if (pending == null) {
+      return null;
+    }
+    final normalized = _intentRouter.normalize(question);
+    if (normalized.isEmpty) {
+      return null;
+    }
+    if (_cancelCommands.contains(normalized)) {
+      return AiChatReply(
+        text: 'Baik, aksi tertunda dibatalkan.',
+        providerId: 'local-guard',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+        confidenceLevel: 'high',
+        confidenceReason: 'Pembatalan konfirmasi aksi sensitif.',
+        executionPath: 'local',
+        executionReason: '$_pendingActionDonePrefix${pending.action}:cancelled',
+      );
+    }
+    if (!_confirmCommands.contains(normalized)) {
+      return null;
+    }
+
+    switch (pending.action) {
+      case 'delete_transaction':
+        return _executeConfirmedDeleteTransaction(pending.payload);
+      case 'create_category':
+        return _executeConfirmedCreateCategory(pending.payload);
+      default:
+        return AiChatReply(
+          text: 'Aksi tertunda tidak dikenali. Silakan kirim ulang perintah.',
+          providerId: 'local-guard',
+          fromCache: false,
+          suggestedCooldownSeconds: 1,
+          confidenceLevel: 'low',
+          confidenceReason: 'Data aksi tertunda tidak valid.',
+          executionPath: 'local',
+          executionReason: '$_pendingActionDonePrefix${pending.action}:invalid',
+        );
+    }
+  }
+
+  _PendingAction? _extractPendingActionFromHistory(
+    List<AiChatMessage> history,
+  ) {
+    for (var i = history.length - 1; i >= 0; i--) {
+      final item = history[i];
+      if (item.role != 'assistant') {
+        continue;
+      }
+      final reason = (item.executionReason ?? '').trim();
+      if (reason.isEmpty) {
+        continue;
+      }
+      final doneMarkerIndex = reason.indexOf(_pendingActionDonePrefix);
+      if (doneMarkerIndex >= 0) {
+        return null;
+      }
+      final parsed = _parsePendingAction(reason);
+      if (parsed != null) {
+        return parsed;
+      }
+    }
+    return null;
+  }
+
+  _PendingAction? _parsePendingAction(String executionReason) {
+    final markerIndex = executionReason.indexOf(_pendingActionPrefix);
+    if (markerIndex < 0) {
+      return null;
+    }
+    final payloadRaw = executionReason.substring(
+      markerIndex + _pendingActionPrefix.length,
+    );
+    final pipe = payloadRaw.indexOf('|');
+    final marker =
+        (pipe >= 0 ? payloadRaw.substring(0, pipe) : payloadRaw).trim();
+    if (marker.isEmpty) {
+      return null;
+    }
+    final split = marker.split(':');
+    if (split.length < 2) {
+      return null;
+    }
+    final action = split.first.trim().toLowerCase();
+    final encoded = split.sublist(1).join(':').trim();
+    if (action.isEmpty || encoded.isEmpty) {
+      return null;
+    }
+    try {
+      final decoded = utf8.decode(
+        base64Url.decode(base64Url.normalize(encoded)),
+      );
+      final map = jsonDecode(decoded);
+      if (map is Map<String, dynamic>) {
+        return _PendingAction(action: action, payload: map);
+      }
+      if (map is Map) {
+        return _PendingAction(
+          action: action,
+          payload: Map<String, dynamic>.from(map),
+        );
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
+  String _buildPendingActionReason({
+    required String action,
+    required Map<String, dynamic> payload,
+  }) {
+    final encoded = base64Url.encode(utf8.encode(jsonEncode(payload)));
+    return '$_pendingActionPrefix$action:$encoded';
+  }
+
   AiChatReply? _resolveFastLaneReply({
     required String question,
     required String state,
@@ -724,6 +882,10 @@ Aturan inti:
 - Jika user menulis "batal/cancel" saat state drafting/review, gunakan cancel_draft.
 - Jika user meminta hapus transaksi yang sudah tersimpan, gunakan delete_transaction.
 - Jika user meminta menambah kategori baru, gunakan create_category.
+- Untuk delete_transaction, isi params minimal salah satu:
+  {"transaction_id":123} atau {"description":"donat","amount":10000,"date_iso":"YYYY-MM-DD"}.
+- Untuk create_category, isi params wajib:
+  {"name":"Nama Kategori","type":"IN|OUT"}.
 - Jika ambigu, action=clarify dengan suggestions kontekstual (2-3 item).
 - confidence wajib angka 0..100.
 
@@ -829,11 +991,12 @@ $question
     if (normalized.isEmpty) {
       return null;
     }
-    normalized = normalized
-        .replaceAll(RegExp(r'^```json\s*', caseSensitive: false), '')
-        .replaceAll(RegExp(r'^```', caseSensitive: false), '')
-        .replaceAll(RegExp(r'```$', caseSensitive: false), '')
-        .trim();
+    normalized =
+        normalized
+            .replaceAll(RegExp(r'^```json\s*', caseSensitive: false), '')
+            .replaceAll(RegExp(r'^```', caseSensitive: false), '')
+            .replaceAll(RegExp(r'```$', caseSensitive: false), '')
+            .trim();
 
     try {
       final direct = jsonDecode(normalized);
@@ -940,11 +1103,13 @@ $question
     );
     final registry = <String, _ActionHandler>{
       'capability_help':
-          (req) async =>
-              _resolveInstantLocalReply(req.decision.normalizedQuestion,
-                  forceCapability: true),
+          (req) async => _resolveInstantLocalReply(
+            req.decision.normalizedQuestion,
+            forceCapability: true,
+          ),
       'small_talk':
-          (req) async => _resolveInstantLocalReply(req.decision.normalizedQuestion),
+          (req) async =>
+              _resolveInstantLocalReply(req.decision.normalizedQuestion),
       'query_stock':
           (req) async => _resolveDeterministicStockRankingReply(
             question: req.question,
@@ -952,20 +1117,28 @@ $question
           ),
       'query_income_date':
           (req) async => _resolveDeterministicDateQueryReply(
-            question: _ensureMetricKeyword(req.question, metric: _DateMetric.income),
+            question: _ensureMetricKeyword(
+              req.question,
+              metric: _DateMetric.income,
+            ),
             financeSnapshot: req.financeSnapshot,
             providerOrderOverride: req.providerOrderOverride,
           ),
       'query_expense_date':
           (req) async => _resolveDeterministicDateQueryReply(
-            question:
-                _ensureMetricKeyword(req.question, metric: _DateMetric.expense),
+            question: _ensureMetricKeyword(
+              req.question,
+              metric: _DateMetric.expense,
+            ),
             financeSnapshot: req.financeSnapshot,
             providerOrderOverride: req.providerOrderOverride,
           ),
       'query_net_date':
           (req) async => _resolveDeterministicDateQueryReply(
-            question: _ensureMetricKeyword(req.question, metric: _DateMetric.net),
+            question: _ensureMetricKeyword(
+              req.question,
+              metric: _DateMetric.net,
+            ),
             financeSnapshot: req.financeSnapshot,
             providerOrderOverride: req.providerOrderOverride,
           ),
@@ -975,39 +1148,38 @@ $question
             params: req.decision.params,
             providerOrderOverride: req.providerOrderOverride,
           ),
-      'import_draft':
-          (req) async {
-            final action = await _tryBuildImportDraftFromQuestion(
-              question: req.question,
-              financeSnapshot: req.financeSnapshot,
-              providerOrderOverride: req.providerOrderOverride,
-            );
-            if (action == null) {
-              return const AiChatReply(
-                text:
-                    'Saya belum bisa membentuk draf transaksi dari kalimat itu. Coba formatkan singkat per item, contoh: "Donat 20k, Roti 15k".',
-                providerId: 'chat-action-intent',
-                fromCache: false,
-                suggestedCooldownSeconds: 1,
-                confidenceLevel: 'low',
-                confidenceReason: 'Draft import gagal dibentuk dari input.',
-                executionPath: 'local_ai',
-                executionReason: 'Action import_draft gagal parse.',
-              );
-            }
-            return AiChatReply(
-              text:
-                  'Draf transaksi berhasil disiapkan. Silakan review dulu sebelum disimpan.',
-              providerId: action.providerId,
-              fromCache: false,
-              suggestedCooldownSeconds: 1,
-              actionDraft: action.draft,
-              confidenceLevel: _confidenceForDraft(action.draft),
-              confidenceReason: _confidenceReasonForDraft(action.draft),
-              executionPath: 'local_ai',
-              executionReason: 'Action import_draft dieksekusi.',
-            );
-          },
+      'import_draft': (req) async {
+        final action = await _tryBuildImportDraftFromQuestion(
+          question: req.question,
+          financeSnapshot: req.financeSnapshot,
+          providerOrderOverride: req.providerOrderOverride,
+        );
+        if (action == null) {
+          return const AiChatReply(
+            text:
+                'Saya belum bisa membentuk draf transaksi dari kalimat itu. Coba formatkan singkat per item, contoh: "Donat 20k, Roti 15k".',
+            providerId: 'chat-action-intent',
+            fromCache: false,
+            suggestedCooldownSeconds: 1,
+            confidenceLevel: 'low',
+            confidenceReason: 'Draft import gagal dibentuk dari input.',
+            executionPath: 'local_ai',
+            executionReason: 'Action import_draft gagal parse.',
+          );
+        }
+        return AiChatReply(
+          text:
+              'Draf transaksi berhasil disiapkan. Silakan review dulu sebelum disimpan.',
+          providerId: action.providerId,
+          fromCache: false,
+          suggestedCooldownSeconds: 1,
+          actionDraft: action.draft,
+          confidenceLevel: _confidenceForDraft(action.draft),
+          confidenceReason: _confidenceReasonForDraft(action.draft),
+          executionPath: 'local_ai',
+          executionReason: 'Action import_draft dieksekusi.',
+        );
+      },
       'confirm_draft':
           (_) async => const AiChatReply(
             text:
@@ -1094,35 +1266,621 @@ $question
             executionReason: 'Panduan hapus item draf.',
           ),
       'delete_transaction':
-          (_) async => const AiChatReply(
-            text:
-                'Permintaan hapus transaksi perlu konfirmasi eksplisit dari layar Riwayat agar aman. Buka Riwayat lalu pilih transaksi yang ingin dihapus.',
-            providerId: 'local-guard',
-            fromCache: false,
-            suggestedCooldownSeconds: 1,
-            confidenceLevel: 'high',
-            confidenceReason: 'Aksi sensitif dibatasi ke UI dengan konfirmasi.',
-            executionPath: 'local',
-            executionReason: 'Guardrail aksi sensitif.',
-          ),
-      'create_category':
-          (_) async => const AiChatReply(
-            text:
-                'Untuk menambah kategori baru, buka menu kategori agar tipe IN/OUT dan duplikasi bisa divalidasi dengan aman.',
-            providerId: 'local-guard',
-            fromCache: false,
-            suggestedCooldownSeconds: 1,
-            confidenceLevel: 'high',
-            confidenceReason: 'Pembuatan kategori butuh validasi deterministic.',
-            executionPath: 'local',
-            executionReason: 'Guardrail perubahan master data.',
-          ),
+          (req) async => _prepareDeleteTransactionConfirmation(req),
+      'create_category': (req) async => _prepareCreateCategoryConfirmation(req),
     };
     final handler = registry[decision.action];
     if (handler == null) {
       return null;
     }
     return handler(request);
+  }
+
+  Future<AiChatReply> _prepareDeleteTransactionConfirmation(
+    _ActionRequest request,
+  ) async {
+    final db = await DatabaseHelper.instance.database;
+    final params = request.decision.params;
+    final normalizedQuestion = _intentRouter.normalize(request.question);
+
+    final explicitId =
+        _toInt(params['transaction_id']) > 0
+            ? _toInt(params['transaction_id'])
+            : _extractTransactionIdFromText(normalizedQuestion);
+    final amountHint = _extractAmountHint(params, normalizedQuestion);
+    final descriptionHint = _extractDescriptionHint(params, normalizedQuestion);
+    final dateIsoHint = _extractDateIsoHint(params);
+
+    final whereClauses = <String>[];
+    final whereArgs = <Object>[];
+    if (explicitId > 0) {
+      whereClauses.add('t.id = ?');
+      whereArgs.add(explicitId);
+    } else {
+      if (descriptionHint.isNotEmpty) {
+        whereClauses.add("LOWER(COALESCE(t.description, '')) LIKE ?");
+        whereArgs.add('%${descriptionHint.toLowerCase()}%');
+      }
+      if (amountHint > 0) {
+        whereClauses.add('t.amount = ?');
+        whereArgs.add(amountHint);
+      }
+      if (dateIsoHint != null) {
+        whereClauses.add('DATE(t.date) = DATE(?)');
+        whereArgs.add(dateIsoHint);
+      }
+    }
+
+    if (whereClauses.isEmpty) {
+      return const AiChatReply(
+        text:
+            'Supaya aman, sebutkan transaksi yang mau dihapus dengan lebih spesifik.\nContoh: "hapus transaksi id 123" atau "hapus transaksi donat 10000 tanggal 2026-02-26".',
+        providerId: 'local-guard',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+        confidenceLevel: 'medium',
+        confidenceReason: 'Target transaksi belum bisa dipastikan.',
+        executionPath: 'local',
+        executionReason: 'delete_transaction_missing_selector',
+      );
+    }
+
+    final rows = await db.rawQuery('''
+      SELECT
+        t.id AS id,
+        t.type AS type,
+        t.amount AS amount,
+        t.description AS description,
+        t.date AS date,
+        t.user_id AS user_id,
+        t.category_id AS category_id,
+        t.product_id AS product_id,
+        t.quantity AS quantity,
+        c.name AS category_name
+      FROM transactions t
+      LEFT JOIN categories c ON c.id = t.category_id
+      WHERE ${whereClauses.join(' AND ')}
+      ORDER BY datetime(t.date) DESC, t.id DESC
+      LIMIT 5
+      ''', whereArgs);
+
+    if (rows.isEmpty) {
+      return const AiChatReply(
+        text:
+            'Transaksi yang dimaksud tidak ditemukan. Coba sebutkan ID transaksi atau tambahkan nominal + tanggal agar lebih spesifik.',
+        providerId: 'local-guard',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+        confidenceLevel: 'low',
+        confidenceReason: 'Tidak ada transaksi yang cocok untuk dihapus.',
+        executionPath: 'local',
+        executionReason: 'delete_transaction_not_found',
+      );
+    }
+
+    if (rows.length > 1 && explicitId <= 0) {
+      final options = rows
+          .map((row) => '- ${_formatDeleteCandidate(row)}')
+          .join('\n');
+      return AiChatReply(
+        text:
+            'Saya menemukan lebih dari satu transaksi.\n$options\nSebutkan ID transaksi agar aman. Contoh: "hapus transaksi id ${rows.first['id']}".',
+        providerId: 'local-guard',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+        confidenceLevel: 'medium',
+        confidenceReason: 'Ditemukan beberapa kandidat transaksi.',
+        executionPath: 'local',
+        executionReason: 'delete_transaction_multiple_candidates',
+      );
+    }
+
+    final target = Map<String, dynamic>.from(rows.first);
+    final payload = <String, dynamic>{
+      'transaction_id': _toInt(target['id']),
+      'reason': 'Hapus via chat assistant',
+      'deleted_by': 'chatbot',
+    };
+    return AiChatReply(
+      text:
+          'Konfirmasi hapus transaksi ini?\n- ${_formatDeleteCandidate(target)}\nBalas "ya" untuk hapus atau "tidak" untuk batal.',
+      providerId: 'local-guard',
+      fromCache: false,
+      suggestedCooldownSeconds: 1,
+      confidenceLevel: 'high',
+      confidenceReason: 'Aksi sensitif menunggu konfirmasi dua langkah.',
+      executionPath: 'local',
+      executionReason: _buildPendingActionReason(
+        action: 'delete_transaction',
+        payload: payload,
+      ),
+    );
+  }
+
+  Future<AiChatReply> _executeConfirmedDeleteTransaction(
+    Map<String, dynamic> payload,
+  ) async {
+    final transactionId = _toInt(payload['transaction_id']);
+    if (transactionId <= 0) {
+      return const AiChatReply(
+        text: 'ID transaksi tidak valid. Ulangi perintah hapus transaksi.',
+        providerId: 'local-guard',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+        confidenceLevel: 'low',
+        confidenceReason: 'Payload konfirmasi hapus tidak valid.',
+        executionPath: 'local',
+        executionReason:
+            'pending_action_done:delete_transaction:invalid_payload',
+      );
+    }
+
+    final db = await DatabaseHelper.instance.database;
+    final rows = await db.rawQuery(
+      '''
+      SELECT
+        t.id AS id,
+        t.type AS type,
+        t.amount AS amount,
+        t.description AS description,
+        t.date AS date,
+        t.user_id AS user_id,
+        t.category_id AS category_id,
+        t.product_id AS product_id,
+        t.quantity AS quantity,
+        c.name AS category_name
+      FROM transactions t
+      LEFT JOIN categories c ON c.id = t.category_id
+      WHERE t.id = ?
+      LIMIT 1
+      ''',
+      [transactionId],
+    );
+
+    if (rows.isEmpty) {
+      return const AiChatReply(
+        text: 'Transaksi tidak ditemukan atau sudah terhapus sebelumnya.',
+        providerId: 'local-guard',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+        confidenceLevel: 'medium',
+        confidenceReason: 'Target hapus tidak tersedia saat konfirmasi.',
+        executionPath: 'local',
+        executionReason: 'pending_action_done:delete_transaction:not_found',
+      );
+    }
+
+    final transaction = Map<String, dynamic>.from(rows.first);
+    final deletedBy = (payload['deleted_by'] ?? 'chatbot').toString().trim();
+    final reason =
+        (payload['reason'] ?? 'Hapus via chat assistant').toString().trim();
+
+    await db.transaction((txn) async {
+      await _rollbackStocksForDeletedTransaction(txn: txn, row: transaction);
+      await txn.insert('deleted_transactions', {
+        'original_id': _toInt(transaction['id']),
+        'type': (transaction['type'] ?? '').toString(),
+        'amount': _toInt(transaction['amount']),
+        'category_id': _toInt(transaction['category_id']),
+        'category': (transaction['category_name'] ?? '').toString(),
+        'description': (transaction['description'] ?? '').toString(),
+        'date': (transaction['date'] ?? '').toString(),
+        'user_id': _toInt(transaction['user_id']),
+        'product_id':
+            transaction['product_id'] == null
+                ? null
+                : _toInt(transaction['product_id']),
+        'quantity':
+            transaction['quantity'] == null
+                ? null
+                : _toInt(transaction['quantity']),
+        'deleted_at': DateTime.now().toIso8601String(),
+        'deleted_by': deletedBy.isEmpty ? 'chatbot' : deletedBy,
+        'reason': reason.isEmpty ? 'Hapus via chat assistant' : reason,
+      });
+      await txn.delete(
+        'transaction_items',
+        where: 'transaction_id = ?',
+        whereArgs: [transactionId],
+      );
+      await txn.delete(
+        'transactions',
+        where: 'id = ?',
+        whereArgs: [transactionId],
+      );
+    });
+
+    return AiChatReply(
+      text:
+          'Transaksi berhasil dihapus.\n- ${_formatDeleteCandidate(transaction)}',
+      providerId: 'local-guard',
+      fromCache: false,
+      suggestedCooldownSeconds: 1,
+      confidenceLevel: 'high',
+      confidenceReason: 'Aksi hapus transaksi dieksekusi setelah konfirmasi.',
+      executionPath: 'local',
+      executionReason: 'pending_action_done:delete_transaction:executed',
+    );
+  }
+
+  Future<void> _rollbackStocksForDeletedTransaction({
+    required dynamic txn,
+    required Map<String, dynamic> row,
+  }) async {
+    final type = (row['type'] ?? '').toString().toUpperCase().trim();
+    if (type == 'IN') {
+      final items = await txn.query(
+        'transaction_items',
+        where: 'transaction_id = ?',
+        whereArgs: [_toInt(row['id'])],
+      );
+      if (items.isNotEmpty) {
+        for (final item in items) {
+          final productId = item['product_id'] as int?;
+          final quantity = _toInt(item['quantity']);
+          if (productId != null && quantity > 0) {
+            await _incrementProductStock(
+              txn: txn,
+              productId: productId,
+              delta: quantity,
+            );
+          }
+        }
+        return;
+      }
+      final productId = row['product_id'] as int?;
+      final quantity = _toInt(row['quantity']);
+      if (productId != null && quantity > 0) {
+        await _incrementProductStock(
+          txn: txn,
+          productId: productId,
+          delta: quantity,
+        );
+      }
+      return;
+    }
+    if (type == 'WASTE') {
+      final productId = row['product_id'] as int?;
+      final quantity = _toInt(row['quantity']);
+      if (productId != null && quantity > 0) {
+        await _incrementProductStock(
+          txn: txn,
+          productId: productId,
+          delta: quantity,
+        );
+      }
+    }
+  }
+
+  Future<void> _incrementProductStock({
+    required dynamic txn,
+    required int productId,
+    required int delta,
+  }) async {
+    if (delta <= 0) {
+      return;
+    }
+    await txn.rawUpdate(
+      '''
+      UPDATE products
+      SET stock = CASE WHEN stock + ? < 0 THEN 0 ELSE stock + ? END
+      WHERE id = ?
+      ''',
+      [delta, delta, productId],
+    );
+  }
+
+  Future<AiChatReply> _prepareCreateCategoryConfirmation(
+    _ActionRequest request,
+  ) async {
+    final normalizedQuestion = _intentRouter.normalize(request.question);
+    final params = request.decision.params;
+    final rawName =
+        (params['name'] ?? params['category_name'] ?? params['category'] ?? '')
+            .toString()
+            .trim();
+    final name =
+        rawName.isEmpty
+            ? _extractCategoryNameFromQuestion(request.question)
+            : rawName;
+    final type = _resolveCategoryType(
+      params: params,
+      normalizedQuestion: normalizedQuestion,
+    );
+
+    if (name.isEmpty) {
+      return const AiChatReply(
+        text:
+            'Nama kategori belum terbaca. Contoh perintah: "tambah kategori Biaya Listrik pengeluaran".',
+        providerId: 'local-guard',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+        confidenceLevel: 'medium',
+        confidenceReason: 'Nama kategori belum tersedia untuk konfirmasi.',
+        executionPath: 'local',
+        executionReason: 'create_category_missing_name',
+      );
+    }
+    if (type == null) {
+      return AiChatReply(
+        text:
+            'Tipe kategori untuk "$name" belum jelas. Balas "pemasukan" atau "pengeluaran".',
+        providerId: 'local-guard',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+        confidenceLevel: 'medium',
+        confidenceReason: 'Tipe kategori perlu dipastikan sebelum simpan.',
+        executionPath: 'local',
+        executionReason: 'create_category_missing_type',
+      );
+    }
+
+    final payload = <String, dynamic>{'name': name, 'type': type};
+    final typeLabel = type == 'IN' ? 'PEMASUKAN' : 'PENGELUARAN';
+    return AiChatReply(
+      text:
+          'Konfirmasi buat kategori baru?\n- Nama: $name\n- Tipe: $typeLabel\nBalas "ya" untuk simpan atau "tidak" untuk batal.',
+      providerId: 'local-guard',
+      fromCache: false,
+      suggestedCooldownSeconds: 1,
+      confidenceLevel: 'high',
+      confidenceReason: 'Aksi master data menunggu konfirmasi dua langkah.',
+      executionPath: 'local',
+      executionReason: _buildPendingActionReason(
+        action: 'create_category',
+        payload: payload,
+      ),
+    );
+  }
+
+  Future<AiChatReply> _executeConfirmedCreateCategory(
+    Map<String, dynamic> payload,
+  ) async {
+    final name = (payload['name'] ?? '').toString().trim();
+    final type = _normalizeCategoryType((payload['type'] ?? '').toString());
+    if (name.isEmpty || type == null) {
+      return const AiChatReply(
+        text: 'Data kategori tidak valid. Ulangi perintah tambah kategori.',
+        providerId: 'local-guard',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+        confidenceLevel: 'low',
+        confidenceReason: 'Payload create_category tidak valid.',
+        executionPath: 'local',
+        executionReason: 'pending_action_done:create_category:invalid_payload',
+      );
+    }
+
+    final db = await DatabaseHelper.instance.database;
+    final normalizedName = name.replaceAll(RegExp(r'\s+'), ' ').trim();
+    final existing = await db.query(
+      'categories',
+      columns: ['id', 'is_active'],
+      where: 'LOWER(TRIM(name)) = ? AND type = ?',
+      whereArgs: [normalizedName.toLowerCase(), type],
+      limit: 1,
+    );
+
+    if (existing.isNotEmpty) {
+      final id = _toInt(existing.first['id']);
+      final isActive = _toInt(existing.first['is_active']) == 1;
+      if (!isActive) {
+        await db.update(
+          'categories',
+          {'is_active': 1},
+          where: 'id = ?',
+          whereArgs: [id],
+        );
+        return AiChatReply(
+          text:
+              'Kategori "$normalizedName" sudah ada di arsip dan berhasil diaktifkan kembali.',
+          providerId: 'local-guard',
+          fromCache: false,
+          suggestedCooldownSeconds: 1,
+          confidenceLevel: 'high',
+          confidenceReason:
+              'Kategori lama diaktifkan ulang setelah konfirmasi.',
+          executionPath: 'local',
+          executionReason: 'pending_action_done:create_category:reactivated',
+        );
+      }
+      return AiChatReply(
+        text: 'Kategori "$normalizedName" sudah ada.',
+        providerId: 'local-guard',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+        confidenceLevel: 'high',
+        confidenceReason: 'Duplikasi dicegah oleh validasi kategori lokal.',
+        executionPath: 'local',
+        executionReason: 'pending_action_done:create_category:exists',
+      );
+    }
+
+    await db.insert('categories', {
+      'name': normalizedName,
+      'type': type,
+      'is_active': 1,
+    });
+    final typeLabel = type == 'IN' ? 'PEMASUKAN' : 'PENGELUARAN';
+    return AiChatReply(
+      text:
+          'Kategori baru berhasil dibuat:\n- Nama: $normalizedName\n- Tipe: $typeLabel',
+      providerId: 'local-guard',
+      fromCache: false,
+      suggestedCooldownSeconds: 1,
+      confidenceLevel: 'high',
+      confidenceReason: 'Kategori disimpan setelah konfirmasi dua langkah.',
+      executionPath: 'local',
+      executionReason: 'pending_action_done:create_category:executed',
+    );
+  }
+
+  int _extractTransactionIdFromText(String normalizedQuestion) {
+    final idMatch = RegExp(r'\bid\s*(\d+)\b').firstMatch(normalizedQuestion);
+    if (idMatch == null) {
+      return 0;
+    }
+    return int.tryParse(idMatch.group(1) ?? '') ?? 0;
+  }
+
+  int _extractAmountHint(
+    Map<String, dynamic> params,
+    String normalizedQuestion,
+  ) {
+    final direct = _toInt(params['amount']);
+    if (direct > 0) {
+      return direct;
+    }
+    final match = RegExp(
+      r'(\d{1,3}(?:[.,]\d{3})+|\d+)\s*(rb|ribu|jt|juta|k)?',
+    ).firstMatch(normalizedQuestion);
+    if (match == null) {
+      return 0;
+    }
+    final digits = (match.group(1) ?? '').replaceAll(RegExp(r'[.,]'), '');
+    final base = int.tryParse(digits) ?? 0;
+    if (base <= 0) {
+      return 0;
+    }
+    final unit = (match.group(2) ?? '').toLowerCase().trim();
+    if (unit == 'rb' || unit == 'ribu' || unit == 'k') {
+      return base * 1000;
+    }
+    if (unit == 'jt' || unit == 'juta') {
+      return base * 1000000;
+    }
+    return base;
+  }
+
+  String _extractDescriptionHint(
+    Map<String, dynamic> params,
+    String normalizedQuestion,
+  ) {
+    final direct =
+        (params['description'] ?? params['item'] ?? params['keyword'] ?? '')
+            .toString()
+            .trim();
+    if (direct.isNotEmpty) {
+      return direct;
+    }
+    final cleaned =
+        normalizedQuestion
+            .replaceAll(RegExp(r'\bhapus\b'), '')
+            .replaceAll(RegExp(r'\btransaksi\b'), '')
+            .replaceAll(RegExp(r'\bid\s*\d+\b'), '')
+            .replaceAll(
+              RegExp(r'\b(\d{1,3}(?:[.,]\d{3})+|\d+)\s*(rb|ribu|jt|juta|k)?\b'),
+              '',
+            )
+            .replaceAll(RegExp(r'\btanggal\s+\d{4}-\d{2}-\d{2}\b'), '')
+            .replaceAll(RegExp(r'\s+'), ' ')
+            .trim();
+    return cleaned;
+  }
+
+  String? _extractDateIsoHint(Map<String, dynamic> params) {
+    final value =
+        (params['date_iso'] ?? params['date'] ?? '').toString().trim();
+    if (value.isEmpty) {
+      return null;
+    }
+    final parsed = DateTime.tryParse(value);
+    if (parsed == null) {
+      return null;
+    }
+    return DateFormat('yyyy-MM-dd').format(parsed);
+  }
+
+  String _formatDeleteCandidate(Map<String, dynamic> row) {
+    final id = _toInt(row['id']);
+    final type =
+        ((row['type'] ?? '').toString().toUpperCase().trim() == 'OUT')
+            ? 'KELUAR'
+            : 'MASUK';
+    final amount = NumberFormat('#,##0', 'id_ID').format(_toInt(row['amount']));
+    final description = (row['description'] ?? '').toString().trim();
+    final label = description.isEmpty ? '(tanpa deskripsi)' : description;
+    final date = DateTime.tryParse((row['date'] ?? '').toString().trim());
+    final dateLabel = date == null ? '-' : _formatDateId(date);
+    return 'ID $id • $type • Rp $amount • $dateLabel • $label';
+  }
+
+  String? _resolveCategoryType({
+    required Map<String, dynamic> params,
+    required String normalizedQuestion,
+  }) {
+    final direct = _normalizeCategoryType((params['type'] ?? '').toString());
+    if (direct != null) {
+      return direct;
+    }
+    if (normalizedQuestion.contains('pemasukan') ||
+        normalizedQuestion.contains('pendapatan') ||
+        normalizedQuestion.contains('penghasilan') ||
+        normalizedQuestion.contains('masuk')) {
+      return 'IN';
+    }
+    if (normalizedQuestion.contains('pengeluaran') ||
+        normalizedQuestion.contains('biaya') ||
+        normalizedQuestion.contains('keluar') ||
+        normalizedQuestion.contains('beban')) {
+      return 'OUT';
+    }
+    return null;
+  }
+
+  String? _normalizeCategoryType(String raw) {
+    final value = raw.trim().toLowerCase();
+    if (value == 'in' ||
+        value == 'masuk' ||
+        value == 'pemasukan' ||
+        value == 'pendapatan' ||
+        value == 'penghasilan') {
+      return 'IN';
+    }
+    if (value == 'out' ||
+        value == 'keluar' ||
+        value == 'pengeluaran' ||
+        value == 'biaya' ||
+        value == 'beban') {
+      return 'OUT';
+    }
+    return null;
+  }
+
+  String _extractCategoryNameFromQuestion(String question) {
+    final lowered = question.toLowerCase();
+    var text =
+        lowered
+            .replaceAll(RegExp(r'\btambah(kan)?\b'), '')
+            .replaceAll(RegExp(r'\bbuat\b'), '')
+            .replaceAll(RegExp(r'\bkategori\b'), '')
+            .replaceAll(
+              RegExp(
+                r'\b(pemasukan|pendapatan|penghasilan|pengeluaran|biaya|beban)\b',
+              ),
+              '',
+            )
+            .replaceAll(RegExp(r'\s+'), ' ')
+            .trim();
+    if (text.isEmpty) {
+      return '';
+    }
+    if (text.length == 1) {
+      return '';
+    }
+    text = text.replaceAll(RegExp(r'^[,.:;\-]+|[,.:;\-]+$'), '').trim();
+    if (text.isEmpty) {
+      return '';
+    }
+    return text
+        .split(' ')
+        .map((part) {
+          if (part.isEmpty) {
+            return part;
+          }
+          return part[0].toUpperCase() + part.substring(1);
+        })
+        .join(' ');
   }
 
   String _ensureMetricKeyword(String question, {required _DateMetric metric}) {
@@ -1143,7 +1901,9 @@ $question
         }
         return 'pengeluaran $question';
       case _DateMetric.net:
-        if (q.contains('laba') || q.contains('selisih') || q.contains('untung')) {
+        if (q.contains('laba') ||
+            q.contains('selisih') ||
+            q.contains('untung')) {
           return question;
         }
         return 'laba $question';
@@ -1211,7 +1971,10 @@ $question
         .map((row) {
           final name = (row['name'] ?? '-').toString();
           final qty = _toInt(row['qty']);
-          final total = NumberFormat('#,##0', 'id_ID').format(_toInt(row['total']));
+          final total = NumberFormat(
+            '#,##0',
+            'id_ID',
+          ).format(_toInt(row['total']));
           return '- $name: ${NumberFormat('#,##0', 'id_ID').format(qty)} pcs (Rp $total)';
         })
         .toList(growable: false);
@@ -1867,7 +2630,9 @@ $question
     final q = question.toLowerCase();
     final asksSoldProducts =
         (q.contains('produk') &&
-            (q.contains('terjual') || q.contains('dijual') || q.contains('laku'))) ||
+            (q.contains('terjual') ||
+                q.contains('dijual') ||
+                q.contains('laku'))) ||
         q.contains('yang laku');
     if (!asksSoldProducts) {
       return null;
@@ -4276,6 +5041,13 @@ class _ActionDecision {
   final Map<String, dynamic> params;
   final List<String> suggestions;
   final bool rawJsonValid;
+}
+
+class _PendingAction {
+  const _PendingAction({required this.action, required this.payload});
+
+  final String action;
+  final Map<String, dynamic> payload;
 }
 
 class _DateRangeWindow {
