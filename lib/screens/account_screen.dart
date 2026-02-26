@@ -277,8 +277,8 @@ class _AccountScreenState extends State<AccountScreen> {
   Future<bool> _confirmRestore({bool isLegacyDb = false}) async {
     final message =
         isLegacyDb
-            ? 'Peringatan: Restore file database lama (.db) akan mengganti data saat ini dan menghapus semua foto produk lokal karena file .db tidak menyimpan data foto. Lanjutkan?'
-            : 'Peringatan: Data saat ini akan dihapus dan diganti dengan data backup. Lanjutkan?';
+            ? 'Peringatan: Restore file database lama (.db) akan mengganti data saat ini dan menghapus semua foto produk lokal karena file .db tidak menyimpan data foto.\n\nAkun dan password juga akan kembali ke versi di file backup, jadi Anda mungkin perlu login ulang memakai password lama.\n\nLanjutkan?'
+            : 'Peringatan: Data saat ini akan dihapus dan diganti dengan data backup.\n\nAkun dan password juga akan kembali ke versi di backup, jadi Anda mungkin perlu login ulang memakai password lama.\n\nLanjutkan?';
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) {

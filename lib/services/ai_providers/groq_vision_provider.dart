@@ -24,10 +24,16 @@ class GroqVisionProvider implements AiVisionProvider {
   String get providerId => 'groq';
 
   @override
+  Duration? get requestTimeout => const Duration(seconds: 10);
+
+  @override
   Future<OcrBatchDraft> extractDraftFromImageBytes({
     required List<int> imageBytes,
     required String mimeType,
+    OcrProviderStageCallback? onProviderEvent,
   }) async {
+    const stage = 'vision_pass';
+    onProviderEvent?.call(stage, 'try', null);
     if (_apiKey.trim().isEmpty) {
       throw const AiProviderTemporaryException(
         'GROQ_API_KEY belum diset untuk fallback provider.',
@@ -145,6 +151,7 @@ Aturan:
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     final text = _extractText(body);
     if (text.isEmpty) {
+      onProviderEvent?.call(stage, 'error', 'AI tidak mengembalikan data OCR.');
       throw Exception('AI tidak mengembalikan data OCR.');
     }
 
@@ -166,10 +173,16 @@ Aturan:
     final filtered = processed.transactions;
 
     if (filtered.isEmpty) {
+      onProviderEvent?.call(
+        stage,
+        'error',
+        'Transaksi valid tidak ditemukan. Coba foto lebih jelas atau lebih fokus.',
+      );
       throw Exception(
         'Transaksi valid tidak ditemukan. Coba foto lebih jelas atau lebih fokus.',
       );
     }
+    onProviderEvent?.call(stage, 'ok', null);
     return OcrBatchDraft(
       isTransaction: true,
       reason: '',

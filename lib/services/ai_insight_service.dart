@@ -204,7 +204,7 @@ class AiInsightService {
   static const String _groqApiKey = String.fromEnvironment('GROQ_API_KEY');
   static const String _model = String.fromEnvironment(
     'GEMINI_INSIGHT_MODEL',
-    defaultValue: 'gemma-3-12b',
+    defaultValue: 'gemma-3-12b-it',
   );
   static const String _groqModel = String.fromEnvironment(
     'GROQ_CHAT_MODEL',
@@ -907,7 +907,7 @@ $categoryExpenseText
     final isGemmaTextModel = model.startsWith('gemma');
     if (!isGemmaTextModel) {
       throw AiProviderTemporaryException(
-        'Model insight $_model tidak diizinkan. Gunakan model Gemma (contoh: gemma-3-12b).',
+        'Model insight $_model tidak diizinkan. Gunakan model Gemma (contoh: gemma-3-12b-it).',
       );
     }
   }

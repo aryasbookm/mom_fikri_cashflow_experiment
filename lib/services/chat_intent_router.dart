@@ -134,46 +134,15 @@ class ChatIntentRouter {
   }
 
   bool _isCapabilityHelp(String q) {
-    return q.contains('kamu bisa apa') ||
-        q.contains('kau bisa apa') ||
-        q.contains('anda bisa apa') ||
-        q.contains('siapa nama mu') ||
-        q.contains('siapa nama kamu') ||
-        q.contains('siapa namamu') ||
-        q.contains('deskripsikan diri') ||
-        q.contains('apa yang bisa kamu lakukan') ||
-        q.contains('apa yang bisa kau lakukan') ||
-        q.contains('fitur kamu') ||
-        q.contains('fiturmu') ||
-        q.contains('kemampuan kamu') ||
-        q.contains('kemampuanmu') ||
-        q.contains('bisa bantu apa') ||
-        q.contains('bantuan') ||
-        q.contains('cara pakai') ||
-        q == 'help';
+    return _containsAnyPhrase(q, _capabilityPhrases) || q == 'help';
   }
 
   bool _isSmallTalk(String q) {
-    const exact = <String>{
-      'halo',
-      'hai',
-      'hi',
-      'tes',
-      'test',
-      'apa kabar',
-      'gimana kabar',
-      'terima kasih',
-      'makasih',
-      'selamat pagi',
-      'selamat siang',
-      'selamat sore',
-      'selamat malam',
-    };
-    if (exact.contains(q)) {
+    if (_smallTalkExact.contains(q)) {
       return true;
     }
     return RegExp(
-      r'^(halo|hai|hi|tes|test|apa kabar|gimana kabar|terima kasih|makasih)\b',
+      r'^(halo|hai|hi|tes|test|apa kabar|gimana kabar|terima kasih|makasih|assalamualaikum|assalamu alaikum|assalamu alaikum)\b',
     ).hasMatch(q);
   }
 
@@ -186,7 +155,29 @@ class ChatIntentRouter {
       return true;
     }
     final lines = q.split(' ');
-    final amountLike = RegExp(r'\d{3,}').hasMatch(q);
+    final amountLike = RegExp(
+      r'\b\d{3,}\b|\b\d+[.,]?\d*\s*(k|rb|ribu|jt|juta)\b',
+    ).hasMatch(q);
+    final hasActionVerb =
+        q.contains('tambah ') ||
+        q.startsWith('tambah') ||
+        q.contains('tambahkan ') ||
+        q.startsWith('tambahkan') ||
+        q.contains('catat ') ||
+        q.startsWith('catat') ||
+        q.contains('input ') ||
+        q.startsWith('input') ||
+        q.contains('masukkan ') ||
+        q.startsWith('masukkan');
+    final hasFinanceObject =
+        q.contains('transaksi') ||
+        _containsAnyPhrase(q, _incomeMetricPhrases) ||
+        _containsAnyPhrase(q, _expenseMetricPhrases);
+
+    if (hasActionVerb && hasFinanceObject && amountLike) {
+      return true;
+    }
+
     return amountLike && lines.length >= 5 && q.contains('transaksi');
   }
 
@@ -238,9 +229,8 @@ class ChatIntentRouter {
           r'\b\d{1,2}\s+(jan|feb|mar|apr|mei|jun|jul|agu|agt|sep|okt|nov|des|januari|februari|maret|april|juni|juli|agustus|september|oktober|november|desember)(\s+\d{4})?\b',
         ).hasMatch(q);
     final hasMetric =
-        q.contains('penghasilan') ||
-        q.contains('pemasukan') ||
-        q.contains('pengeluaran') ||
+        _containsAnyPhrase(q, _incomeMetricPhrases) ||
+        _containsAnyPhrase(q, _expenseMetricPhrases) ||
         q.contains('laba') ||
         q.contains('selisih') ||
         q.contains('untung') ||
@@ -270,8 +260,8 @@ class ChatIntentRouter {
       return true;
     }
     return q.startsWith('cek ') &&
-        (q.contains('pemasukan') ||
-            q.contains('pengeluaran') ||
+        (_containsAnyPhrase(q, _incomeMetricPhrases) ||
+            _containsAnyPhrase(q, _expenseMetricPhrases) ||
             q.contains('transaksi'));
   }
 
@@ -307,6 +297,15 @@ class ChatIntentRouter {
     if (q.split(' ').length <= 2 &&
         (q.contains('cek') || q.contains('bantu') || q.contains('gimana'))) {
       return true;
+    }
+    return false;
+  }
+
+  bool _containsAnyPhrase(String source, List<String> phrases) {
+    for (final phrase in phrases) {
+      if (source.contains(phrase)) {
+        return true;
+      }
     }
     return false;
   }
@@ -389,6 +388,74 @@ const List<String> _defaultClarificationOptions = <String>[
   'Analisis laporan',
 ];
 
+const List<String> _capabilityPhrases = <String>[
+  'kamu bisa apa',
+  'kau bisa apa',
+  'anda bisa apa',
+  'siapa nama mu',
+  'siapa nama kamu',
+  'siapa namamu',
+  'deskripsikan diri',
+  'apa yang bisa kamu lakukan',
+  'apa yang bisa kau lakukan',
+  'fitur kamu',
+  'fiturmu',
+  'kemampuan kamu',
+  'kemampuanmu',
+  'bisa bantu apa',
+  'bantuan',
+  'cara pakai',
+  'kelebihan kamu',
+  'batasan kamu',
+  'limitasi kamu',
+  'batas kemampuan',
+  'keterbatasan kamu',
+];
+
+const Set<String> _smallTalkExact = <String>{
+  'halo',
+  'hai',
+  'hi',
+  'tes',
+  'test',
+  'apa kabar',
+  'gimana kabar',
+  'terima kasih',
+  'makasih',
+  'selamat pagi',
+  'selamat siang',
+  'selamat sore',
+  'selamat malam',
+  'assalamualaikum',
+  'assalamu alaikum',
+  'assalamu alaikum wr wb',
+  'assalamualaikum wr wb',
+};
+
+const List<String> _incomeMetricPhrases = <String>[
+  'penghasilan',
+  'pendapatan',
+  'pemasukan',
+  'omset',
+  'omzet',
+  'revenue',
+  'income',
+  'jualan',
+  'hasil jualan',
+  'uang masuk',
+];
+
+const List<String> _expenseMetricPhrases = <String>[
+  'pengeluaran',
+  'biaya',
+  'beban',
+  'belanja',
+  'modal keluar',
+  'uang keluar',
+  'cost',
+  'expense',
+];
+
 const Map<String, String> _seedMap = <String, String>{
   // Common abbreviations
   'gmn': 'gimana',
@@ -427,8 +494,19 @@ const Map<String, String> _seedMap = <String, String>{
   'pngeluaran': 'pengeluaran',
   'pemasukn': 'pemasukan',
   'pemasukann': 'pemasukan',
+  'pendaptan': 'pendapatan',
+  'pendaptaan': 'pendapatan',
+  'penghsilan': 'penghasilan',
+  'pnghasilan': 'penghasilan',
+  'pengeluaran': 'pengeluaran',
+  'biayaa': 'biaya',
   'laporann': 'laporan',
   'analisa': 'analisis',
+  'kelebihn': 'kelebihan',
+  'batasanan': 'batasan',
+  'assalamulaikum': 'assalamualaikum',
+  'assalamuallaikum': 'assalamualaikum',
+  'asalamualaikum': 'assalamualaikum',
   // Regional words (seed)
   'piro': 'berapa',
   'piye': 'gimana',

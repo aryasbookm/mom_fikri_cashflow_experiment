@@ -83,16 +83,25 @@ class OcrPostProcessor {
         continue;
       }
 
-      final amountSource = '$rawText $description'.trim();
+      // Use description as primary source for compound math to avoid
+      // accidentally combining numbers from unrelated raw OCR fragments.
+      final amountSource = description;
       final computedAmount = _computeCompoundAmount(amountSource);
-      final resolvedAmount = computedAmount ?? item.amount;
+      final warningSuggestedAmount = _extractAmountHintFromWarning(
+        item.warning,
+      );
+      final resolvedAmount =
+          computedAmount ?? warningSuggestedAmount ?? item.amount;
       final cleanedDescription = _stripTrailingAmountTokens(description);
       final hasMathExpression = _containsMathExpression(amountSource);
       final shouldApplyMathWarning =
-          hasMathExpression &&
-          computedAmount != null &&
-          computedAmount > 0 &&
-          computedAmount != item.amount;
+          (hasMathExpression &&
+              computedAmount != null &&
+              computedAmount > 0 &&
+              computedAmount != item.amount) ||
+          (warningSuggestedAmount != null &&
+              warningSuggestedAmount > 0 &&
+              warningSuggestedAmount != item.amount);
 
       final ambiguous = _looksAmbiguous(item);
       final needsReview =
@@ -119,7 +128,7 @@ class OcrPostProcessor {
           categoryHint: item.categoryHint,
           dateIso: item.dateIso,
           dateSource: item.dateSource,
-          confidence: item.confidence,
+          confidence: _normalizeConfidence(item),
           rawText: item.rawText,
           needsReview: needsReview,
           warning: warning,
@@ -131,8 +140,14 @@ class OcrPostProcessor {
       }
     }
 
+    final filtered = _dropLikelyGrandTotalRows(
+      rows: normalized,
+      notesFound: notes,
+      ignoredLines: ignored,
+    );
+
     return OcrPostProcessingResult(
-      transactions: normalized,
+      transactions: filtered,
       notesFound: _dedupe(notes),
       ignoredLines: _dedupe(ignored),
     );
@@ -162,7 +177,7 @@ class OcrPostProcessor {
     if (!needsReview) {
       return '';
     }
-    var warning = itemWarning.trim();
+    var warning = _localizeWarning(itemWarning.trim());
     if (warning.isEmpty) {
       if (forceReview) {
         warning = 'AI belum yakin ini transaksi pasti, mohon review manual.';
@@ -177,6 +192,189 @@ class OcrPostProcessor {
       );
     }
     return warning;
+  }
+
+  static String _localizeWarning(String warning) {
+    if (warning.isEmpty) {
+      return warning;
+    }
+    var result = warning;
+    final replacements = <MapEntry<String, String>>[
+      const MapEntry(
+        'Amount is not an integer rupiah.',
+        'Nominal bukan bilangan rupiah utuh.',
+      ),
+      const MapEntry(
+        'Category could not be determined.',
+        'Kategori belum dapat ditentukan.',
+      ),
+      const MapEntry('Unknown', 'Tidak diketahui'),
+      const MapEntry('Interpreted as', 'Diartikan sebagai'),
+      const MapEntry(
+        'but review is recommended.',
+        'namun perlu ditinjau ulang.',
+      ),
+      const MapEntry('Ambiguous amount:', 'Nominal ambigu:'),
+      const MapEntry('Ambiguous date:', 'Tanggal ambigu:'),
+      const MapEntry('Needs review.', 'Perlu ditinjau ulang.'),
+    ];
+    for (final entry in replacements) {
+      result = result.replaceAll(entry.key, entry.value);
+    }
+    return result;
+  }
+
+  static int _normalizeConfidence(OcrTransactionDraft item) {
+    if (item.confidence > 0) {
+      return item.confidence.clamp(1, 100);
+    }
+    var score = 55;
+    final desc = item.description.trim();
+    final raw = item.rawText.trim();
+    final warning = item.warning.trim().toLowerCase();
+
+    if (item.amount > 0) {
+      score += 15;
+    }
+    if (desc.length >= 4) {
+      score += 12;
+    } else if (desc.isNotEmpty) {
+      score += 6;
+    }
+    if (raw.isNotEmpty) {
+      score += 6;
+    }
+    if (item.type == 'IN' || item.type == 'OUT') {
+      score += 5;
+    }
+
+    if (item.dateSource == 'explicit') {
+      score += 8;
+    } else if (item.dateSource == 'inferred') {
+      score += 4;
+    }
+
+    if (item.needsReview) {
+      score -= 10;
+    }
+    if (warning.isNotEmpty) {
+      score -= 8;
+    }
+    if (warning.contains('ambigu') || warning.contains('tidak diketahui')) {
+      score -= 7;
+    }
+
+    return score.clamp(35, 95);
+  }
+
+  static List<OcrTransactionDraft> _dropLikelyGrandTotalRows({
+    required List<OcrTransactionDraft> rows,
+    required List<String> notesFound,
+    required List<String> ignoredLines,
+  }) {
+    if (rows.length <= 2) {
+      return rows;
+    }
+    final summaryTotals = _extractSummaryTotals(<String>[
+      ...notesFound,
+      ...ignoredLines,
+    ]);
+
+    final totalAll = rows.fold<int>(0, (sum, row) => sum + row.amount);
+    final result = <OcrTransactionDraft>[];
+    for (final row in rows) {
+      final desc = row.description.toLowerCase().trim();
+      final genericDesc =
+          desc == 'unknown' ||
+          desc.contains('uang bersih') ||
+          desc.contains('total') ||
+          desc.contains('jumlah') ||
+          desc.contains('saldo');
+      final looksSummary =
+          summaryTotals.contains(row.amount) && genericDesc;
+      final looksOutlierGrandTotal = _looksLikeAccidentalGrandTotal(
+        row: row,
+        rows: rows,
+        totalAll: totalAll,
+      );
+      if (!looksSummary) {
+        if (!looksOutlierGrandTotal) {
+          result.add(row);
+        }
+      }
+    }
+    return result.isEmpty ? rows : result;
+  }
+
+  static bool _looksLikeAccidentalGrandTotal({
+    required OcrTransactionDraft row,
+    required List<OcrTransactionDraft> rows,
+    required int totalAll,
+  }) {
+    if (rows.length < 6 || row.amount <= 0) {
+      return false;
+    }
+
+    final amounts = rows.map((e) => e.amount).where((e) => e > 0).toList()
+      ..sort();
+    if (amounts.length < 6) {
+      return false;
+    }
+
+    final maxAmount = amounts.last;
+    if (row.amount != maxAmount) {
+      return false;
+    }
+    final secondMax = amounts[amounts.length - 2];
+    if (secondMax <= 0) {
+      return false;
+    }
+
+    // Candidate "total" should look abnormally larger than real item rows.
+    if (row.amount < 120000 || row.amount < secondMax * 3) {
+      return false;
+    }
+
+    final sumOthers = totalAll - row.amount;
+    if (sumOthers <= 0) {
+      return false;
+    }
+
+    // If the biggest amount is very close to sum of remaining rows,
+    // it's likely a copied "grand total" accidentally parsed as a row.
+    final delta = (row.amount - sumOthers).abs();
+    final tolerance = ((sumOthers * 0.08).round()).clamp(5000, 30000);
+    if (delta > tolerance) {
+      return false;
+    }
+
+    // Usually appears with short/generic description from OCR noise.
+    final desc = row.description.toLowerCase().trim();
+    final descWords = desc.split(RegExp(r'\s+')).where((w) => w.isNotEmpty);
+    return desc == 'unknown' || descWords.length <= 2;
+  }
+
+  static Set<int> _extractSummaryTotals(List<String> lines) {
+    final totals = <int>{};
+    for (final line in lines) {
+      final lower = line.toLowerCase();
+      if (!(lower.contains('total') ||
+          lower.contains('jumlah') ||
+          lower.contains('uang bersih') ||
+          lower.contains('saldo'))) {
+        continue;
+      }
+      final matches = RegExp(
+        r'\d[\d.,\s]*(?:k|rb|ribu|jt|juta)?',
+      ).allMatches(line).map((m) => m.group(0) ?? '');
+      for (final token in matches) {
+        final parsed = _toIntRupiah(token);
+        if (parsed != null && parsed > 0) {
+          totals.add(parsed);
+        }
+      }
+    }
+    return totals;
   }
 
   static String _mergeWarnings(String original, String extra) {
@@ -268,11 +466,61 @@ class OcrPostProcessor {
   }
 
   static int? _toIntRupiah(String text) {
-    final digits = text.replaceAll(RegExp(r'[^0-9]'), '');
+    final raw = text.toLowerCase().trim();
+    if (raw.isEmpty) {
+      return null;
+    }
+    final compact = raw.replaceAll(RegExp(r'\s+'), '');
+    final unitMatch = RegExp(
+      r'^([0-9]+(?:[.,][0-9]+)?)(k|rb|ribu|jt|juta)$',
+    ).firstMatch(compact);
+    if (unitMatch != null) {
+      final numberPart = unitMatch.group(1) ?? '';
+      final unit = unitMatch.group(2) ?? '';
+      final normalized = numberPart.replaceAll(',', '.');
+      final value = double.tryParse(normalized);
+      if (value == null) {
+        return null;
+      }
+      final multiplier = (unit == 'jt' || unit == 'juta') ? 1000000 : 1000;
+      return (value * multiplier).round();
+    }
+
+    final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
     if (digits.isEmpty) {
       return null;
     }
     return int.tryParse(digits);
+  }
+
+  static int? _extractAmountHintFromWarning(String warningText) {
+    final warning = warningText.trim();
+    if (warning.isEmpty) {
+      return null;
+    }
+    final lower = warning.toLowerCase();
+    final markers = <String>[
+      'interpreted as',
+      'diartikan sebagai',
+      'ditafsirkan sebagai',
+      'menjadi',
+    ];
+
+    String? tail;
+    for (final marker in markers) {
+      final idx = lower.indexOf(marker);
+      if (idx >= 0) {
+        tail = warning.substring(idx + marker.length);
+        break;
+      }
+    }
+    tail ??= warning;
+
+    final amountMatch = RegExp(r'\d[\d\.\,\s]{2,}').firstMatch(tail);
+    if (amountMatch == null) {
+      return null;
+    }
+    return _toIntRupiah(amountMatch.group(0) ?? '');
   }
 
   static String _stripTrailingAmountTokens(String description) {

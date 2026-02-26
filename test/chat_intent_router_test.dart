@@ -31,6 +31,9 @@ void main() {
       _IntentCase('siapa nama mu?', ChatIntentType.capabilityHelp),
       _IntentCase('deskripsikan diri ku', ChatIntentType.capabilityHelp),
       _IntentCase('help', ChatIntentType.capabilityHelp),
+      _IntentCase('apa kelebihan kamu', ChatIntentType.capabilityHelp),
+      _IntentCase('apa batasan kamu', ChatIntentType.capabilityHelp),
+      _IntentCase('keterbatasan kamu apa', ChatIntentType.capabilityHelp),
 
       // small talk
       _IntentCase('halo', ChatIntentType.smallTalk),
@@ -41,6 +44,8 @@ void main() {
       _IntentCase('gimana kabar', ChatIntentType.smallTalk),
       _IntentCase('terima kasih', ChatIntentType.smallTalk),
       _IntentCase('makasih', ChatIntentType.smallTalk),
+      _IntentCase('assalamualaikum', ChatIntentType.smallTalk),
+      _IntentCase('assalamulaikum', ChatIntentType.smallTalk),
 
       // import draft
       _IntentCase('tambah transaksi ini', ChatIntentType.importDraft),
@@ -56,6 +61,18 @@ void main() {
       ),
       _IntentCase(
         'transaksi donat 20000 transaksi bolu 30000 transaksi roti 10000',
+        ChatIntentType.importDraft,
+      ),
+      _IntentCase(
+        'tambahkan pemasukan donat 100000 tanggal hari ini',
+        ChatIntentType.importDraft,
+      ),
+      _IntentCase(
+        'tambah pendapatan donat 100000 tanggal hari ini',
+        ChatIntentType.importDraft,
+      ),
+      _IntentCase(
+        'tambahkan pemasukan bansos 100k',
         ChatIntentType.importDraft,
       ),
 
@@ -76,7 +93,13 @@ void main() {
 
       // date
       _IntentCase('penghasilan hari ini berapa', ChatIntentType.dateQuery),
+      _IntentCase('pendapatan kemarin', ChatIntentType.dateQuery),
+      _IntentCase('omset kemarin', ChatIntentType.dateQuery),
+      _IntentCase('revenue kemarin', ChatIntentType.dateQuery),
+      _IntentCase('income kemarin', ChatIntentType.dateQuery),
       _IntentCase('pengeluaran kemarin berapa', ChatIntentType.dateQuery),
+      _IntentCase('biaya kemarin', ChatIntentType.dateQuery),
+      _IntentCase('belanja kemarin', ChatIntentType.dateQuery),
       _IntentCase('cek pemasukan 4 hari lalu', ChatIntentType.dateQuery),
       _IntentCase('cek pemasukan 5 hari lalu', ChatIntentType.dateQuery),
       _IntentCase('penghasilan 7 hari terakhir', ChatIntentType.dateQuery),

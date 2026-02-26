@@ -39,11 +39,11 @@
     - Insight route: `--dart-define=AI_INSIGHT_PROVIDER_ORDER=groq,gemini`
     - Chat route: `--dart-define=AI_CHAT_PROVIDER_ORDER=groq,gemini`
   - opsional model OCR:
-    - primary tunggal: `--dart-define=GEMINI_MODEL=gemini-3-flash`
-    - chain OCR Gemini: `--dart-define=GEMINI_OCR_MODEL_CHAIN=gemini-3-flash,gemini-2.5-flash,gemini-2.5-flash-lite`
+    - primary tunggal: `--dart-define=GEMINI_MODEL=gemini-3-flash-preview`
+    - chain OCR Gemini (accuracy-first): `--dart-define=GEMINI_OCR_MODEL_CHAIN=gemini-3.1-pro-preview,gemini-3-flash-preview,gemini-2.5-flash`
   - opsional model Insight/Chat:
-    - `--dart-define=GEMINI_INSIGHT_MODEL=gemma-3-12b`
-    - `--dart-define=GEMINI_CHAT_MODEL=gemma-3-12b`
+    - `--dart-define=GEMINI_INSIGHT_MODEL=gemma-3-12b-it`
+    - `--dart-define=GEMINI_CHAT_MODEL=gemma-3-12b-it`
     - `--dart-define=GROQ_CHAT_MODEL=llama-3.1-8b-instant`
     - guard insight memblokir model Gemini Vision (`flash`/`pro`) agar kuota OCR tidak bocor.
   - opsional model fallback:
@@ -53,18 +53,27 @@
 - `ocr_gemini_only`
   - `--dart-define=GEMINI_API_KEY=...`
   - `--dart-define=AI_PROVIDER_ORDER=gemini`
-  - `--dart-define=GEMINI_OCR_MODEL_CHAIN=gemini-3-flash,gemini-2.5-flash,gemini-2.5-flash-lite`
+  - `--dart-define=GEMINI_OCR_MODEL_CHAIN=gemini-3.1-pro-preview,gemini-3-flash-preview,gemini-2.5-flash`
+- `ocr_fast_mode` (khusus cepat/stabil)
+  - `--dart-define=GEMINI_API_KEY=...`
+  - `--dart-define=GROQ_API_KEY=...`
+  - `--dart-define=AI_PROVIDER_ORDER=gemini,groq`
+  - `--dart-define=GEMINI_OCR_MODEL_CHAIN=gemini-2.5-flash-lite`
+- `ocr_experiment_high_end_only` (tanpa lite & tanpa groq)
+  - `--dart-define=GEMINI_API_KEY=...`
+  - `--dart-define=AI_PROVIDER_ORDER=gemini`
+  - `--dart-define=GEMINI_OCR_MODEL_CHAIN=gemini-3.1-pro-preview,gemini-3-flash-preview,gemini-2.5-flash`
 - `ocr_chain_with_groq`
   - profile `ocr_gemini_only` + `--dart-define=GROQ_API_KEY=...`
   - `--dart-define=AI_PROVIDER_ORDER=gemini,groq`
 - `insight_text_only`
   - `--dart-define=GROQ_API_KEY=...`
   - `--dart-define=AI_INSIGHT_PROVIDER_ORDER=groq`
-  - opsional fallback Gemini text-only: `--dart-define=AI_INSIGHT_PROVIDER_ORDER=groq,gemini --dart-define=GEMINI_INSIGHT_MODEL=gemma-3-12b`
+  - opsional fallback Gemini text-only: `--dart-define=AI_INSIGHT_PROVIDER_ORDER=groq,gemini --dart-define=GEMINI_INSIGHT_MODEL=gemma-3-12b-it`
 - `chat_text_only`
   - `--dart-define=GROQ_API_KEY=...`
   - `--dart-define=AI_CHAT_PROVIDER_ORDER=groq`
-  - opsional fallback Gemini text-only: `--dart-define=AI_CHAT_PROVIDER_ORDER=groq,gemini --dart-define=GEMINI_CHAT_MODEL=gemma-3-12b`
+  - opsional fallback Gemini text-only: `--dart-define=AI_CHAT_PROVIDER_ORDER=groq,gemini --dart-define=GEMINI_CHAT_MODEL=gemma-3-12b-it`
 
 ## 6.2) AI Preflight Check (Wajib Sebelum Build/Test)
 - [ ] Key untuk provider aktif sudah di-pass via `--dart-define`.
@@ -73,11 +82,31 @@
 - [ ] Model OCR chain dan model Insight/Chat tidak tertukar (vision vs text-only).
 - [ ] Jika tujuan hanya uji UI, gunakan mock/fixture lokal dulu (hindari burn kuota API).
 
+## 6.3) APK Release Command (Rekomendasi Terbaru)
+- Gunakan command ini untuk build rilis dengan chain OCR final:
+```bash
+flutter build apk --release \
+  --dart-define=GEMINI_API_KEY=MASUKKAN_KEY \
+  --dart-define=GROQ_API_KEY=MASUKKAN_KEY \
+  --dart-define=AI_PROVIDER_ORDER=gemini,groq \
+  --dart-define=GEMINI_OCR_MODEL_CHAIN=gemini-3.1-pro-preview,gemini-3-flash-preview,gemini-2.5-flash \
+  --dart-define=AI_INSIGHT_PROVIDER_ORDER=groq,gemini \
+  --dart-define=AI_CHAT_PROVIDER_ORDER=groq,gemini \
+  --dart-define=GEMINI_INSIGHT_MODEL=gemma-3-12b-it \
+  --dart-define=GEMINI_CHAT_MODEL=gemma-3-12b-it \
+  --dart-define=GROQ_CHAT_MODEL=llama-3.1-8b-instant
+```
+- Catatan:
+  - Untuk chat/insight Gemini, pakai `gemma-3-12b-it` (bukan `gemma-3-12b`).
+  - OCR chain menggunakan nama model valid endpoint saat ini (`gemini-3-flash-preview`, `gemini-3.1-pro-preview`).
+  - Mode akurat OCR saat ini sengaja tanpa `lite`; `lite` dipakai sebagai mode cepat/stabil terpisah.
+
 ## 7) Quick Verification
 - [ ] Server jalan di `3010`.
 - [ ] Login/auth tidak bentrok dengan proyek lain.
 - [ ] Alur inti aplikasi bisa dibuka normal.
 - [ ] Tidak ada konflik session/cookie antar proyek.
+- [ ] Login sidik jari berfungsi (jika device mendukung biometric) setelah login manual pertama.
 
 ## 8) Recovery (30 detik)
 1. Buka tab terminal `mom-fiqry-dev`.
@@ -107,6 +136,10 @@
   - `stable` dari branch `main`
   - `experimental` dari branch `codex/*`
 - [ ] Verifikasi login owner/staff berhasil.
+- [ ] Verifikasi biometric quick login:
+  - login manual dulu sekali,
+  - logout lalu uji tombol `Masuk dengan Sidik Jari`,
+  - uji tombol `Nonaktifkan Sidik Jari` menghilangkan akses biometric.
 - [ ] Verifikasi alur inti transaksi:
   - tambah pemasukan/pengeluaran sukses
   - histori dan saldo berubah sesuai nominal
@@ -191,6 +224,12 @@
   - hard-intent ambigu (contoh tanggal mentah tanpa metrik) harus memunculkan klarifikasi lokal kontekstual (stok/arus kas/import), bukan fallback AI classifier.
   - soft-intent ambigu harus melewati AI classifier dulu; klarifikasi muncul hanya saat confidence rendah.
   - uji frasa identitas/memori (`siapa nama mu`, `siapa nama ku`, `nama ku ...`) agar tidak jatuh ke klarifikasi generik.
+- [ ] Uji fondasi Action Engine (phase-1):
+  - verifikasi pipeline berjalan urut: `fast-lane lokal -> AI action classifier (JSON) -> deterministic executor -> clarification fallback`.
+  - verifikasi observability tersimpan pada reply metadata (`action_intent`, `action_confidence`, `action_reason`, `action_raw_json_valid`).
+  - uji malformed JSON dari classifier (simulasi teks non-JSON/markdown wrapper) dan pastikan app tidak crash, lalu turun ke fallback aman.
+  - uji state `drafting`: perintah edit lanjutan (`ubah 10k jadi 15k`, `ubah nama`, `ubah jadi keluar`, `hapus item`) memodifikasi draf aktif, bukan jatuh ke intent umum.
+  - uji query "produk terjual/laku hari ini" dan pastikan dijawab deterministik dari data transaksi, bukan klarifikasi generik.
 - [ ] Uji OCR fallback transparency log:
   - setelah scan, panel log harus menampilkan urutan model/provider yang dicoba dengan status (`Trying/Success/Failed`), alasan, dan latency.
   - verifikasi fallback case (contoh model utama kena limit) menampilkan penyebab eksplisit per langkah.
@@ -200,6 +239,21 @@
   - `flutter test test/ocr_transaction_draft_model_test.dart`
 - [ ] Jalankan regression test OCR parity Phase 2:
   - `flutter test test/ocr_post_processing_test.dart`
+
+## 12) Mode Hemat Token (Opsional, Direkomendasikan saat kuota rendah)
+- Tujuan: menekan pemakaian token saat diskusi/eksekusi panjang.
+- Cara aktif:
+  - tulis instruksi singkat: `AKTIFKAN MODE HEMAT TOKEN`.
+- Cara nonaktif:
+  - tulis instruksi: `NONAKTIFKAN MODE HEMAT TOKEN`.
+- Aturan saat mode aktif:
+  - gunakan instruksi user yang ringkas (1-3 kalimat), hindari paste balasan AI lain yang panjang.
+  - eksekusi perubahan dalam batch (hindari revisi kecil berulang per turn).
+  - output command diringkas ke bagian penting (error/failing case saja), jangan tampilkan log penuh.
+  - jalankan test/analyze terarah pada file/fitur yang diubah terlebih dahulu, full suite hanya jika diminta.
+  - jawaban asisten dibuat singkat: hasil, file berubah, status verifikasi.
+  - screenshot hanya dikirim jika ada bug baru yang berbeda (bukan pengulangan kasus sama).
+  - setiap keputusan final disimpan di markdown proyek agar tidak perlu mengulang konteks panjang.
 - [ ] Jalankan regression test OCR parity Phase 3:
   - `flutter test test/ocr_import_audit_service_test.dart`
 - [ ] Jalankan regression test OCR parity Phase 4 (reliability edge cases):
@@ -217,3 +271,7 @@
   2. Tambah test file.
   3. Jalankan hanya test target (bukan full suite) untuk feedback cepat.
   4. Jika lolos, baru update `CHANGELOG.md`/`WORKFLOW.md` dan commit.
+- Konfigurasi model AI via `--dart-define` tidak boleh dianggap cukup tanpa cek fallback di kode.
+  - Wajib audit semua `String.fromEnvironment(..., defaultValue: ...)` pada router/provider terkait sebelum menyimpulkan konfigurasi sudah benar.
+  - Jika model/chain diganti, sinkronkan juga `defaultValue` agar aman saat define terlewat/typo.
+  - Verifikasi runtime harus berbasis log UI/telemetri langkah provider-model (bukan asumsi command build sudah terbaca).

@@ -29,6 +29,14 @@ Operational mechanics for implementation sessions (commands, commit flow, safety
   - kelayakan teknis berdasarkan kemampuan/arsitektur saat ini,
   - risiko implementasi,
   - alasan memilih setuju/tolak/kompromi.
+- Hard guard mode eksekusi (wajib):
+  - jika user menyebut `hld`, mode otomatis **Answer-Only** sampai user mencabutnya secara eksplisit.
+  - pada mode `hld`: dilarang menjalankan tool/command, edit file, commit, atau aksi network. Jawab teks saja.
+  - jika user meminta "nilai jawaban/respons" atau review output AI lain, mode otomatis **review-only** (tanpa eksekusi/tool/edit) kecuali user secara eksplisit meminta lanjut eksekusi.
+- Gate persetujuan sebelum aksi:
+  - default untuk permintaan non-trivial adalah `PLAN ONLY` terlebih dahulu (tanpa edit).
+  - eksekusi file edit hanya boleh saat user memberi sinyal eksplisit `EXECUTE APPROVED` atau instruksi langsung yang setara.
+  - perubahan besar (`>1 file` atau estimasi `>100 LOC`) wajib checkpoint persetujuan eksplisit sebelum mulai edit.
 
 ## Prompt Protocol (Default)
 For non-trivial requests, structure instructions with:
@@ -60,6 +68,10 @@ For cashflow/financial logic, `Verify` is mandatory and must include:
 - For each checked doc, record status in handoff/summary:
   - `updated`, or
   - `checked, no update needed`.
+- Lessons Learned maintenance (mandatory):
+  - jika ada hambatan berulang atau butuh >1 percobaan pada area yang sama, wajib update `WORKFLOW.md` bagian `Lessons Learned`.
+  - format catatan wajib: `gejala -> akar masalah -> fast path`.
+  - update dilakukan pada commit yang sama dengan fix, atau commit docs kecil tepat setelah fix.
 - Full `.md` sweep is only required for pre-release, major handoff, or explicit user request.
 - Project Capsule baseline (repo ini):
   - maintain `WORKFLOW.md` di root repo,
@@ -69,6 +81,8 @@ For cashflow/financial logic, `Verify` is mandatory and must include:
   - `unc` = review/update impacted core docs first, then commit.
   - `hld` = Hold / Answer Only: jawab/verifikasi saja; jangan jalankan tool, jangan edit file, jangan commit.
   - `sbp` = Search Best Practice: lakukan riset best-practice terlebih dahulu (sumber resmi/primer), lalu lanjutkan rekomendasi/eksekusi.
+  - `PLAN ONLY` = analisis + rencana + opsi; tanpa eksekusi tool/edit.
+  - `EXECUTE APPROVED` = izin eksplisit user untuk mulai eksekusi tool/edit sesuai scope.
 - Core docs to consider on `unc`:
   - `AGENTS.md`
   - `AI_CONTEXT.md`
@@ -145,6 +159,16 @@ For cashflow/financial logic, `Verify` is mandatory and must include:
 - Jika analyzer menghasilkan banyak lint lama yang tidak terkait perubahan:
   - fokus pada error/regression baru dari patch saat ini,
   - jangan membuka refactor lint massal kecuali diminta user.
+
+## Mode Hemat Token (Agent Execution Mode)
+- Trigger aktif: user menyatakan `AKTIFKAN MODE HEMAT TOKEN`.
+- Trigger nonaktif: user menyatakan `NONAKTIFKAN MODE HEMAT TOKEN`.
+- Saat aktif, aturan wajib:
+  - jangan jalankan `flutter analyze`/`flutter test` full project kecuali user meminta eksplisit.
+  - prioritaskan target sempit pada file/fitur yang diubah.
+  - laporan hasil command harus ringkas: `PASS/FAIL`; jika gagal tampilkan maksimal 3–5 baris error inti.
+  - hindari dump log terminal panjang di chat.
+  - batch perubahan dalam 1 eksekusi, minimalkan iterasi kecil berulang.
 
 ## AI Integration Efficiency Rules (Mandatory)
 - Pisahkan jalur AI per fitur:

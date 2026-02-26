@@ -35,7 +35,7 @@ class OcrTransactionDraft {
     final amount =
         amountValue is num
             ? amountValue.toInt()
-            : int.tryParse((amountValue ?? '').toString()) ?? 0;
+            : _parseAmountFlexible((amountValue ?? '').toString());
 
     final confidenceValue = json['confidence'];
     final confidence =
@@ -106,6 +106,34 @@ class OcrTransactionDraft {
       return o;
     }
     return '$o $e';
+  }
+
+  static int _parseAmountFlexible(String input) {
+    final raw = input.toLowerCase().trim();
+    if (raw.isEmpty) {
+      return 0;
+    }
+    final compact = raw.replaceAll(RegExp(r'\s+'), '');
+    final unitMatch = RegExp(
+      r'^([0-9]+(?:[.,][0-9]+)?)(k|rb|ribu|jt|juta)$',
+    ).firstMatch(compact);
+    if (unitMatch != null) {
+      final numberPart = unitMatch.group(1) ?? '';
+      final unit = unitMatch.group(2) ?? '';
+      final normalizedNumber = numberPart.replaceAll(',', '.');
+      final value = double.tryParse(normalizedNumber);
+      if (value == null) {
+        return 0;
+      }
+      final multiplier = (unit == 'jt' || unit == 'juta') ? 1000000 : 1000;
+      return (value * multiplier).round();
+    }
+
+    final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) {
+      return 0;
+    }
+    return int.tryParse(digits) ?? 0;
   }
 }
 

@@ -56,8 +56,12 @@ Catatan:
    - Owner: akses penuh
    - Staff: operasional (Beranda, Stok, Akun)
    - Instalasi baru: **tanpa akun default**; aplikasi langsung masuk onboarding untuk membuat akun owner pertama.
-   - Password disimpan dalam bentuk hash (SHA-256)
-   - Tab Akun untuk owner dilindungi PIN (session 5 menit, panjang PIN fleksibel)
+- Password disimpan dalam bentuk hash (SHA-256)
+- Quick login sidik jari (opsional):
+  - muncul di layar login jika device mendukung biometric dan ada sesi login terakhir.
+  - sesi biometric diaktifkan otomatis setelah login manual berhasil.
+  - user bisa mematikan lewat tombol `Nonaktifkan Sidik Jari`.
+- Tab Akun untuk owner dilindungi PIN (session 5 menit, panjang PIN fleksibel)
    - Dialog PIN menyediakan opsi Logout/Ganti Akun dengan konfirmasi
 
 2. **Pemasukan (Kasir)**
@@ -239,6 +243,14 @@ Catatan:
      - error Gemini chat `404/401/403` diperlakukan sebagai temporary fallback agar tidak berhenti di jalur `via: error`,
      - intent router berjenjang aktif sebagai gatekeeper (`local fast intent -> AI classifier fallback -> clarification/outside-scope`) sebelum jalur LLM,
      - normalisasi intent memakai seed map typo/singkatan/slang ringan, divalidasi dengan golden tests intent 40+ kasus.
+   - Fondasi Action Engine (phase-1):
+     - pipeline eksekusi kini dipertegas: `fast-lane lokal -> AI action classifier (JSON) -> deterministic action executor -> clarification fallback`.
+     - state percakapan lokal dipakai untuk menafsirkan perintah lanjutan (`idle`, `drafting`, `review`), sehingga konteks edit draf lebih konsisten.
+     - observability classifier dicatat pada metadata jawaban (`action_intent`, `action_confidence`, `action_reason`, `action_raw_json_valid`) untuk tuning akurasi.
+     - parser JSON classifier memakai sanitizer + extractor agar output LLM berformat markdown/teks campuran tidak menyebabkan crash.
+   - Cakupan aksi deterministik yang ditambah:
+     - query "produk terjual/laku" dari data transaksi harian (SQLite) agar tidak lagi sering jatuh ke klarifikasi generik.
+     - edit draf transaksi via chat mendukung ubah nominal, ubah nama/deskripsi, ubah tipe `MASUK/KELUAR`, ubah tanggal, dan hapus item draf.
    - OCR provider-trace visibility:
     - UI scan menampilkan urutan provider yang dicoba pada request aktif (contoh `Gemini -> Groq`) agar verifikasi fallback tidak perlu menebak dari hasil/error saja.
    - Output AI bersifat asistif/read-only (tidak menulis transaksi otomatis).

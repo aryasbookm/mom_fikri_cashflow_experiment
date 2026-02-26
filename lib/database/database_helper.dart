@@ -19,7 +19,7 @@ class DatabaseHelper {
     return _database!;
   }
 
-  static const int _dbVersion = 9;
+  static const int _dbVersion = 10;
   static const String _dbName = 'mom_fikri_cashflow_v2.db';
 
   Future<Database> _initDatabase() async {
@@ -137,6 +137,15 @@ class DatabaseHelper {
         deleted_at TEXT NOT NULL,
         deleted_by TEXT NOT NULL,
         reason TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE chat_learning_rules (
+        phrase_key TEXT PRIMARY KEY,
+        prefer_ai INTEGER NOT NULL DEFAULT 0,
+        score INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL
       )
     ''');
 
@@ -268,6 +277,16 @@ class DatabaseHelper {
         'UPDATE categories SET is_active = 1 WHERE is_active IS NULL',
       );
     }
+    if (oldVersion < 10) {
+      await db.execute('''
+        CREATE TABLE chat_learning_rules (
+          phrase_key TEXT PRIMARY KEY,
+          prefer_ai INTEGER NOT NULL DEFAULT 0,
+          score INTEGER NOT NULL DEFAULT 0,
+          updated_at TEXT NOT NULL
+        )
+      ''');
+    }
   }
 
   Future<void> insertDeletedTransaction(Map<String, dynamic> row) async {
@@ -391,5 +410,50 @@ class DatabaseHelper {
       return null;
     }
     return rows.first['id'] as int?;
+  }
+
+  Future<Set<String>> getChatPreferAiPhrases() async {
+    final db = await database;
+    final rows = await db.query(
+      'chat_learning_rules',
+      columns: ['phrase_key'],
+      where: 'prefer_ai = ?',
+      whereArgs: [1],
+    );
+    return rows
+        .map((e) => (e['phrase_key'] ?? '').toString().trim())
+        .where((e) => e.isNotEmpty)
+        .toSet();
+  }
+
+  Future<void> upsertChatLearningFeedback({
+    required String phraseKey,
+    required int feedbackValue, // -1 dislike, +1 like
+  }) async {
+    final key = phraseKey.trim();
+    if (key.isEmpty) {
+      return;
+    }
+    final nowIso = DateTime.now().toIso8601String();
+    final db = await database;
+    final current = await db.query(
+      'chat_learning_rules',
+      columns: ['score'],
+      where: 'phrase_key = ?',
+      whereArgs: [key],
+      limit: 1,
+    );
+    final currentScore =
+        current.isEmpty
+            ? 0
+            : int.tryParse((current.first['score'] ?? 0).toString()) ?? 0;
+    final nextScore = currentScore + (feedbackValue < 0 ? -1 : 1);
+    final preferAi = feedbackValue < 0 ? 1 : 0;
+    await db.insert('chat_learning_rules', {
+      'phrase_key': key,
+      'prefer_ai': preferAi,
+      'score': nextScore,
+      'updated_at': nowIso,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 }

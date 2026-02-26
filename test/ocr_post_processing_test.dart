@@ -192,5 +192,119 @@ void main() {
 
       expect(result.transactions.length, 30);
     });
+
+    test('drops accidental grand total row parsed as product item', () {
+      final batch = OcrBatchDraft.fromJson({
+        'is_transaction': true,
+        'reason': '',
+        'summary': {'date_detected': '2025-12-03', 'notes_found': []},
+        'ignored_lines': [],
+        'transactions': [
+          {
+            'is_transaction': true,
+            'type': 'IN',
+            'amount': 40000,
+            'description': 'Donat, sosis',
+            'category_hint': 'Penjualan Kue',
+            'date_iso': '2025-12-03',
+            'date_source': 'explicit',
+            'confidence': 90,
+            'raw_text': 'Donat, sosis 20.000 + 20.000',
+            'needs_review': false,
+            'warning': '',
+          },
+          {
+            'is_transaction': true,
+            'type': 'IN',
+            'amount': 20000,
+            'description': 'Roti',
+            'category_hint': 'Penjualan Kue',
+            'date_iso': '2025-12-03',
+            'date_source': 'explicit',
+            'confidence': 90,
+            'raw_text': 'Roti 20.000',
+            'needs_review': false,
+            'warning': '',
+          },
+          {
+            'is_transaction': true,
+            'type': 'IN',
+            'amount': 45000,
+            'description': 'Mabel',
+            'category_hint': 'Penjualan Kue',
+            'date_iso': '2025-12-03',
+            'date_source': 'explicit',
+            'confidence': 85,
+            'raw_text': 'Mabel 45.000',
+            'needs_review': false,
+            'warning': '',
+          },
+          {
+            'is_transaction': true,
+            'type': 'IN',
+            'amount': 30000,
+            'description': 'Maros, Donat',
+            'category_hint': 'Penjualan Kue',
+            'date_iso': '2025-12-03',
+            'date_source': 'explicit',
+            'confidence': 90,
+            'raw_text': 'Maros, Donat 30.000',
+            'needs_review': false,
+            'warning': '',
+          },
+          {
+            'is_transaction': true,
+            'type': 'IN',
+            'amount': 90000,
+            'description': 'Campur',
+            'category_hint': 'Penjualan Kue',
+            'date_iso': '2025-12-03',
+            'date_source': 'explicit',
+            'confidence': 86,
+            'raw_text': 'Campur 90.000',
+            'needs_review': false,
+            'warning': '',
+          },
+          {
+            'is_transaction': true,
+            'type': 'IN',
+            'amount': 22500,
+            'description': 'Basreng',
+            'category_hint': 'Penjualan Kue',
+            'date_iso': '2025-12-03',
+            'date_source': 'explicit',
+            'confidence': 87,
+            'raw_text': 'Basreng 22.500',
+            'needs_review': false,
+            'warning': '',
+          },
+          {
+            'is_transaction': true,
+            'type': 'IN',
+            'amount': 247500,
+            'description': 'Donat',
+            'category_hint': 'Penjualan Kue',
+            'date_iso': '2025-12-03',
+            'date_source': 'inferred',
+            'confidence': 92,
+            'raw_text': '739000',
+            'needs_review': true,
+            'warning': '',
+          },
+        ],
+      });
+
+      final result = OcrPostProcessor.normalize(
+        batch: batch,
+        maxItems: 30,
+        forceReview: false,
+      );
+
+      expect(result.transactions.length, 6);
+      expect(
+        result.transactions.where((t) => t.amount == 247500).isEmpty,
+        isTrue,
+      );
+    });
   });
 }

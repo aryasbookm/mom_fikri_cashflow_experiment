@@ -20,6 +20,8 @@ import '../services/ocr_learning_dictionary_service.dart';
 import '../services/ai_quota_guard_service.dart';
 import '../providers/transaction_provider.dart';
 
+enum _OcrScanMode { fast, accurate }
+
 class OcrAssistScreen extends StatefulWidget {
   const OcrAssistScreen({super.key, this.chatImportDraft});
 
@@ -53,8 +55,14 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
   String? _aiBlockedMessage;
   int _aiBlockedSeconds = 0;
   Timer? _quotaTimer;
+  bool _isOcrLogExpanded = false;
+  bool _isCompactReviewMode = true;
+  _OcrScanMode _ocrScanMode = _OcrScanMode.accurate;
+  final Set<int> _expandedDraftIndexes = <int>{};
 
   int get _selectedCount => _draftItems.where((item) => item.selected).length;
+  bool get _areAllItemsSelected =>
+      _draftItems.isNotEmpty && _selectedCount == _draftItems.length;
   int get _reviewCount => _draftItems.where((item) => item.needsReview).length;
   int get _missingDateCount =>
       _draftItems.where((item) => item.dateIso.trim().isEmpty).length;
@@ -244,12 +252,27 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     }
   }
 
-  void _recordProviderEvent(String providerId, String status, String? detail) {
+  String _providerStageLabel(String stage) {
+    final normalized = stage.trim();
+    if (normalized.startsWith('text_structuring_pass:')) {
+      final model = normalized.substring('text_structuring_pass:'.length);
+      return 'text_structuring_pass ($model)';
+    }
+    return normalized;
+  }
+
+  void _recordProviderEvent(
+    String providerId,
+    String status,
+    String? detail, [
+    String? stage,
+  ]) {
     final now = DateTime.now();
     if (status == 'try') {
       _providerAttemptLogs.add(
         _ProviderAttemptLog(
           providerId: providerId,
+          stage: stage,
           status: status,
           detail: detail,
           startedAt: now,
@@ -259,7 +282,9 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     }
     for (var i = _providerAttemptLogs.length - 1; i >= 0; i--) {
       final log = _providerAttemptLogs[i];
-      if (log.providerId == providerId && log.status == 'try') {
+      if (log.providerId == providerId &&
+          log.stage == stage &&
+          log.status == 'try') {
         _providerAttemptLogs[i] = log.copyWith(
           status: status,
           detail: detail,
@@ -271,6 +296,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     _providerAttemptLogs.add(
       _ProviderAttemptLog(
         providerId: providerId,
+        stage: stage,
         status: status,
         detail: detail,
         startedAt: now,
@@ -286,6 +312,8 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
         return 'Failed (429)';
       case 'temporary':
         return 'Failed (Temporary)';
+      case 'skipped':
+        return 'Skipped';
       case 'error':
         return 'Failed';
       case 'try':
@@ -444,6 +472,9 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
         raw.contains('tidak mengembalikan data ocr')) {
       return 'AI merespons, tetapi formatnya tidak bisa dipakai sebagai draft transaksi. Coba foto lebih jelas.';
     }
+    if (raw.contains('format json ocr ai tidak valid')) {
+      return 'AI merespons, tapi format JSON tidak valid. Tekan "Coba Lagi".';
+    }
     if (raw.contains('terpotong') || raw.contains('tidak lengkap')) {
       return 'Respons AI belum lengkap. Tekan "Coba Lagi".';
     }
@@ -548,7 +579,9 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
       final batch = await AiOcrService().extractDraftFromImageBytes(
         imageBytes: bytes,
         mimeType: mimeType,
-        onProviderEvent: (providerId, status, detail) {
+        providerOrderOverride: 'gemini,groq',
+        geminiOcrModelChainOverride: _geminiOcrChainForSelectedMode(),
+        onProviderEvent: (providerId, status, detail, [stage]) {
           if (!mounted) {
             return;
           }
@@ -556,10 +589,12 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
             if (status == 'try' && !_providerTrail.contains(providerId)) {
               _providerTrail.add(providerId);
             }
-            _recordProviderEvent(providerId, status, detail);
+            _recordProviderEvent(providerId, status, detail, stage);
           });
         },
       );
+      final detectedDateIso = _normalizeDetectedDateIso(batch.detectedDate);
+      final fallbackTodayIso = _toDateIso(DateTime.now());
       await OcrLearningDictionaryService.preloadFromProductsIfNeeded();
       final dictionary = await OcrLearningDictionaryService.getDictionary();
       final editableItems =
@@ -569,6 +604,17 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
                   item.description,
                   dictionary,
                 );
+            final hasItemDate = item.dateIso.trim().isNotEmpty;
+            final resolvedDateIso =
+                hasItemDate
+                    ? item.dateIso
+                    : (detectedDateIso ?? fallbackTodayIso);
+            final isDateInferred = !hasItemDate;
+            final inferredDateWarning =
+                detectedDateIso != null
+                    ? 'Tanggal diisi dari tanggal terdeteksi, mohon cek ulang.'
+                    : 'Tanggal tidak terdeteksi, otomatis diisi tanggal hari ini. Mohon cek ulang.';
+
             return _EditableDraftItem(
               selected: true,
               type: item.type,
@@ -576,12 +622,15 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
               description: correctedDescription,
               originalDescription: item.description,
               categoryHint: item.categoryHint,
-              dateIso: item.dateIso,
-              dateSource: item.dateSource,
+              dateIso: resolvedDateIso,
+              dateSource: isDateInferred ? 'inferred' : item.dateSource,
               confidence: item.confidence,
               rawText: item.rawText,
-              needsReview: item.needsReview,
-              warning: item.warning,
+              needsReview: item.needsReview || isDateInferred,
+              warning:
+                  isDateInferred
+                      ? _mergeWarning(item.warning, inferredDateWarning)
+                      : item.warning,
             );
           }).toList();
       if (!mounted) {
@@ -645,6 +694,33 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     }
   }
 
+  Future<void> _confirmAndRescanCurrentImage() async {
+    if (_imageBytes == null || _imageMimeType == null) {
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('Scan Ulang Foto'),
+            content: const Text('Gunakan foto yang sama untuk scan ulang OCR?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Batal'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('Ya, Scan Ulang'),
+              ),
+            ],
+          ),
+    );
+    if (confirmed == true && mounted) {
+      await _processCurrentImage();
+    }
+  }
+
   String? _detectMimeType(String path) {
     final lower = path.toLowerCase();
     if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
@@ -703,6 +779,48 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
         const SnackBar(
           content: Text('Pilih minimal 1 transaksi untuk disimpan.'),
         ),
+      );
+      return;
+    }
+
+    final invalidItems = <String>[];
+    for (final item in selected) {
+      final amount = _parseAmountInput(item.amountController.text);
+      final description = item.descriptionController.text.trim();
+      if (item.type != 'IN' && item.type != 'OUT') {
+        invalidItems.add('Tipe transaksi belum valid.');
+        continue;
+      }
+      if (amount <= 0) {
+        invalidItems.add(
+          'Nominal tidak valid pada item "${description.isEmpty ? '-' : description}".',
+        );
+      }
+      if (description.length < 3) {
+        invalidItems.add(
+          'Keterangan terlalu singkat pada item "$description".',
+        );
+      }
+    }
+    if (invalidItems.isNotEmpty && mounted) {
+      final preview = invalidItems.take(4).join('\n- ');
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Text('Data Belum Bisa Disimpan'),
+            content: Text(
+              'Perbaiki data berikut sebelum simpan:\n- $preview'
+              '${invalidItems.length > 4 ? '\n- ...dan ${invalidItems.length - 4} item lainnya' : ''}',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Oke, Perbaiki Dulu'),
+              ),
+            ],
+          );
+        },
       );
       return;
     }
@@ -942,12 +1060,19 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     }
 
     if (shouldPopAfterSave) {
+      final saveResult = <String, dynamic>{
+        'saved': true,
+        'source':
+            _providerTrail.contains('chat-import') ? 'chat-import' : 'ocr',
+        'success_count': success,
+        'failed_count': failed,
+      };
       _clearDraftItems();
       _detectedDate = '';
       _notesFound.clear();
       _ignoredLines.clear();
       if (mounted) {
-        Navigator.of(context).pop();
+        Navigator.of(context).pop(saveResult);
       }
     }
   }
@@ -972,49 +1097,349 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     });
   }
 
+  int _countBulkTypeTargets(String type) {
+    final isChatImport = _providerTrail.contains('chat-import');
+    var count = 0;
+    for (final item in _draftItems) {
+      if (isChatImport && !_shouldBulkApplyTypeOnChatImport(item)) {
+        continue;
+      }
+      if (item.type != type) {
+        count += 1;
+      }
+    }
+    return count;
+  }
+
+  String _nextBulkType() {
+    final isChatImport = _providerTrail.contains('chat-import');
+    final applicable = <_EditableDraftItem>[];
+    for (final item in _draftItems) {
+      if (isChatImport && !_shouldBulkApplyTypeOnChatImport(item)) {
+        continue;
+      }
+      applicable.add(item);
+    }
+    if (applicable.isEmpty) {
+      return 'IN';
+    }
+    final allIn = applicable.every((item) => item.type == 'IN');
+    return allIn ? 'OUT' : 'IN';
+  }
+
+  void _toggleSelectAll() {
+    _selectAll(!_areAllItemsSelected);
+  }
+
+  void _toggleCompactMode() {
+    setState(() {
+      _isCompactReviewMode = !_isCompactReviewMode;
+      if (!_isCompactReviewMode) {
+        _expandedDraftIndexes.clear();
+      }
+    });
+  }
+
+  Future<void> _confirmAndApplyBulkTypeToggle() async {
+    final nextType = _nextBulkType();
+    final targetCount = _countBulkTypeTargets(nextType);
+    if (targetCount == 0) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tidak ada item yang perlu diubah.')),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            title: const Text('Konfirmasi Ubah Tipe'),
+            content: Text('Ubah $targetCount item menjadi $nextType?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Batal'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('Ya, Terapkan'),
+              ),
+            ],
+          ),
+    );
+
+    if (confirmed == true) {
+      _setAllType(nextType);
+    }
+  }
+
+  Widget _buildMassActionBar() {
+    final nextSelectionLabel =
+        _areAllItemsSelected ? 'Batal Pilih' : 'Pilih Semua';
+    final nextSelectionIcon =
+        _areAllItemsSelected ? Icons.remove_done : Icons.done_all;
+    final nextDisplayLabel =
+        _isCompactReviewMode ? 'Lihat Detail' : 'Tampilan Ringkas';
+    final nextDisplayIcon =
+        _isCompactReviewMode ? Icons.unfold_more : Icons.unfold_less;
+    final nextBulkType = _nextBulkType();
+    final nextBulkLabel = nextBulkType == 'IN' ? 'Semua MASUK' : 'Semua KELUAR';
+    final nextBulkIcon =
+        nextBulkType == 'IN' ? Icons.north_east : Icons.south_east;
+    final nextBulkForegroundColor =
+        nextBulkType == 'IN'
+            ? const Color(0xFF166534)
+            : const Color(0xFFB91C1C);
+    final nextBulkBackgroundColor =
+        nextBulkType == 'IN'
+            ? const Color(0xFFDCFCE7)
+            : const Color(0xFFFEE2E2);
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        OutlinedButton.icon(
+          onPressed: _isLoading ? null : _toggleSelectAll,
+          icon: Icon(nextSelectionIcon),
+          label: Text(nextSelectionLabel),
+        ),
+        OutlinedButton.icon(
+          onPressed: _isLoading ? null : _toggleCompactMode,
+          icon: Icon(nextDisplayIcon),
+          label: Text(nextDisplayLabel),
+        ),
+        FilledButton.icon(
+          style: FilledButton.styleFrom(
+            foregroundColor: nextBulkForegroundColor,
+            backgroundColor: nextBulkBackgroundColor,
+          ),
+          onPressed: _isLoading ? null : _confirmAndApplyBulkTypeToggle,
+          icon: Icon(nextBulkIcon),
+          label: Text(nextBulkLabel),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Text('Dipilih: $_selectedCount'),
+        ),
+      ],
+    );
+  }
+
   void _clearDraftItems() {
     for (final item in _draftItems) {
       item.dispose();
     }
     _draftItems.clear();
+    _expandedDraftIndexes.clear();
   }
 
   void _applyMajorityTypeDefault() {
     if (_draftItems.isEmpty) {
       return;
     }
-    var inCount = 0;
-    var outCount = 0;
+    var predictedInCount = 0;
+    var predictedOutCount = 0;
     var productLikeCount = 0;
+    var strongExpenseCount = 0;
+    final signals = <_TypeSignal>[];
+
     for (final item in _draftItems) {
-      if (item.type == 'OUT') {
-        outCount += 1;
+      final signal = _buildTypeSignal(item);
+      signals.add(signal);
+      if (signal.predictedType == 'OUT') {
+        predictedOutCount += 1;
       } else {
-        inCount += 1;
+        predictedInCount += 1;
       }
       if (_looksLikeProductLine(item)) {
         productLikeCount += 1;
       }
-    }
-    String? majorityType;
-    if (inCount == outCount) {
-      final threshold = (_draftItems.length / 2).ceil();
-      if (productLikeCount >= threshold) {
-        majorityType = 'IN';
+      if (signal.strongOut) {
+        strongExpenseCount += 1;
       }
+    }
+
+    final total = _draftItems.length;
+    final productHeavyThreshold = (total * 0.6).ceil();
+    String? majorityType;
+    if (productLikeCount >= productHeavyThreshold &&
+        strongExpenseCount <= (total * 0.2).floor()) {
+      majorityType = 'IN';
     } else {
-      majorityType = inCount > outCount ? 'IN' : 'OUT';
+      final dominant =
+          predictedInCount > predictedOutCount
+              ? predictedInCount
+              : predictedOutCount;
+      if (dominant / total >= 0.55) {
+        majorityType = predictedInCount >= predictedOutCount ? 'IN' : 'OUT';
+      }
     }
     if (majorityType == null) {
       return;
     }
+
     final isChatImport = _providerTrail.contains('chat-import');
-    for (final item in _draftItems) {
+    for (var i = 0; i < _draftItems.length; i++) {
+      final item = _draftItems[i];
       if (isChatImport && !_shouldBulkApplyTypeOnChatImport(item)) {
+        continue;
+      }
+      final signal = signals[i];
+      final stronglyOpposesMajority =
+          (majorityType == 'IN' && signal.strongOut) ||
+          (majorityType == 'OUT' && signal.strongIn);
+      if (stronglyOpposesMajority) {
         continue;
       }
       item.type = majorityType;
     }
+  }
+
+  _TypeSignal _buildTypeSignal(_EditableDraftItem item) {
+    final hint = item.categoryHint.toLowerCase().trim();
+    final desc = item.descriptionController.text.toLowerCase().trim();
+    var inScore = 0;
+    var outScore = 0;
+
+    const strongOutKeywords = <String>[
+      'bahan baku',
+      'operasional',
+      'gaji',
+      'utang',
+      'prive',
+      'pengeluaran',
+      'listrik',
+      'token',
+      'pulsa',
+      'beli',
+      'bayar',
+      'sewa',
+      'bbm',
+      'bensin',
+      'gas',
+      'air',
+      'alat',
+      'kemasan',
+      'tepung',
+      'telur',
+      'mentega',
+      'gula',
+    ];
+    const strongInKeywords = <String>[
+      'penjualan',
+      'pemasukan',
+      'income',
+      'jual',
+      'produk',
+      'kue',
+      'snack',
+      'minuman',
+      'order',
+      'laku',
+    ];
+
+    for (final keyword in strongOutKeywords) {
+      if (hint.contains(keyword)) {
+        outScore += 3;
+      }
+      if (desc.contains(keyword)) {
+        outScore += 2;
+      }
+    }
+    for (final keyword in strongInKeywords) {
+      if (hint.contains(keyword)) {
+        inScore += 3;
+      }
+      if (desc.contains(keyword)) {
+        inScore += 2;
+      }
+    }
+    if (_looksLikeProductLine(item)) {
+      inScore += 2;
+    }
+    if (RegExp(r'\d+\s*x\s*\d+').hasMatch(desc)) {
+      inScore += 1;
+    }
+
+    final predictedType =
+        outScore > inScore
+            ? 'OUT'
+            : inScore > outScore
+            ? 'IN'
+            : item.type;
+    return _TypeSignal(
+      predictedType: predictedType,
+      strongOut: outScore >= inScore + 2,
+      strongIn: inScore >= outScore + 2,
+    );
+  }
+
+  String _geminiOcrChainForSelectedMode() {
+    switch (_ocrScanMode) {
+      case _OcrScanMode.fast:
+        return 'gemini-2.5-flash-lite';
+      case _OcrScanMode.accurate:
+        return 'gemini-3.1-pro-preview,gemini-3-flash-preview,gemini-2.5-flash';
+    }
+  }
+
+  String _mergeWarning(String base, String extra) {
+    final b = base.trim();
+    final e = extra.trim();
+    if (b.isEmpty) {
+      return e;
+    }
+    if (e.isEmpty || b.toLowerCase().contains(e.toLowerCase())) {
+      return b;
+    }
+    return '$b $e';
+  }
+
+  String? _normalizeDetectedDateIso(String raw) {
+    final text = raw.trim();
+    if (text.isEmpty) {
+      return null;
+    }
+    final direct = DateTime.tryParse(text);
+    if (direct != null) {
+      return _toDateIso(direct);
+    }
+    final slash = RegExp(
+      r'^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$',
+    ).firstMatch(text);
+    if (slash != null) {
+      final d = int.tryParse(slash.group(1)!);
+      final m = int.tryParse(slash.group(2)!);
+      var y = int.tryParse(slash.group(3)!);
+      if (d == null || m == null || y == null) {
+        return null;
+      }
+      if (y < 100) {
+        y += 2000;
+      }
+      final dt = DateTime.tryParse(
+        '${y.toString().padLeft(4, '0')}-${m.toString().padLeft(2, '0')}-${d.toString().padLeft(2, '0')}',
+      );
+      if (dt != null) {
+        return _toDateIso(dt);
+      }
+    }
+    return null;
+  }
+
+  void _setScanMode(_OcrScanMode mode) {
+    if (_isLoading || _ocrScanMode == mode) {
+      return;
+    }
+    setState(() {
+      _ocrScanMode = mode;
+    });
   }
 
   bool _shouldBulkApplyTypeOnChatImport(_EditableDraftItem item) {
@@ -1111,7 +1536,27 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
   }
 
   int _parseAmountInput(String text) {
-    final digitsOnly = text.replaceAll(RegExp(r'[^0-9]'), '');
+    final raw = text.toLowerCase().trim();
+    if (raw.isEmpty) {
+      return 0;
+    }
+    final compact = raw.replaceAll(RegExp(r'\s+'), '');
+    final unitMatch = RegExp(
+      r'^([0-9]+(?:[.,][0-9]+)?)(k|rb|ribu|jt|juta)$',
+    ).firstMatch(compact);
+    if (unitMatch != null) {
+      final numberPart = unitMatch.group(1) ?? '';
+      final unit = unitMatch.group(2) ?? '';
+      final normalized = numberPart.replaceAll(',', '.');
+      final value = double.tryParse(normalized);
+      if (value == null) {
+        return 0;
+      }
+      final multiplier = (unit == 'jt' || unit == 'juta') ? 1000000 : 1000;
+      return (value * multiplier).round();
+    }
+
+    final digitsOnly = raw.replaceAll(RegExp(r'[^0-9]'), '');
     if (digitsOnly.isEmpty) {
       return 0;
     }
@@ -1228,6 +1673,8 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     return DateFormat('dd MMM yyyy', 'id_ID').format(parsed);
   }
 
+  String _typeLabel(String type) => type == 'OUT' ? 'KELUAR' : 'MASUK';
+
   Future<void> _pickDateForItem(int index) async {
     final item = _draftItems[index];
     final picked = await showDatePicker(
@@ -1304,6 +1751,14 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
   }
 
   Widget _buildDraftItemCard(_EditableDraftItem item, int index) {
+    final isExpanded =
+        !_isCompactReviewMode || _expandedDraftIndexes.contains(index);
+    final compactAmount = NumberFormat.decimalPattern(
+      'id_ID',
+    ).format(_parseAmountInput(item.amountController.text));
+    final compactDescription = item.descriptionController.text.trim();
+    final compactDate = _dateLabel(item.dateIso);
+
     return Card(
       color: item.needsReview ? const Color(0xFFFFF8E1) : null,
       margin: const EdgeInsets.only(bottom: 10),
@@ -1328,6 +1783,22 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
                   ),
                 ),
                 Text('OCR ${item.confidence}%'),
+                if (_isCompactReviewMode)
+                  IconButton(
+                    tooltip: isExpanded ? 'Tutup detail' : 'Buka detail',
+                    onPressed: () {
+                      setState(() {
+                        if (isExpanded) {
+                          _expandedDraftIndexes.remove(index);
+                        } else {
+                          _expandedDraftIndexes.add(index);
+                        }
+                      });
+                    },
+                    icon: Icon(
+                      isExpanded ? Icons.expand_less : Icons.expand_more,
+                    ),
+                  ),
               ],
             ),
             if (item.needsReview) ...[
@@ -1350,91 +1821,130 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
                 ],
               ),
             ],
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                ChoiceChip(
-                  label: const Text('IN'),
-                  selected: item.type == 'IN',
-                  onSelected: (_) => setState(() => item.type = 'IN'),
+            if (_isCompactReviewMode && !isExpanded) ...[
+              const SizedBox(height: 6),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE5E7EB)),
                 ),
-                const SizedBox(width: 8),
-                ChoiceChip(
-                  label: const Text('OUT'),
-                  selected: item.type == 'OUT',
-                  onSelected: (_) => setState(() => item.type = 'OUT'),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${_typeLabel(item.type)} • Rp $compactAmount • Tanggal: $compactDate',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      compactDescription.isEmpty ? '-' : compactDescription,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: item.amountController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Nominal',
-                border: OutlineInputBorder(),
-                isDense: true,
               ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: item.descriptionController,
-              decoration: const InputDecoration(
-                labelText: 'Keterangan',
-                border: OutlineInputBorder(),
-                isDense: true,
+            ],
+            if (isExpanded) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  ChoiceChip(
+                    label: const Text('MASUK'),
+                    selected: item.type == 'IN',
+                    onSelected: (_) => setState(() => item.type = 'IN'),
+                  ),
+                  const SizedBox(width: 8),
+                  ChoiceChip(
+                    label: const Text('KELUAR'),
+                    selected: item.type == 'OUT',
+                    onSelected: (_) => setState(() => item.type = 'OUT'),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
+              const SizedBox(height: 8),
+              TextField(
+                controller: item.amountController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Nominal',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: item.descriptionController,
+                decoration: const InputDecoration(
+                  labelText: 'Keterangan',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Tanggal: ${_dateLabel(item.dateIso)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color:
+                            item.dateIso.trim().isEmpty
+                                ? const Color(0xFF8A6D1A)
+                                : Colors.black87,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Ubah tanggal item ini',
+                    icon: const Icon(Icons.edit_calendar_outlined),
+                    onPressed:
+                        _isLoading ? null : () => _pickDateForItem(index),
+                  ),
+                  IconButton(
+                    tooltip: 'Terapkan tanggal ini ke item di bawah',
+                    icon: const Icon(Icons.south_outlined),
+                    onPressed:
+                        _isLoading
+                            ? null
+                            : () => _pickAndApplyDateToBelow(index),
+                  ),
+                ],
+              ),
+              if (item.dateSource != 'explicit') ...[
+                const SizedBox(height: 2),
+                Align(
+                  alignment: Alignment.centerLeft,
                   child: Text(
-                    'Tanggal: ${_dateLabel(item.dateIso)}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color:
-                          item.dateIso.trim().isEmpty
-                              ? const Color(0xFF8A6D1A)
-                              : Colors.black87,
+                    'Sumber tanggal: ${item.dateSource == 'inferred' ? 'inferensi AI (cek ulang)' : 'tidak diketahui'}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF8A6D1A),
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
-                IconButton(
-                  tooltip: 'Ubah tanggal item ini',
-                  icon: const Icon(Icons.edit_calendar_outlined),
-                  onPressed: _isLoading ? null : () => _pickDateForItem(index),
-                ),
-                IconButton(
-                  tooltip: 'Terapkan tanggal ini ke item di bawah',
-                  icon: const Icon(Icons.south_outlined),
-                  onPressed:
-                      _isLoading ? null : () => _pickAndApplyDateToBelow(index),
-                ),
               ],
-            ),
-            if (item.dateSource != 'explicit') ...[
               const SizedBox(height: 2),
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  'Sumber tanggal: ${item.dateSource == 'inferred' ? 'inferensi AI (cek ulang)' : 'tidak diketahui'}',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Color(0xFF8A6D1A),
-                    fontWeight: FontWeight.w600,
-                  ),
+                  'Kategori tebakan: ${item.categoryHint.isEmpty ? '-' : item.categoryHint}',
+                  style: const TextStyle(color: Colors.black54),
                 ),
               ),
             ],
-            const SizedBox(height: 2),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Kategori tebakan: ${item.categoryHint.isEmpty ? '-' : item.categoryHint}',
-                style: const TextStyle(color: Colors.black54),
-              ),
-            ),
           ],
         ),
       ),
@@ -1443,10 +1953,11 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).padding.bottom;
     return Scaffold(
       appBar: AppBar(title: const Text('Scan Catatan (OCR Asistif)')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset + 24),
         children: [
           Container(
             padding: const EdgeInsets.all(12),
@@ -1458,6 +1969,30 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
             child: const Text(
               'Foto 1 halaman catatan. Hasil scan akan jadi daftar draft dan wajib Anda cek sebelum disimpan.',
             ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ChoiceChip(
+                label: const Text('Mode Cepat'),
+                selected: _ocrScanMode == _OcrScanMode.fast,
+                onSelected: (_) => _setScanMode(_OcrScanMode.fast),
+              ),
+              ChoiceChip(
+                label: const Text('Mode Akurat'),
+                selected: _ocrScanMode == _OcrScanMode.accurate,
+                onSelected: (_) => _setScanMode(_OcrScanMode.accurate),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _ocrScanMode == _OcrScanMode.fast
+                ? 'Cepat: Gemini Lite lalu fallback Groq.'
+                : 'Akurat: Semua model Gemini dicoba berurutan lalu fallback Groq.',
+            style: const TextStyle(fontSize: 12, color: Colors.black54),
           ),
           const SizedBox(height: 12),
           Row(
@@ -1485,6 +2020,20 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
               ),
             ],
           ),
+          if (_imageBytes != null && _imageMimeType != null) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed:
+                    _isLoading || _aiBlocked
+                        ? null
+                        : _confirmAndRescanCurrentImage,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Scan Ulang Foto Ini'),
+              ),
+            ),
+          ],
           if (_aiBlocked) ...[
             const SizedBox(height: 10),
             Container(
@@ -1523,32 +2072,58 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
-                      Icon(Icons.alt_route, size: 16, color: Colors.black54),
-                      SizedBox(width: 6),
-                      Text(
-                        'Log Fallback OCR',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
+                      const Icon(
+                        Icons.alt_route,
+                        size: 16,
+                        color: Colors.black54,
+                      ),
+                      const SizedBox(width: 6),
+                      const Expanded(
+                        child: Text(
+                          'Log Fallback OCR',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _isOcrLogExpanded = !_isOcrLogExpanded;
+                          });
+                        },
+                        icon: Icon(
+                          _isOcrLogExpanded
+                              ? Icons.expand_less
+                              : Icons.expand_more,
+                          size: 16,
+                        ),
+                        label: Text(
+                          _isOcrLogExpanded ? 'Sembunyikan' : 'Tampilkan',
+                          style: const TextStyle(fontSize: 12),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  ..._providerAttemptLogs.map(
-                    (log) => Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Text(
-                        '${_providerLabel(log.providerId)}: '
-                        '${_providerStatusLabel(log)} | '
-                        'Reason: ${_providerDetailLabel(log)} | '
-                        'Latency: ${log.elapsedMs > 0 ? '${log.elapsedMs} ms' : '-'}',
-                        style: const TextStyle(fontSize: 12),
+                  if (_isOcrLogExpanded) ...[
+                    const SizedBox(height: 6),
+                    ..._providerAttemptLogs.map(
+                      (log) => Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Text(
+                          '${_providerLabel(log.providerId)}'
+                          '${log.stage == null || log.stage!.trim().isEmpty ? '' : ' [${_providerStageLabel(log.stage!)}]'}: '
+                          '${_providerStatusLabel(log)} | '
+                          'Reason: ${_providerDetailLabel(log)} | '
+                          'Latency: ${log.elapsedMs > 0 ? '${log.elapsedMs} ms' : '-'}',
+                          style: const TextStyle(fontSize: 12),
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -1752,37 +2327,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
                         ),
                       ],
                       const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 4,
-                        runSpacing: 0,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          TextButton(
-                            onPressed:
-                                _isLoading ? null : () => _selectAll(true),
-                            child: const Text('Pilih Semua'),
-                          ),
-                          TextButton(
-                            onPressed:
-                                _isLoading ? null : () => _selectAll(false),
-                            child: const Text('Batal Pilihan'),
-                          ),
-                          TextButton(
-                            onPressed:
-                                _isLoading ? null : () => _setAllType('IN'),
-                            child: const Text('Set IN'),
-                          ),
-                          TextButton(
-                            onPressed:
-                                _isLoading ? null : () => _setAllType('OUT'),
-                            child: const Text('Set OUT'),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            child: Text('Dipilih: $_selectedCount'),
-                          ),
-                        ],
-                      ),
+                      _buildMassActionBar(),
                       const SizedBox(height: 8),
                       for (int i = 0; i < _draftItems.length; i++) ...[
                         if (i == 0 ||
@@ -1876,6 +2421,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
 class _ProviderAttemptLog {
   const _ProviderAttemptLog({
     required this.providerId,
+    this.stage,
     required this.status,
     required this.detail,
     required this.startedAt,
@@ -1883,6 +2429,7 @@ class _ProviderAttemptLog {
   });
 
   final String providerId;
+  final String? stage;
   final String status;
   final String? detail;
   final DateTime startedAt;
@@ -1890,6 +2437,7 @@ class _ProviderAttemptLog {
 
   _ProviderAttemptLog copyWith({
     String? providerId,
+    String? stage,
     String? status,
     String? detail,
     DateTime? startedAt,
@@ -1897,12 +2445,25 @@ class _ProviderAttemptLog {
   }) {
     return _ProviderAttemptLog(
       providerId: providerId ?? this.providerId,
+      stage: stage ?? this.stage,
       status: status ?? this.status,
       detail: detail ?? this.detail,
       startedAt: startedAt ?? this.startedAt,
       elapsedMs: elapsedMs ?? this.elapsedMs,
     );
   }
+}
+
+class _TypeSignal {
+  const _TypeSignal({
+    required this.predictedType,
+    required this.strongOut,
+    required this.strongIn,
+  });
+
+  final String predictedType;
+  final bool strongOut;
+  final bool strongIn;
 }
 
 class _EditableDraftItem {

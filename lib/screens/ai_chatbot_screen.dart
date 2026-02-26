@@ -7,7 +7,9 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../database/database_helper.dart';
 import '../models/chat_import_draft.dart';
+import '../screens/history_screen.dart';
 import '../screens/ocr_assist_screen.dart';
 import '../services/ai_chatbot_service.dart';
 import '../services/ai_insight_service.dart';
@@ -26,6 +28,16 @@ class AiChatbotScreen extends StatefulWidget {
   State<AiChatbotScreen> createState() => _AiChatbotScreenState();
 }
 
+class _DraftDescriptionUpdate {
+  const _DraftDescriptionUpdate({
+    required this.sourceHint,
+    required this.newDescription,
+  });
+
+  final String sourceHint;
+  final String newDescription;
+}
+
 class _AiChatbotScreenState extends State<AiChatbotScreen> {
   final AiChatbotService _chatbotService = AiChatbotService();
   final TextEditingController _inputController = TextEditingController();
@@ -39,6 +51,10 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   bool _initialQuestionHandled = false;
   String? _pendingInitialQuestion;
   String _chatProviderPriority = 'groq_first';
+  String _intentRoutingMode = 'safe';
+  bool _showTechnicalMeta = false;
+  final Map<int, int> _assistantFeedback = <int, int>{}; // -1 | 1
+  Set<String> _escalationPhrases = <String>{};
   Timer? _cooldownTimer;
   static const List<String> _quickQuestions = [
     'Kamu bisa apa?',
@@ -51,6 +67,10 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   static const String _chatSnapshotKey = 'ai_chat_snapshot_hash_v1';
   static const String _chatSavedAtKey = 'ai_chat_saved_at_v1';
   static const String _chatProviderPriorityKey = 'ai_chat_provider_priority_v1';
+  static const String _chatIntentRoutingModeKey =
+      'ai_chat_intent_routing_mode_v1';
+  static const String _chatShowTechnicalMetaKey =
+      'ai_chat_show_technical_meta_v1';
 
   @override
   void initState() {
@@ -72,11 +92,21 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     final saved =
         (prefs.getString(_chatProviderPriorityKey) ?? 'groq_first').trim();
     final normalized = saved == 'gemini_first' ? 'gemini_first' : 'groq_first';
+    final savedIntentMode =
+        (prefs.getString(_chatIntentRoutingModeKey) ?? 'safe').trim();
+    final normalizedIntentMode =
+        savedIntentMode == 'flexible' ? 'flexible' : 'safe';
+    final escalationRaw =
+        await DatabaseHelper.instance.getChatPreferAiPhrases();
+    final showTechnicalMeta = prefs.getBool(_chatShowTechnicalMetaKey) ?? false;
     if (!mounted) {
       return;
     }
     setState(() {
       _chatProviderPriority = normalized;
+      _intentRoutingMode = normalizedIntentMode;
+      _escalationPhrases = escalationRaw;
+      _showTechnicalMeta = showTechnicalMeta;
     });
   }
 
@@ -89,6 +119,30 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     }
     setState(() {
       _chatProviderPriority = normalized;
+    });
+  }
+
+  Future<void> _toggleTechnicalMeta() async {
+    final next = !_showTechnicalMeta;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_chatShowTechnicalMetaKey, next);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _showTechnicalMeta = next;
+    });
+  }
+
+  Future<void> _setIntentRoutingMode(String value) async {
+    final normalized = value == 'flexible' ? 'flexible' : 'safe';
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_chatIntentRoutingModeKey, normalized);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _intentRoutingMode = normalized;
     });
   }
 
@@ -114,6 +168,10 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     }
   }
 
+  String _intentRoutingModeLabel() {
+    return _intentRoutingMode == 'flexible' ? 'Mode AI' : 'Mode Standar';
+  }
+
   Future<void> _sendFromInput() async {
     final text = _inputController.text.trim();
     if (text.isEmpty) {
@@ -126,6 +184,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   void _resetChat() {
     _pendingDraft = null;
     _pendingDraftMessageIndex = null;
+    _assistantFeedback.clear();
     _messages
       ..clear()
       ..add(
@@ -341,12 +400,130 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     await _persistChat();
     _scrollToBottom();
 
+    final normalized = question.trim().toLowerCase();
+    if (_pendingDraft != null && _isPendingDraftConfirmation(normalized)) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _messages.add(
+          const AiChatMessage(
+            role: 'assistant',
+            text: 'Siap, saya lanjutkan ke layar review draf transaksi.',
+            providerId: 'local-context',
+            confidenceLevel: 'high',
+            confidenceReason:
+                'Konfirmasi lanjutan draf terdeteksi dari konteks chat.',
+            executionPath: 'local',
+            executionReason:
+                'Konfirmasi user untuk draf pending diproses lokal.',
+          ),
+        );
+      });
+      await _persistChat();
+      _scrollToBottom();
+      await _openPendingDraft();
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+      return;
+    }
+    if (_pendingDraft != null) {
+      final editFeedback = _tryApplyPendingDraftEdit(question);
+      if (editFeedback != null) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _messages.add(
+            AiChatMessage(
+              role: 'assistant',
+              text: editFeedback,
+              providerId: 'local-draft-edit',
+              confidenceLevel: 'high',
+              confidenceReason: 'Perubahan draf diproses dari konteks chat.',
+              executionPath: 'local',
+              executionReason: 'Perintah edit draf terdeteksi dari teks.',
+            ),
+          );
+          _pendingDraftMessageIndex = _messages.length - 1;
+        });
+        await _persistChat();
+        _scrollToBottom();
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+    }
+
+    if (_isChatHistoryIntent(normalized)) {
+      final summary = _buildRecentChatSummary(currentPrompt: question);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _messages.add(
+          AiChatMessage(
+            role: 'assistant',
+            text: summary,
+            providerId: 'local-context',
+            confidenceLevel: 'high',
+            confidenceReason:
+                'Permintaan ringkasan riwayat chat diproses dari memori percakapan lokal.',
+            executionPath: 'local',
+            executionReason:
+                'Ringkasan diambil dari daftar pesan pada sesi ini.',
+          ),
+        );
+      });
+      await _persistChat();
+      _scrollToBottom();
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+      return;
+    }
+
+    final normalizedQuestionKey = _normalizeIntentKey(question);
+    final shouldAutoEscalate =
+        _intentRoutingMode == 'safe' &&
+        (_isLikelyRetryQuestion(normalizedQuestionKey) ||
+            _matchesEscalationPhrase(normalizedQuestionKey));
+    final effectiveMode = shouldAutoEscalate ? 'flexible' : _intentRoutingMode;
+    if (shouldAutoEscalate && mounted) {
+      setState(() {
+        _messages.add(
+          const AiChatMessage(
+            role: 'assistant',
+            text:
+                'Saya pindahkan ke Mode AI untuk pertanyaan ini agar lebih luwes.',
+            providerId: 'local-mode-switch',
+            confidenceLevel: 'high',
+            confidenceReason:
+                'Pertanyaan berulang/bermasalah pada mode standar.',
+            executionPath: 'local',
+            executionReason: 'Auto-switch satu kali ke mode AI.',
+          ),
+        );
+      });
+      await _persistChat();
+      _scrollToBottom();
+    }
+
     try {
       final reply = await _chatbotService.askFinancialAssistant(
         question: question,
         financeSnapshot: widget.financeSnapshot,
         history: _messages,
         providerOrderOverride: _providerOrderOverride(),
+        intentRoutingMode: effectiveMode,
       );
       if (!mounted) {
         return;
@@ -446,6 +623,560 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     }
   }
 
+  bool _isPendingDraftConfirmation(String normalized) {
+    const tokens = <String>[
+      'sudah benar',
+      'sudah oke',
+      'sudah ok',
+      'oke',
+      'ok',
+      'ya',
+      'iya',
+      'lanjut',
+      'lanjutkan',
+      'setuju',
+      'benar',
+      'lanjut review',
+      'ke review',
+      'review saja',
+    ];
+    return tokens.any(
+      (token) => normalized == token || normalized.contains(token),
+    );
+  }
+
+  String? _tryApplyPendingDraftEdit(String question) {
+    final draft = _pendingDraft;
+    if (draft == null || draft.transactions.isEmpty) {
+      return null;
+    }
+    final normalized = question.toLowerCase().trim();
+    final isEditIntent = RegExp(
+      r'\b(ubah|ganti|jadi|set|hapus|delete)\b',
+    ).hasMatch(normalized);
+    if (!isEditIntent) {
+      return null;
+    }
+
+    if (normalized.contains('hapus ') || normalized == 'hapus') {
+      final targetIndex = _resolveDraftTargetIndex(
+        normalized: normalized,
+        draft: draft,
+        fallbackToFirst: draft.transactions.length == 1,
+      );
+      if (targetIndex == null) {
+        return 'Saya belum tahu item mana yang dihapus. Contoh: "hapus item 1" atau "hapus donat".';
+      }
+      final removed = draft.transactions[targetIndex];
+      final nextItems = List<ChatImportDraftItem>.from(draft.transactions)
+        ..removeAt(targetIndex);
+      if (nextItems.isEmpty) {
+        _pendingDraft = null;
+        _pendingDraftMessageIndex = null;
+        return 'Semua item draf sudah dihapus.';
+      }
+      _pendingDraft = draft.copyWith(transactions: nextItems);
+      return 'Item "${removed.description}" dihapus dari draf.\n\n${_buildDraftSummary(_pendingDraft!)}';
+    }
+
+    final nextType = _extractDraftTypeUpdate(normalized);
+    if (nextType != null) {
+      final targetIndex = _resolveDraftTargetIndex(
+        normalized: normalized,
+        draft: draft,
+        fallbackToFirst: draft.transactions.length == 1,
+      );
+      if (targetIndex == null) {
+        return 'Saya belum tahu item mana yang diubah tipenya. Contoh: "ubah item 1 jadi keluar".';
+      }
+      final current = draft.transactions[targetIndex];
+      if (current.type == nextType) {
+        return 'Tipe transaksi sudah ${nextType == 'IN' ? 'MASUK' : 'KELUAR'}.';
+      }
+      final updated = List<ChatImportDraftItem>.from(draft.transactions);
+      updated[targetIndex] = current.copyWith(type: nextType, needsReview: false);
+      _pendingDraft = draft.copyWith(transactions: updated);
+      return 'Tipe "${current.description}" diubah menjadi ${nextType == 'IN' ? 'MASUK' : 'KELUAR'}.\n\n${_buildDraftSummary(_pendingDraft!)}';
+    }
+
+    final nextDateIso = _extractDraftDateIso(question);
+    if (nextDateIso != null) {
+      final targetIndex = _resolveDraftTargetIndex(
+        normalized: normalized,
+        draft: draft,
+        fallbackToFirst: draft.transactions.length == 1,
+      );
+      if (targetIndex == null) {
+        return 'Saya belum tahu item mana yang diubah tanggalnya. Contoh: "ubah tanggal item 1 jadi hari ini".';
+      }
+      final current = draft.transactions[targetIndex];
+      final updated = List<ChatImportDraftItem>.from(draft.transactions);
+      updated[targetIndex] = current.copyWith(
+        dateIso: nextDateIso,
+        dateSource: 'explicit',
+        needsReview: false,
+      );
+      _pendingDraft = draft.copyWith(transactions: updated);
+      return 'Tanggal "${current.description}" diubah menjadi $nextDateIso.\n\n${_buildDraftSummary(_pendingDraft!)}';
+    }
+
+    final descriptionUpdate = _extractDraftDescriptionUpdate(question);
+    if (descriptionUpdate != null) {
+      final targetIndex = _resolveDraftTargetIndex(
+        normalized: normalized,
+        draft: draft,
+        descriptionHint: descriptionUpdate.sourceHint,
+        fallbackToFirst:
+            draft.transactions.length == 1 ||
+            descriptionUpdate.sourceHint.trim().isEmpty,
+      );
+      if (targetIndex == null) {
+        return 'Saya belum tahu item mana yang diubah namanya. Contoh: "ubah nama donat jadi donat coklat".';
+      }
+      final current = draft.transactions[targetIndex];
+      final nextDesc = descriptionUpdate.newDescription.trim();
+      if (nextDesc.isEmpty || nextDesc == current.description.trim()) {
+        return null;
+      }
+      final updated = List<ChatImportDraftItem>.from(draft.transactions);
+      updated[targetIndex] = current.copyWith(
+        description: nextDesc,
+        needsReview: false,
+      );
+      _pendingDraft = draft.copyWith(transactions: updated);
+      return 'Nama item "${current.description}" diubah menjadi "$nextDesc".\n\n${_buildDraftSummary(_pendingDraft!)}';
+    }
+
+    final amounts = _extractAmountsFromText(question);
+    if (amounts.isEmpty) {
+      return null;
+    }
+
+    final descTarget = _extractDescriptionTarget(normalized);
+    final targetIndex =
+        _resolveDraftTargetIndex(
+          normalized: normalized,
+          draft: draft,
+          descriptionHint: descTarget,
+          fallbackToFirst: true,
+        ) ??
+        0;
+    final currentItem = draft.transactions[targetIndex];
+    final oldAmount = currentItem.amount;
+
+    int? newAmount;
+    if (amounts.length >= 2) {
+      final from = amounts[0];
+      final to = amounts[1];
+      if (oldAmount == from ||
+          draft.transactions.any((item) => item.amount == from)) {
+        newAmount = to;
+      } else {
+        newAmount = to;
+      }
+    } else if (draft.transactions.length == 1) {
+      newAmount = amounts.first;
+    }
+
+    if (newAmount == null || newAmount <= 0 || newAmount == oldAmount) {
+      return null;
+    }
+
+    final updatedItems = List<ChatImportDraftItem>.from(draft.transactions);
+    updatedItems[targetIndex] = currentItem.copyWith(
+      amount: newAmount,
+      needsReview: false,
+      warning: '',
+    );
+    _pendingDraft = draft.copyWith(transactions: updatedItems);
+
+    final fromText = NumberFormat('#,##0', 'id_ID').format(oldAmount);
+    final toText = NumberFormat('#,##0', 'id_ID').format(newAmount);
+    final summary = _buildDraftSummary(_pendingDraft!);
+    return 'Siap, nominal ${currentItem.description} diubah dari Rp $fromText menjadi Rp $toText.\n\n$summary';
+  }
+
+  int? _resolveDraftTargetIndex({
+    required String normalized,
+    required ChatImportDraft draft,
+    String? descriptionHint,
+    required bool fallbackToFirst,
+  }) {
+    final itemMatch = RegExp(r'\b(?:item|transaksi)\s+(\d{1,2})\b')
+        .firstMatch(normalized);
+    if (itemMatch != null) {
+      final raw = int.tryParse(itemMatch.group(1) ?? '');
+      if (raw != null && raw >= 1 && raw <= draft.transactions.length) {
+        return raw - 1;
+      }
+    }
+
+    final hint = (descriptionHint ?? '').trim().toLowerCase();
+    if (hint.isNotEmpty) {
+      final matched = <int>[];
+      for (var i = 0; i < draft.transactions.length; i++) {
+        final desc = draft.transactions[i].description.toLowerCase();
+        if (desc.contains(hint)) {
+          matched.add(i);
+        }
+      }
+      if (matched.length == 1) {
+        return matched.first;
+      }
+      if (matched.length > 1 && fallbackToFirst) {
+        return matched.first;
+      }
+    }
+
+    if (fallbackToFirst && draft.transactions.isNotEmpty) {
+      return 0;
+    }
+    return null;
+  }
+
+  String? _extractDraftTypeUpdate(String normalized) {
+    final wantsOut =
+        RegExp(r'\b(jadi|ubah|set|ke)\s+(out|keluar)\b').hasMatch(normalized) ||
+        RegExp(r'\b(out|keluar)\b').hasMatch(normalized) &&
+            (normalized.contains('jadi') || normalized.contains('ubah'));
+    if (wantsOut) {
+      return 'OUT';
+    }
+    final wantsIn =
+        RegExp(r'\b(jadi|ubah|set|ke)\s+(in|masuk)\b').hasMatch(normalized) ||
+        RegExp(r'\b(in|masuk)\b').hasMatch(normalized) &&
+            (normalized.contains('jadi') || normalized.contains('ubah'));
+    if (wantsIn) {
+      return 'IN';
+    }
+    return null;
+  }
+
+  String? _extractDraftDateIso(String input) {
+    final normalized = input.toLowerCase();
+    final now = DateTime.now();
+    if (normalized.contains('hari ini')) {
+      return DateFormat('yyyy-MM-dd').format(now);
+    }
+    if (normalized.contains('kemarin')) {
+      return DateFormat('yyyy-MM-dd').format(
+        now.subtract(const Duration(days: 1)),
+      );
+    }
+    final isoMatch = RegExp(r'\b(\d{4}-\d{2}-\d{2})\b').firstMatch(normalized);
+    if (isoMatch != null) {
+      final value = isoMatch.group(1)!;
+      if (DateTime.tryParse(value) != null) {
+        return value;
+      }
+    }
+    final dmyMatch =
+        RegExp(r'\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b').firstMatch(
+          normalized,
+        );
+    if (dmyMatch == null) {
+      return null;
+    }
+    final day = int.tryParse(dmyMatch.group(1) ?? '');
+    final month = int.tryParse(dmyMatch.group(2) ?? '');
+    final yearRaw = int.tryParse(dmyMatch.group(3) ?? '');
+    if (day == null || month == null || yearRaw == null) {
+      return null;
+    }
+    final year = yearRaw < 100 ? 2000 + yearRaw : yearRaw;
+    if (month < 1 || month > 12 || day < 1 || day > 31) {
+      return null;
+    }
+    final parsed = DateTime(year, month, day);
+    if (parsed.year != year || parsed.month != month || parsed.day != day) {
+      return null;
+    }
+    return DateFormat('yyyy-MM-dd').format(parsed);
+  }
+
+  _DraftDescriptionUpdate? _extractDraftDescriptionUpdate(String input) {
+    final normalized = input.toLowerCase().trim();
+    final regex = RegExp(
+      r"(?:ubah|ganti)\s+(?:nama|keterangan)?\s*([a-z0-9 ,.'-]{2,40}?)\s+(?:jadi|ke)\s+([a-z0-9 ,.'-]{2,80})$",
+      caseSensitive: false,
+    );
+    final match = regex.firstMatch(normalized);
+    if (match != null) {
+      return _DraftDescriptionUpdate(
+        sourceHint: (match.group(1) ?? '').trim(),
+        newDescription: _toTitleWords((match.group(2) ?? '').trim()),
+      );
+    }
+
+    final generic = RegExp(
+      r"(?:ubah|ganti)\s+(?:nama|keterangan)\s+(?:jadi|ke)\s+([a-z0-9 ,.'-]{2,80})$",
+      caseSensitive: false,
+    ).firstMatch(normalized);
+    if (generic == null) {
+      return null;
+    }
+    return _DraftDescriptionUpdate(
+      sourceHint: '',
+      newDescription: _toTitleWords((generic.group(1) ?? '').trim()),
+    );
+  }
+
+  String _toTitleWords(String value) {
+    final words = value
+        .split(RegExp(r'\s+'))
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .map((part) {
+          final lower = part.toLowerCase();
+          if (lower.length <= 1) {
+            return lower.toUpperCase();
+          }
+          return '${lower[0].toUpperCase()}${lower.substring(1)}';
+        })
+        .toList(growable: false);
+    return words.join(' ');
+  }
+
+  String? _extractDescriptionTarget(String normalized) {
+    final tokens = normalized
+        .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
+        .split(RegExp(r'\s+'))
+        .where((token) => token.isNotEmpty)
+        .toList(growable: false);
+    const ignored = <String>{
+      'ubah',
+      'ganti',
+      'jadi',
+      'ke',
+      'dari',
+      'rp',
+      'ribu',
+      'rb',
+      'k',
+      'jt',
+      'juta',
+      'nominal',
+    };
+    for (final token in tokens) {
+      if (ignored.contains(token)) {
+        continue;
+      }
+      if (RegExp(r'^\d+$').hasMatch(token)) {
+        continue;
+      }
+      return token;
+    }
+    return null;
+  }
+
+  List<int> _extractAmountsFromText(String input) {
+    final matches = RegExp(
+      r'(\d{1,3}(?:[.,]\d{3})+|\d+)\s*(k|rb|ribu|jt|juta)?',
+      caseSensitive: false,
+    ).allMatches(input);
+    final result = <int>[];
+    for (final m in matches) {
+      final rawNumber = (m.group(1) ?? '').trim();
+      final unit = (m.group(2) ?? '').trim().toLowerCase();
+      if (rawNumber.isEmpty) {
+        continue;
+      }
+      final normalizedNumber = rawNumber.replaceAll(RegExp(r'[.,]'), '');
+      final parsed = int.tryParse(normalizedNumber);
+      if (parsed == null) {
+        continue;
+      }
+      var multiplier = 1;
+      if (unit == 'k' || unit == 'rb' || unit == 'ribu') {
+        multiplier = 1000;
+      } else if (unit == 'jt' || unit == 'juta') {
+        multiplier = 1000000;
+      }
+      result.add(parsed * multiplier);
+    }
+    return result;
+  }
+
+  bool _isChatHistoryIntent(String normalized) {
+    const tokens = <String>[
+      'chat sebelumnya',
+      'riwayat chat',
+      'pesan sebelumnya',
+      'percakapan sebelumnya',
+      'history chat',
+      'ringkas chat',
+      'rekap chat',
+    ];
+    return tokens.any((token) => normalized.contains(token));
+  }
+
+  String _buildRecentChatSummary({required String currentPrompt}) {
+    final normalizedCurrent = currentPrompt.trim().toLowerCase();
+    final userMessages =
+        _messages
+            .where((m) => m.role == 'user')
+            .map((m) => m.text.trim())
+            .where((text) => text.isNotEmpty)
+            .toList();
+    final filtered =
+        userMessages
+            .where((text) => text.toLowerCase() != normalizedCurrent)
+            .toList();
+
+    if (filtered.isEmpty) {
+      return 'Di sesi ini belum ada riwayat chat yang bisa diringkas.';
+    }
+
+    final last =
+        filtered.length <= 4 ? filtered : filtered.sublist(filtered.length - 4);
+    final lines = <String>[
+      'Ringkasan chat sebelumnya di sesi ini:',
+      for (var i = 0; i < last.length; i++) '- ${i + 1}. ${last[i]}',
+    ];
+    if (_pendingDraft != null) {
+      lines.add(
+        'Masih ada draf transaksi yang siap direview. Ketik "lanjut" atau tekan tombol "Lanjut ke Review".',
+      );
+    }
+    return lines.join('\n');
+  }
+
+  String _normalizeIntentKey(String input) {
+    return input.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  bool _matchesEscalationPhrase(String normalizedQuestionKey) {
+    if (normalizedQuestionKey.isEmpty) {
+      return false;
+    }
+    if (_escalationPhrases.contains(normalizedQuestionKey)) {
+      return true;
+    }
+    final questionTokens = _tokenizeIntent(normalizedQuestionKey);
+    if (questionTokens.isEmpty) {
+      return false;
+    }
+    for (final phrase in _escalationPhrases) {
+      final phraseTokens = _tokenizeIntent(phrase);
+      if (phraseTokens.isEmpty) {
+        continue;
+      }
+      final intersection = questionTokens.intersection(phraseTokens).length;
+      final overlap =
+          intersection /
+          (questionTokens.length > phraseTokens.length
+              ? questionTokens.length
+              : phraseTokens.length);
+      if (overlap >= 0.6) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Set<String> _tokenizeIntent(String value) {
+    return value
+        .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
+        .split(RegExp(r'\s+'))
+        .map((token) => token.trim())
+        .where((token) => token.isNotEmpty && token.length > 1)
+        .toSet();
+  }
+
+  bool _isLikelyRetryQuestion(String normalizedQuestion) {
+    if (normalizedQuestion.isEmpty) {
+      return false;
+    }
+    String? previousUserQuestion;
+    AiChatMessage? previousAssistant;
+    for (var i = _messages.length - 1; i >= 0; i--) {
+      final msg = _messages[i];
+      if (previousUserQuestion == null && msg.role == 'user') {
+        previousUserQuestion = _normalizeIntentKey(msg.text);
+        continue;
+      }
+      if (previousAssistant == null && msg.role == 'assistant') {
+        previousAssistant = msg;
+      }
+      if (previousUserQuestion != null && previousAssistant != null) {
+        break;
+      }
+    }
+    if (previousUserQuestion == null ||
+        previousUserQuestion != normalizedQuestion) {
+      return false;
+    }
+    final provider = previousAssistant?.providerId?.trim().toLowerCase() ?? '';
+    final lowConfidence =
+        (previousAssistant?.confidenceLevel ?? '').toLowerCase() != 'high';
+    return provider == 'local-clarification' ||
+        provider == 'local-scope-guard' ||
+        lowConfidence;
+  }
+
+  String? _nearestUserQuestionForAssistantIndex(int assistantIndex) {
+    for (var i = assistantIndex - 1; i >= 0; i--) {
+      final msg = _messages[i];
+      if (msg.role == 'user') {
+        final normalized = _normalizeIntentKey(msg.text);
+        if (normalized.isNotEmpty) {
+          return normalized;
+        }
+      }
+    }
+    return null;
+  }
+
+  Future<void> _setAssistantFeedback({
+    required int messageIndex,
+    required int value,
+  }) async {
+    final nearestQuestion = _nearestUserQuestionForAssistantIndex(messageIndex);
+    if (nearestQuestion == null) {
+      return;
+    }
+    final next = Set<String>.from(_escalationPhrases);
+    if (value < 0) {
+      next.add(nearestQuestion);
+    } else {
+      next.remove(nearestQuestion);
+    }
+    await DatabaseHelper.instance.upsertChatLearningFeedback(
+      phraseKey: nearestQuestion,
+      feedbackValue: value,
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _assistantFeedback[messageIndex] = value;
+      _escalationPhrases = next;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          value < 0
+              ? 'Masukan disimpan. Pertanyaan serupa akan diarahkan ke Mode AI.'
+              : 'Terima kasih. Pertanyaan serupa kembali diprioritaskan di Mode Standar.',
+        ),
+      ),
+    );
+  }
+
+  bool _shouldShowFeedback(AiChatMessage msg) {
+    if (msg.role != 'assistant') {
+      return false;
+    }
+    final provider = (msg.providerId ?? '').trim().toLowerCase();
+    if (provider.isEmpty) {
+      return false;
+    }
+    if (provider.startsWith('local-') || provider == 'error') {
+      return false;
+    }
+    return provider.contains('groq') || provider.contains('gemini');
+  }
+
   String _buildDraftSummary(ChatImportDraft draft) {
     final count = draft.transactions.length;
     final total = draft.transactions.fold<int>(
@@ -484,7 +1215,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     if (draft == null) {
       return;
     }
-    await Navigator.of(context).push(
+    final result = await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => OcrAssistScreen(chatImportDraft: draft),
       ),
@@ -492,10 +1223,19 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     if (!mounted) {
       return;
     }
+    final savedFromChatImport =
+        result is Map &&
+        result['saved'] == true &&
+        result['source'] == 'chat-import';
     setState(() {
       _pendingDraft = null;
       _pendingDraftMessageIndex = null;
     });
+    if (savedFromChatImport) {
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const HistoryScreen()));
+    }
   }
 
   void _startCooldown(int seconds) {
@@ -561,6 +1301,35 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                 ],
             icon: const Icon(Icons.tune),
           ),
+          PopupMenuButton<String>(
+            tooltip: 'Mode intent chat',
+            initialValue: _intentRoutingMode,
+            onSelected: _setIntentRoutingMode,
+            itemBuilder:
+                (context) => const [
+                  PopupMenuItem<String>(
+                    value: 'safe',
+                    child: Text('Mode Standar (Default)'),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'flexible',
+                    child: Text('Mode AI'),
+                  ),
+                ],
+            icon: const Icon(Icons.psychology_alt_outlined),
+          ),
+          IconButton(
+            tooltip:
+                _showTechnicalMeta
+                    ? 'Sembunyikan info teknis'
+                    : 'Tampilkan info teknis',
+            onPressed: _toggleTechnicalMeta,
+            icon: Icon(
+              _showTechnicalMeta
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined,
+            ),
+          ),
           IconButton(
             tooltip: 'Hapus chat',
             onPressed: _messages.length <= 1 ? null : _clearChat,
@@ -621,7 +1390,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                'Prioritas AI: ${_chatProviderPriorityLabel()}',
+                'Prioritas AI: ${_chatProviderPriorityLabel()} • Mode: ${_intentRoutingModeLabel()}',
                 style: const TextStyle(fontSize: 11, color: Colors.black54),
               ),
             ),
@@ -697,6 +1466,45 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                               ],
                             ),
                           ),
+                        if (!isUser && _shouldShowFeedback(msg))
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  visualDensity: VisualDensity.compact,
+                                  tooltip: 'Jawaban membantu',
+                                  onPressed:
+                                      () => _setAssistantFeedback(
+                                        messageIndex: index,
+                                        value: 1,
+                                      ),
+                                  icon: Icon(
+                                    (_assistantFeedback[index] ?? 0) == 1
+                                        ? Icons.thumb_up
+                                        : Icons.thumb_up_outlined,
+                                    size: 18,
+                                  ),
+                                ),
+                                IconButton(
+                                  visualDensity: VisualDensity.compact,
+                                  tooltip: 'Jawaban kurang tepat',
+                                  onPressed:
+                                      () => _setAssistantFeedback(
+                                        messageIndex: index,
+                                        value: -1,
+                                      ),
+                                  icon: Icon(
+                                    (_assistantFeedback[index] ?? 0) == -1
+                                        ? Icons.thumb_down
+                                        : Icons.thumb_down_outlined,
+                                    size: 18,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         Align(
                           alignment: Alignment.centerRight,
                           child: Row(
@@ -722,7 +1530,8 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                             ],
                           ),
                         ),
-                        if (!isUser &&
+                        if (_showTechnicalMeta &&
+                            !isUser &&
                             ((msg.providerId != null &&
                                     msg.providerId!.trim().isNotEmpty) ||
                                 (msg.executionPath != null &&

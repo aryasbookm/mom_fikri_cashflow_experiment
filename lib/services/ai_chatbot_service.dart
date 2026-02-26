@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../database/database_helper.dart';
 import '../models/chat_import_draft.dart';
 import 'ai_chatbot_memory_service.dart';
 import 'chat_intent_router.dart';
@@ -62,7 +63,7 @@ class AiChatbotService {
   static const String _groqApiKey = String.fromEnvironment('GROQ_API_KEY');
   static const String _geminiModel = String.fromEnvironment(
     'GEMINI_CHAT_MODEL',
-    defaultValue: 'gemma-3-12b',
+    defaultValue: 'gemma-3-12b-it',
   );
   static const String _groqModel = String.fromEnvironment(
     'GROQ_CHAT_MODEL',
@@ -72,6 +73,8 @@ class AiChatbotService {
   static const int _maxHistoryMessages = 8;
   static const int _maxProviderRetries = 2;
   static const double _aiIntentConfidenceThreshold = 0.65;
+  static const double _aiActionConfidenceThresholdSafe = 0.70;
+  static const double _aiActionConfidenceThresholdFlexible = 0.55;
   static const Duration _cacheTtl = Duration(minutes: 10);
   static const List<String> _clarificationOptions = <String>[
     'Cek stok',
@@ -88,6 +91,13 @@ class AiChatbotService {
   static const String _cacheKeyText = 'ai_chat_cache_text_v1';
   static const String _cacheKeyHash = 'ai_chat_cache_hash_v1';
   static const String _cacheKeyEpoch = 'ai_chat_cache_epoch_v1';
+  static const List<String> _fastLaneCommands = <String>[
+    'batal',
+    'cancel',
+    'keluar',
+    'menu',
+    'menu utama',
+  ];
   final AiChatbotMemoryService _memoryService = AiChatbotMemoryService();
   final ChatIntentRouter _intentRouter = ChatIntentRouter();
 
@@ -96,6 +106,7 @@ class AiChatbotService {
     required List<Map<String, dynamic>> financeSnapshot,
     List<AiChatMessage> history = const [],
     String? providerOrderOverride,
+    String intentRoutingMode = 'safe',
   }) async {
     final safeQuestion = question.trim();
     if (safeQuestion.length > 3500) {
@@ -122,7 +133,90 @@ class AiChatbotService {
       );
     }
 
+    final mode =
+        intentRoutingMode.trim().toLowerCase() == 'flexible'
+            ? 'flexible'
+            : 'safe';
+    final conversationState = _deriveConversationState(history);
+    final fastLaneReply = _resolveFastLaneReply(
+      question: safeQuestion,
+      state: conversationState,
+    );
+    if (fastLaneReply != null) {
+      return _finalizeConfidenceReply(fastLaneReply);
+    }
+
+    if (_canUseAiRouting(providerOrderOverride)) {
+      final actionDecision = await _classifyActionWithAi(
+        question: safeQuestion,
+        state: conversationState,
+        mode: mode,
+        providerOrderOverride: providerOrderOverride,
+      );
+      if (actionDecision != null) {
+        final minConfidence =
+            mode == 'flexible'
+                ? _aiActionConfidenceThresholdFlexible
+                : _aiActionConfidenceThresholdSafe;
+        final shouldClarify =
+            actionDecision.action == 'clarify' ||
+            actionDecision.action == 'unknown' ||
+            actionDecision.confidence < minConfidence;
+        if (shouldClarify) {
+          return _finalizeConfidenceReply(
+            _attachActionObservability(
+              _buildActionClarificationReply(actionDecision),
+              actionDecision,
+            ),
+          );
+        }
+
+        final actionReply = await _executeActionDecision(
+          decision: actionDecision,
+          question: safeQuestion,
+          financeSnapshot: financeSnapshot,
+          providerOrderOverride: providerOrderOverride,
+        );
+        if (actionReply != null) {
+          return _finalizeConfidenceReply(
+            _attachActionObservability(actionReply, actionDecision),
+          );
+        }
+      }
+    }
+
     final localIntent = _intentRouter.classify(safeQuestion);
+    ChatIntentDecision? aiIntentPrefetched;
+
+    if (mode == 'flexible') {
+      aiIntentPrefetched = await _classifyIntentWithAi(
+        question: safeQuestion,
+        providerOrderOverride: providerOrderOverride,
+      );
+      if (aiIntentPrefetched != null) {
+        final isLowConfidence =
+            aiIntentPrefetched.confidence < _aiIntentConfidenceThreshold;
+        final isAmbiguous =
+            aiIntentPrefetched.type == ChatIntentType.ambiguous ||
+            aiIntentPrefetched.type == ChatIntentType.unknown;
+
+        if (aiIntentPrefetched.type == ChatIntentType.outsideScope &&
+            !isLowConfidence) {
+          return _finalizeConfidenceReply(_buildOutsideScopeReply());
+        }
+        if (!isLowConfidence && !isAmbiguous) {
+          final aiFirstReply = await _routeIntentDecision(
+            decision: aiIntentPrefetched,
+            question: safeQuestion,
+            financeSnapshot: financeSnapshot,
+            providerOrderOverride: providerOrderOverride,
+          );
+          if (aiFirstReply != null) {
+            return _finalizeConfidenceReply(aiFirstReply);
+          }
+        }
+      }
+    }
     final localRoutedReply = await _routeIntentDecision(
       decision: localIntent,
       question: safeQuestion,
@@ -137,7 +231,7 @@ class AiChatbotService {
         localIntent.type == ChatIntentType.ambiguous ||
         localIntent.type == ChatIntentType.outsideScope) {
       final normalizedQuestion = localIntent.normalizedQuestion;
-      if (_looksHardIntentCandidate(normalizedQuestion)) {
+      if (mode != 'flexible' && _looksHardIntentCandidate(normalizedQuestion)) {
         return _finalizeConfidenceReply(
           _buildClarificationReply(
             ChatIntentDecision(
@@ -150,10 +244,12 @@ class AiChatbotService {
           ),
         );
       } else {
-        final aiIntent = await _classifyIntentWithAi(
-          question: safeQuestion,
-          providerOrderOverride: providerOrderOverride,
-        );
+        final aiIntent =
+            aiIntentPrefetched ??
+            await _classifyIntentWithAi(
+              question: safeQuestion,
+              providerOrderOverride: providerOrderOverride,
+            );
         if (aiIntent != null) {
           if (aiIntent.type == ChatIntentType.outsideScope) {
             return _finalizeConfidenceReply(_buildOutsideScopeReply());
@@ -361,6 +457,14 @@ class AiChatbotService {
     required List<Map<String, dynamic>> financeSnapshot,
     String? providerOrderOverride,
   }) async {
+    final soldProductsReply = await _resolveSoldProductsFallbackIfAny(
+      question: question,
+      providerOrderOverride: providerOrderOverride,
+    );
+    if (soldProductsReply != null) {
+      return soldProductsReply;
+    }
+
     final smartSearchReply = _resolveDeterministicSmartSearchReply(
       question: question,
       financeSnapshot: financeSnapshot,
@@ -455,6 +559,700 @@ class AiChatbotService {
     );
   }
 
+  bool _canUseAiRouting(String? providerOrderOverride) {
+    final order =
+        (providerOrderOverride ?? '').trim().isNotEmpty
+            ? providerOrderOverride!.trim()
+            : String.fromEnvironment(
+              'AI_CHAT_PROVIDER_ORDER',
+              defaultValue: 'groq,gemini',
+            );
+    return order
+        .split(',')
+        .map((item) => item.trim().toLowerCase())
+        .where((item) => item.isNotEmpty)
+        .any(_isProviderConfigured);
+  }
+
+  String _deriveConversationState(List<AiChatMessage> history) {
+    for (var i = history.length - 1; i >= 0; i--) {
+      final item = history[i];
+      if (item.role != 'assistant') {
+        continue;
+      }
+      final provider = (item.providerId ?? '').trim().toLowerCase();
+      final text = item.text.toLowerCase();
+      if (provider == 'local-context' &&
+          (text.contains('lanjutkan ke layar review') ||
+              text.contains('lanjut ke review'))) {
+        return 'review';
+      }
+      if (text.contains('draf transaksi siap ditinjau') ||
+          text.contains('lanjut ke layar review')) {
+        return 'drafting';
+      }
+    }
+    return 'idle';
+  }
+
+  AiChatReply? _resolveFastLaneReply({
+    required String question,
+    required String state,
+  }) {
+    final normalized = _intentRouter.normalize(question);
+    if (normalized.isEmpty) {
+      return null;
+    }
+    if (_fastLaneCommands.any((command) => normalized == command)) {
+      if (state == 'drafting' || state == 'review') {
+        return const AiChatReply(
+          text:
+              'Siap, proses draf saat ini dibatalkan. Jika ingin lanjut lagi, kirim ulang perintah transaksi.',
+          providerId: 'local-fastlane',
+          fromCache: false,
+          suggestedCooldownSeconds: 1,
+          confidenceLevel: 'high',
+          confidenceReason: 'Perintah cepat diproses lokal tanpa AI.',
+          executionPath: 'local',
+          executionReason: 'Fast-lane command.',
+        );
+      }
+      return const AiChatReply(
+        text: 'Siap. Ketik pertanyaan lain saat Anda siap.',
+        providerId: 'local-fastlane',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+        confidenceLevel: 'high',
+        confidenceReason: 'Perintah cepat diproses lokal tanpa AI.',
+        executionPath: 'local',
+        executionReason: 'Fast-lane command.',
+      );
+    }
+    return null;
+  }
+
+  Future<_ActionDecision?> _classifyActionWithAi({
+    required String question,
+    required String state,
+    required String mode,
+    String? providerOrderOverride,
+  }) async {
+    final normalized = _intentRouter.normalize(question);
+    if (normalized.isEmpty) {
+      return null;
+    }
+    final prompt = _buildActionClassifierPrompt(
+      question: normalized,
+      state: state,
+      mode: mode,
+    );
+    try {
+      final response = await _requestWithFallback(
+        prompt,
+        providerOrderOverride: providerOrderOverride,
+      );
+      return _tryParseActionDecision(
+        rawText: response.text,
+        normalizedQuestion: normalized,
+      );
+    } on AiRateLimitException {
+      return null;
+    } on AiProviderTemporaryException {
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _buildActionClassifierPrompt({
+    required String question,
+    required String state,
+    required String mode,
+  }) {
+    final modeInstruction =
+        mode == 'flexible'
+            ? 'Mode fleksibel: boleh infer intent yang ambigu, tetapi tetap domain toko/keuangan.'
+            : 'Mode standar: jika ambigu, utamakan clarify.';
+    return '''
+Anda adalah semantic router untuk asisten keuangan toko.
+Tugas Anda hanya menentukan action terstruktur. Jangan jawab pertanyaan user.
+
+$modeInstruction
+State percakapan saat ini: $state.
+
+Action yang valid:
+- capability_help
+- small_talk
+- query_income_date
+- query_expense_date
+- query_net_date
+- query_stock
+- query_sold_products
+- import_draft
+- draft_edit_amount
+- draft_edit_description
+- draft_edit_type
+- draft_edit_date
+- draft_delete_item
+- delete_transaction
+- create_category
+- confirm_draft
+- cancel_draft
+- analysis
+- outside_scope
+- clarify
+- unknown
+
+WAJIB output JSON valid saja tanpa markdown:
+{
+  "action":"...",
+  "confidence":0-100,
+  "reason":"...",
+  "params":{},
+  "suggestions":["...","..."]
+}
+
+Aturan inti:
+- Topik tetap domain toko/keuangan. Jika di luar domain => outside_scope.
+- "pendapatan/penghasilan/pemasukan" => query_income_date.
+- "pengeluaran/biaya/belanja" => query_expense_date.
+- "produk terjual/laku hari ini" => query_sold_products.
+- "stok/sisa stok/produk aktif/produk arsip" => query_stock.
+- "tambah/catat transaksi ... nominal ..." => import_draft.
+- Jika state=drafting/review dan user menulis "ubah/ganti/hapus/jadi", prioritaskan draft_edit_*.
+- Jika user menulis "sudah benar/lanjut/ok/iya", gunakan confirm_draft saat state drafting/review.
+- Jika user menulis "batal/cancel" saat state drafting/review, gunakan cancel_draft.
+- Jika user meminta hapus transaksi yang sudah tersimpan, gunakan delete_transaction.
+- Jika user meminta menambah kategori baru, gunakan create_category.
+- Jika ambigu, action=clarify dengan suggestions kontekstual (2-3 item).
+- confidence wajib angka 0..100.
+
+Teks user:
+$question
+''';
+  }
+
+  _ActionDecision? _tryParseActionDecision({
+    required String rawText,
+    required String normalizedQuestion,
+  }) {
+    final decoded = _decodeJsonObjectLoose(rawText);
+    if (decoded == null) {
+      return null;
+    }
+    final action = _parseActionName((decoded['action'] ?? '').toString());
+    if (action == null) {
+      return null;
+    }
+    final rawConfidence = decoded['confidence'];
+    double confidence = 0.0;
+    if (rawConfidence is num) {
+      confidence = rawConfidence.toDouble();
+    } else {
+      confidence = double.tryParse(rawConfidence?.toString() ?? '') ?? 0.0;
+    }
+    if (confidence > 1.0) {
+      confidence = confidence / 100.0;
+    }
+    confidence = confidence.clamp(0.0, 1.0);
+    final reason = (decoded['reason'] ?? 'ai_action_router').toString().trim();
+    final paramsRaw = decoded['params'];
+    final params =
+        paramsRaw is Map<String, dynamic>
+            ? paramsRaw
+            : paramsRaw is Map
+            ? Map<String, dynamic>.from(paramsRaw)
+            : <String, dynamic>{};
+    final suggestions = _extractActionSuggestions(decoded);
+    return _ActionDecision(
+      action: action,
+      confidence: confidence,
+      reason: reason.isEmpty ? 'ai_action_router' : reason,
+      normalizedQuestion: normalizedQuestion,
+      params: params,
+      suggestions: suggestions,
+      rawJsonValid: true,
+    );
+  }
+
+  List<String> _extractActionSuggestions(Map<String, dynamic> decoded) {
+    final raw = decoded['suggestions'];
+    if (raw is! List) {
+      return const <String>[];
+    }
+    final values = <String>[];
+    for (final item in raw) {
+      final text = item.toString().trim();
+      if (text.isEmpty || values.contains(text)) {
+        continue;
+      }
+      values.add(text);
+      if (values.length >= 3) {
+        break;
+      }
+    }
+    return values;
+  }
+
+  String? _parseActionName(String raw) {
+    final value = raw.trim().toLowerCase();
+    switch (value) {
+      case 'capability_help':
+      case 'small_talk':
+      case 'query_income_date':
+      case 'query_expense_date':
+      case 'query_net_date':
+      case 'query_stock':
+      case 'query_sold_products':
+      case 'import_draft':
+      case 'draft_edit_amount':
+      case 'draft_edit_description':
+      case 'draft_edit_type':
+      case 'draft_edit_date':
+      case 'draft_delete_item':
+      case 'delete_transaction':
+      case 'create_category':
+      case 'confirm_draft':
+      case 'cancel_draft':
+      case 'analysis':
+      case 'outside_scope':
+      case 'clarify':
+      case 'unknown':
+        return value;
+      default:
+        return null;
+    }
+  }
+
+  Map<String, dynamic>? _decodeJsonObjectLoose(String rawText) {
+    var normalized = rawText.trim();
+    if (normalized.isEmpty) {
+      return null;
+    }
+    normalized = normalized
+        .replaceAll(RegExp(r'^```json\s*', caseSensitive: false), '')
+        .replaceAll(RegExp(r'^```', caseSensitive: false), '')
+        .replaceAll(RegExp(r'```$', caseSensitive: false), '')
+        .trim();
+
+    try {
+      final direct = jsonDecode(normalized);
+      if (direct is Map<String, dynamic>) {
+        return direct;
+      }
+      if (direct is Map) {
+        return Map<String, dynamic>.from(direct);
+      }
+    } catch (_) {
+      // continue with loose extraction
+    }
+
+    final start = normalized.indexOf('{');
+    if (start < 0) {
+      return null;
+    }
+    var depth = 0;
+    for (var i = start; i < normalized.length; i++) {
+      final char = normalized[i];
+      if (char == '{') {
+        depth += 1;
+      } else if (char == '}') {
+        depth -= 1;
+        if (depth == 0) {
+          final candidate = normalized.substring(start, i + 1);
+          try {
+            final decoded = jsonDecode(candidate);
+            if (decoded is Map<String, dynamic>) {
+              return decoded;
+            }
+            if (decoded is Map) {
+              return Map<String, dynamic>.from(decoded);
+            }
+          } catch (_) {
+            return null;
+          }
+          return null;
+        }
+      }
+    }
+    return null;
+  }
+
+  AiChatReply _buildActionClarificationReply(_ActionDecision decision) {
+    final suggestions =
+        decision.suggestions.isNotEmpty
+            ? decision.suggestions
+            : _hardIntentClarificationOptions;
+    final lines = <String>[
+      'Maksud Anda yang mana?',
+      ...suggestions.take(3).map((value) => '- $value'),
+      'Balas salah satu opsi di atas agar saya proses dengan tepat.',
+    ];
+    return AiChatReply(
+      text: lines.join('\n'),
+      providerId: 'local-clarification',
+      fromCache: false,
+      suggestedCooldownSeconds: 1,
+      confidenceLevel: 'medium',
+      confidenceReason: 'Intent dari AI router belum cukup pasti.',
+      executionPath: 'local_ai',
+      executionReason: 'AI classifier mengembalikan action clarify.',
+    );
+  }
+
+  AiChatReply _attachActionObservability(
+    AiChatReply reply,
+    _ActionDecision decision,
+  ) {
+    final trace =
+        'action=${decision.action}; confidence=${(decision.confidence * 100).toStringAsFixed(0)}; reason=${decision.reason}; raw_json_valid=${decision.rawJsonValid}';
+    final mergedReason =
+        (reply.executionReason ?? '').trim().isEmpty
+            ? trace
+            : '${reply.executionReason} | $trace';
+    return AiChatReply(
+      text: reply.text,
+      providerId: reply.providerId,
+      fromCache: reply.fromCache,
+      suggestedCooldownSeconds: reply.suggestedCooldownSeconds,
+      actionDraft: reply.actionDraft,
+      confidenceLevel: reply.confidenceLevel,
+      confidenceReason: reply.confidenceReason,
+      executionPath:
+          (reply.executionPath ?? '').trim().isEmpty
+              ? 'local_ai'
+              : reply.executionPath,
+      executionReason: mergedReason,
+    );
+  }
+
+  Future<AiChatReply?> _executeActionDecision({
+    required _ActionDecision decision,
+    required String question,
+    required List<Map<String, dynamic>> financeSnapshot,
+    String? providerOrderOverride,
+  }) async {
+    final request = _ActionRequest(
+      decision: decision,
+      question: question,
+      financeSnapshot: financeSnapshot,
+      providerOrderOverride: providerOrderOverride,
+    );
+    final registry = <String, _ActionHandler>{
+      'capability_help':
+          (req) async =>
+              _resolveInstantLocalReply(req.decision.normalizedQuestion,
+                  forceCapability: true),
+      'small_talk':
+          (req) async => _resolveInstantLocalReply(req.decision.normalizedQuestion),
+      'query_stock':
+          (req) async => _resolveDeterministicStockRankingReply(
+            question: req.question,
+            financeSnapshot: req.financeSnapshot,
+          ),
+      'query_income_date':
+          (req) async => _resolveDeterministicDateQueryReply(
+            question: _ensureMetricKeyword(req.question, metric: _DateMetric.income),
+            financeSnapshot: req.financeSnapshot,
+            providerOrderOverride: req.providerOrderOverride,
+          ),
+      'query_expense_date':
+          (req) async => _resolveDeterministicDateQueryReply(
+            question:
+                _ensureMetricKeyword(req.question, metric: _DateMetric.expense),
+            financeSnapshot: req.financeSnapshot,
+            providerOrderOverride: req.providerOrderOverride,
+          ),
+      'query_net_date':
+          (req) async => _resolveDeterministicDateQueryReply(
+            question: _ensureMetricKeyword(req.question, metric: _DateMetric.net),
+            financeSnapshot: req.financeSnapshot,
+            providerOrderOverride: req.providerOrderOverride,
+          ),
+      'query_sold_products':
+          (req) async => _resolveDeterministicSoldProductsReply(
+            question: req.question,
+            params: req.decision.params,
+            providerOrderOverride: req.providerOrderOverride,
+          ),
+      'import_draft':
+          (req) async {
+            final action = await _tryBuildImportDraftFromQuestion(
+              question: req.question,
+              financeSnapshot: req.financeSnapshot,
+              providerOrderOverride: req.providerOrderOverride,
+            );
+            if (action == null) {
+              return const AiChatReply(
+                text:
+                    'Saya belum bisa membentuk draf transaksi dari kalimat itu. Coba formatkan singkat per item, contoh: "Donat 20k, Roti 15k".',
+                providerId: 'chat-action-intent',
+                fromCache: false,
+                suggestedCooldownSeconds: 1,
+                confidenceLevel: 'low',
+                confidenceReason: 'Draft import gagal dibentuk dari input.',
+                executionPath: 'local_ai',
+                executionReason: 'Action import_draft gagal parse.',
+              );
+            }
+            return AiChatReply(
+              text:
+                  'Draf transaksi berhasil disiapkan. Silakan review dulu sebelum disimpan.',
+              providerId: action.providerId,
+              fromCache: false,
+              suggestedCooldownSeconds: 1,
+              actionDraft: action.draft,
+              confidenceLevel: _confidenceForDraft(action.draft),
+              confidenceReason: _confidenceReasonForDraft(action.draft),
+              executionPath: 'local_ai',
+              executionReason: 'Action import_draft dieksekusi.',
+            );
+          },
+      'confirm_draft':
+          (_) async => const AiChatReply(
+            text:
+                'Jika draf transaksi sudah benar, tekan tombol "Lanjut ke Review" pada kartu draf terakhir.',
+            providerId: 'local-context',
+            fromCache: false,
+            suggestedCooldownSeconds: 1,
+            confidenceLevel: 'high',
+            confidenceReason: 'Konfirmasi draf dipandu oleh konteks lokal.',
+            executionPath: 'local',
+            executionReason: 'Panduan konfirmasi draf.',
+          ),
+      'cancel_draft':
+          (_) async => const AiChatReply(
+            text:
+                'Baik, proses draf dibatalkan. Kirim ulang daftar transaksi jika ingin mulai lagi.',
+            providerId: 'local-context',
+            fromCache: false,
+            suggestedCooldownSeconds: 1,
+            confidenceLevel: 'high',
+            confidenceReason: 'Pembatalan draf diproses lokal.',
+            executionPath: 'local',
+            executionReason: 'Pembatalan konteks draf.',
+          ),
+      'outside_scope': (_) async => _buildOutsideScopeReply(),
+      'analysis':
+          (_) async => null, // biarkan pipeline LLM lama menangani analisis.
+      'draft_edit_amount':
+          (_) async => const AiChatReply(
+            text:
+                'Perintah edit draf terdeteksi. Gunakan format: "ubah 10k jadi 15k", atau "ganti donat jadi 15k" saat draf masih aktif.',
+            providerId: 'local-context',
+            fromCache: false,
+            suggestedCooldownSeconds: 1,
+            confidenceLevel: 'medium',
+            confidenceReason: 'Edit draf diproses dari konteks layar chat.',
+            executionPath: 'local',
+            executionReason: 'Panduan edit draf.',
+          ),
+      'draft_edit_description':
+          (_) async => const AiChatReply(
+            text:
+                'Gunakan format edit nama: "ubah nama donat jadi donat coklat" saat draf masih aktif.',
+            providerId: 'local-context',
+            fromCache: false,
+            suggestedCooldownSeconds: 1,
+            confidenceLevel: 'medium',
+            confidenceReason: 'Edit nama draf diproses di layar chat.',
+            executionPath: 'local',
+            executionReason: 'Panduan edit nama draf.',
+          ),
+      'draft_edit_type':
+          (_) async => const AiChatReply(
+            text: 'Gunakan format: "ubah donat jadi keluar/masuk".',
+            providerId: 'local-context',
+            fromCache: false,
+            suggestedCooldownSeconds: 1,
+            confidenceLevel: 'medium',
+            confidenceReason: 'Edit tipe draf diproses di layar chat.',
+            executionPath: 'local',
+            executionReason: 'Panduan edit tipe draf.',
+          ),
+      'draft_edit_date':
+          (_) async => const AiChatReply(
+            text:
+                'Gunakan format: "ubah tanggal donat jadi 2026-02-26" atau "ubah tanggal item 1 jadi hari ini".',
+            providerId: 'local-context',
+            fromCache: false,
+            suggestedCooldownSeconds: 1,
+            confidenceLevel: 'medium',
+            confidenceReason: 'Edit tanggal draf diproses di layar chat.',
+            executionPath: 'local',
+            executionReason: 'Panduan edit tanggal draf.',
+          ),
+      'draft_delete_item':
+          (_) async => const AiChatReply(
+            text: 'Gunakan format: "hapus item 1" atau "hapus donat".',
+            providerId: 'local-context',
+            fromCache: false,
+            suggestedCooldownSeconds: 1,
+            confidenceLevel: 'medium',
+            confidenceReason: 'Hapus item draf diproses di layar chat.',
+            executionPath: 'local',
+            executionReason: 'Panduan hapus item draf.',
+          ),
+      'delete_transaction':
+          (_) async => const AiChatReply(
+            text:
+                'Permintaan hapus transaksi perlu konfirmasi eksplisit dari layar Riwayat agar aman. Buka Riwayat lalu pilih transaksi yang ingin dihapus.',
+            providerId: 'local-guard',
+            fromCache: false,
+            suggestedCooldownSeconds: 1,
+            confidenceLevel: 'high',
+            confidenceReason: 'Aksi sensitif dibatasi ke UI dengan konfirmasi.',
+            executionPath: 'local',
+            executionReason: 'Guardrail aksi sensitif.',
+          ),
+      'create_category':
+          (_) async => const AiChatReply(
+            text:
+                'Untuk menambah kategori baru, buka menu kategori agar tipe IN/OUT dan duplikasi bisa divalidasi dengan aman.',
+            providerId: 'local-guard',
+            fromCache: false,
+            suggestedCooldownSeconds: 1,
+            confidenceLevel: 'high',
+            confidenceReason: 'Pembuatan kategori butuh validasi deterministic.',
+            executionPath: 'local',
+            executionReason: 'Guardrail perubahan master data.',
+          ),
+    };
+    final handler = registry[decision.action];
+    if (handler == null) {
+      return null;
+    }
+    return handler(request);
+  }
+
+  String _ensureMetricKeyword(String question, {required _DateMetric metric}) {
+    final q = question.toLowerCase();
+    switch (metric) {
+      case _DateMetric.income:
+        if (q.contains('penghasilan') ||
+            q.contains('pendapatan') ||
+            q.contains('pemasukan')) {
+          return question;
+        }
+        return 'penghasilan $question';
+      case _DateMetric.expense:
+        if (q.contains('pengeluaran') ||
+            q.contains('biaya') ||
+            q.contains('belanja')) {
+          return question;
+        }
+        return 'pengeluaran $question';
+      case _DateMetric.net:
+        if (q.contains('laba') || q.contains('selisih') || q.contains('untung')) {
+          return question;
+        }
+        return 'laba $question';
+    }
+  }
+
+  Future<AiChatReply> _resolveDeterministicSoldProductsReply({
+    required String question,
+    required Map<String, dynamic> params,
+    String? providerOrderOverride,
+  }) async {
+    final now = DateTime.now();
+    final localRange = _tryResolveDateQueryLocal(question.toLowerCase(), now);
+    final aiRange =
+        localRange ??
+        await _tryResolveDateQueryWithAi(
+          question: question,
+          now: now,
+          providerOrderOverride: providerOrderOverride,
+        );
+    final range =
+        aiRange?.primary ??
+        _DateRangeWindow(
+          start: _startOfDay(now),
+          end: _startOfDay(now),
+          label: 'Hari ini (${_formatDateId(now)})',
+        );
+
+    final limitRaw = params['limit'];
+    final limit =
+        limitRaw is num
+            ? limitRaw.toInt().clamp(1, 20)
+            : int.tryParse(limitRaw?.toString() ?? '')?.clamp(1, 20) ?? 10;
+    List<Map<String, dynamic>> rows;
+    try {
+      rows = await _querySoldProducts(range: range, limit: limit);
+    } catch (_) {
+      return const AiChatReply(
+        text:
+            'Data produk terjual belum bisa dibaca saat ini. Coba lagi setelah sinkronisasi data transaksi.',
+        providerId: 'local-deterministic',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+        confidenceLevel: 'low',
+        confidenceReason: 'Query transaction_items gagal dieksekusi.',
+        executionPath: 'local',
+        executionReason: 'Akses SQLite gagal untuk query produk terjual.',
+      );
+    }
+    if (rows.isEmpty) {
+      return AiChatReply(
+        text:
+            'Belum ada data produk terjual untuk ${range.label.toLowerCase()}.',
+        providerId: 'local-deterministic',
+        fromCache: false,
+        suggestedCooldownSeconds: 1,
+        confidenceLevel: 'medium',
+        confidenceReason: 'Tidak ada transaksi IN item pada rentang diminta.',
+        executionPath: 'local',
+        executionReason: 'Query produk terjual dieksekusi dari SQLite lokal.',
+      );
+    }
+
+    final lines = rows
+        .map((row) {
+          final name = (row['name'] ?? '-').toString();
+          final qty = _toInt(row['qty']);
+          final total = NumberFormat('#,##0', 'id_ID').format(_toInt(row['total']));
+          return '- $name: ${NumberFormat('#,##0', 'id_ID').format(qty)} pcs (Rp $total)';
+        })
+        .toList(growable: false);
+    return AiChatReply(
+      text: 'Produk terjual ${range.label.toLowerCase()}:\n${lines.join('\n')}',
+      providerId: 'local-deterministic',
+      fromCache: false,
+      suggestedCooldownSeconds: 1,
+      confidenceLevel: 'high',
+      confidenceReason: 'Daftar produk terjual dihitung langsung dari SQLite.',
+      executionPath: 'local',
+      executionReason: 'Query transaksi item IN pada rentang tanggal.',
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _querySoldProducts({
+    required _DateRangeWindow range,
+    required int limit,
+  }) async {
+    final db = await DatabaseHelper.instance.database;
+    final startIso = DateFormat('yyyy-MM-dd').format(range.start);
+    final endIso = DateFormat('yyyy-MM-dd').format(range.end);
+    final rows = await db.rawQuery(
+      '''
+      SELECT
+        i.product_name AS name,
+        SUM(i.quantity) AS qty,
+        SUM(i.total) AS total
+      FROM transaction_items i
+      JOIN transactions t ON t.id = i.transaction_id
+      WHERE t.type = 'IN'
+        AND DATE(t.date) BETWEEN DATE(?) AND DATE(?)
+      GROUP BY i.product_name
+      ORDER BY qty DESC, total DESC, name ASC
+      LIMIT ?
+      ''',
+      [startIso, endIso, limit],
+    );
+    return rows;
+  }
+
   Future<ChatIntentDecision?> _classifyIntentWithAi({
     required String question,
     String? providerOrderOverride,
@@ -526,36 +1324,7 @@ $question
     required String rawText,
     required String normalizedQuestion,
   }) {
-    final trimmed = rawText.trim();
-    if (trimmed.isEmpty) {
-      return null;
-    }
-
-    Map<String, dynamic>? decoded;
-    try {
-      final direct = jsonDecode(trimmed);
-      if (direct is Map<String, dynamic>) {
-        decoded = direct;
-      } else if (direct is Map) {
-        decoded = Map<String, dynamic>.from(direct);
-      }
-    } catch (_) {
-      final start = trimmed.indexOf('{');
-      final end = trimmed.lastIndexOf('}');
-      if (start >= 0 && end > start) {
-        final candidate = trimmed.substring(start, end + 1);
-        try {
-          final loose = jsonDecode(candidate);
-          if (loose is Map<String, dynamic>) {
-            decoded = loose;
-          } else if (loose is Map) {
-            decoded = Map<String, dynamic>.from(loose);
-          }
-        } catch (_) {
-          return null;
-        }
-      }
-    }
+    final decoded = _decodeJsonObjectLoose(rawText);
     if (decoded == null) {
       return null;
     }
@@ -648,7 +1417,11 @@ $question
       return 'Cek stok';
     }
     if (q.contains('pemasukan') ||
+        q.contains('pendapatan') ||
+        q.contains('omset') ||
+        q.contains('omzet') ||
         q.contains('pengeluaran') ||
+        q.contains('biaya') ||
         q.contains('keuangan') ||
         q.contains('laporan harian')) {
       return 'Cek pemasukan/pengeluaran';
@@ -920,7 +1693,10 @@ $question
     }
 
     final minAmount = _extractMinimumAmount(q);
-    final asksIncome = q.contains('pemasukan') || q.contains('penghasilan');
+    final asksIncome =
+        q.contains('pemasukan') ||
+        q.contains('penghasilan') ||
+        q.contains('pendapatan');
     final asksExpense = q.contains('pengeluaran') || q.contains('biaya');
     final asksCategory = q.contains('kategori');
     final asksProduct = q.contains('produk') || q.contains('stok');
@@ -1082,6 +1858,25 @@ $question
     }
 
     return null;
+  }
+
+  Future<AiChatReply?> _resolveSoldProductsFallbackIfAny({
+    required String question,
+    String? providerOrderOverride,
+  }) async {
+    final q = question.toLowerCase();
+    final asksSoldProducts =
+        (q.contains('produk') &&
+            (q.contains('terjual') || q.contains('dijual') || q.contains('laku'))) ||
+        q.contains('yang laku');
+    if (!asksSoldProducts) {
+      return null;
+    }
+    return _resolveDeterministicSoldProductsReply(
+      question: question,
+      params: const <String, dynamic>{},
+      providerOrderOverride: providerOrderOverride,
+    );
   }
 
   int? _extractMinimumAmount(String q) {
@@ -1941,6 +2736,7 @@ $question
       'analisis',
       'banding',
       'penghasilan',
+      'pendapatan',
       'pemasukan',
       'pengeluaran',
       'laba',
@@ -3444,6 +4240,42 @@ class _ActionIntentResult {
 
   final ChatImportDraft draft;
   final String providerId;
+}
+
+typedef _ActionHandler = Future<AiChatReply?> Function(_ActionRequest request);
+
+class _ActionRequest {
+  const _ActionRequest({
+    required this.decision,
+    required this.question,
+    required this.financeSnapshot,
+    required this.providerOrderOverride,
+  });
+
+  final _ActionDecision decision;
+  final String question;
+  final List<Map<String, dynamic>> financeSnapshot;
+  final String? providerOrderOverride;
+}
+
+class _ActionDecision {
+  const _ActionDecision({
+    required this.action,
+    required this.confidence,
+    required this.reason,
+    required this.normalizedQuestion,
+    required this.params,
+    required this.suggestions,
+    required this.rawJsonValid,
+  });
+
+  final String action;
+  final double confidence;
+  final String reason;
+  final String normalizedQuestion;
+  final Map<String, dynamic> params;
+  final List<String> suggestions;
+  final bool rawJsonValid;
 }
 
 class _DateRangeWindow {

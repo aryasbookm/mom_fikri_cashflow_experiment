@@ -81,6 +81,12 @@ Setiap fitur non-trivial dinyatakan siap merge jika lolos:
 - Bisa melihat beranda & stok, **tidak** bisa melihat laporan keuangan.
 - Bisa menghapus transaksi miliknya dengan alasan (Audit Trail).
 
+**Biometric Quick Login (Owner/Staff):**
+- Quick login sidik jari dipakai untuk autentikasi ulang user terakhir di layar login.
+- Aktivasi quick login terjadi setelah login manual sukses (sesi lokal tersimpan).
+- Jika sesi lokal sudah tidak valid (mis. data user berubah setelah restore), sistem wajib fallback ke login manual.
+- User dapat menonaktifkan quick login sidik jari langsung dari layar login.
+
 ## 4. Struktur Database (Tabel)
 1. **users:** id, username, pin (hash), role, profile_image_path.
 2. **categories:** id, name, type (IN/OUT), is_active. Mendukung tambahan kategori via opsi “Lainnya” dan layar **Kelola Kategori** (owner), serta soft-archive kategori.
@@ -139,8 +145,12 @@ Setiap fitur non-trivial dinyatakan siap merge jika lolos:
   - UI menampilkan indikator dot keyakinan dengan panel penjelasan saat ditekan,
   - mendukung preferensi prioritas provider (`Otomatis`, `Groq dulu`, `Gemini dulu`) dengan fallback otomatis antar-provider saat limit/error,
   - intent capability/help diprioritaskan ke template lokal untuk konsistensi jawaban non-analitik,
-  - intent routing memakai alur berjenjang (`local intent -> AI intent classifier fallback -> clarification/outside-scope`) sebelum masuk LLM analitik,
-  - normalisasi intent ringan (typo/singkatan/slang) wajib aktif untuk menekan false-positive out-of-scope.
+  - intent routing memakai alur berjenjang (`fast-lane lokal -> AI action classifier JSON -> deterministic executor -> clarification`) sebelum masuk LLM analitik,
+  - classifier action menyimpan observability (`action_intent`, `action_confidence`, `action_reason`, `action_raw_json_valid`) untuk tuning,
+  - parser classifier memakai sanitizer/extractor JSON agar output campuran markdown tidak merusak alur,
+  - normalisasi intent ringan (typo/singkatan/slang) tetap aktif untuk menekan false-positive out-of-scope,
+  - state percakapan (`idle`, `drafting`, `review`) digunakan untuk menjaga konteks aksi lanjutan,
+  - edit draf via chat mendukung ubah nominal, nama/deskripsi, tipe `MASUK/KELUAR`, tanggal, dan hapus item.
 
 ## 6. Alur Utama
 - Buka aplikasi:

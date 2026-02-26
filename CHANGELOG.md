@@ -10,6 +10,11 @@ All notable changes to this project will be documented in this file.
 *Fokus: Pencarian Global, Reminder Backup, Insight Produk Lambat*
 
 ### Added
+- Login sidik jari (biometric quick login):
+  - tombol `Masuk dengan Sidik Jari` ditambahkan di layar login jika perangkat mendukung biometric dan sesi login terakhir tersedia.
+  - sesi login cepat disimpan lokal setelah login manual sukses (berbasis user terakhir), sehingga login berikutnya bisa lewat biometric.
+  - tersedia aksi `Nonaktifkan Sidik Jari` di layar login.
+  - fallback aman tetap tersedia: jika sesi tidak valid/hilang, user diarahkan login manual.
 - Chatbot explainability indicator:
   - metadata mode eksekusi jawaban ditambahkan (`local`, `local_ai`, `llm`) dan disimpan di riwayat chat.
   - bubble asisten kini menampilkan indikator mode eksekusi terpisah dari confidence; tekan indikator untuk melihat penjelasan sumber proses jawaban.
@@ -22,6 +27,12 @@ All notable changes to this project will be documented in this file.
   - hard-intent ambigu (stok/tanggal/import) kini dikunci ke klarifikasi lokal kontekstual tanpa melewati AI classifier.
   - AI classifier dipersempit untuk soft-intent (capability/small-talk/analysis/outside-scope) dengan threshold confidence sebelum eksekusi.
   - prompt classifier diperkuat dengan few-shot + dukungan `suggestions` agar opsi klarifikasi lebih relevan (tidak selalu 4 opsi generik).
+- Action Engine foundation (chat, phase-1):
+  - pipeline chatbot kini memakai urutan `fast-lane lokal -> AI JSON action classifier -> deterministic action executor -> clarification fallback`.
+  - classifier AI menambahkan observability metadata (`action_intent`, `action_confidence`, `action_reason`, `action_raw_json_valid`) ke jawaban untuk debugging akurasi intent.
+  - state percakapan lokal (`idle`, `drafting`, `review`) ditambahkan agar perintah lanjutan kontekstual lebih stabil.
+  - deterministik query baru untuk "produk yang terjual/laku" berbasis SQLite (`transactions` + `transaction_items`) agar tidak jatuh ke klarifikasi generik.
+  - edit draf transaksi via chat diperluas: nominal, deskripsi/nama item, tipe `MASUK/KELUAR`, tanggal, dan hapus item draf.
 - OCR fallback transparency log:
   - panel status OCR kini menampilkan log langkah per model/provider dengan format eksplisit: `model`, `status`, `reason`, dan `latency`.
   - status kegagalan umum dipetakan ke alasan yang mudah dibaca (`429 quota`, `404 model`, `auth`, `network`, dll) agar debugging fallback lebih cepat.
@@ -164,6 +175,45 @@ All notable changes to this project will be documented in this file.
   - PDF menampilkan ringkasan produk untuk transaksi pemasukan (hybrid) dan tetap menyertakan detail item agar lebih mudah dibaca owner.
 
 ### Changed
+- Integrasi platform untuk biometric login:
+  - Android `MainActivity` dipindah ke `FlutterFragmentActivity` agar kompatibel plugin biometric.
+  - Android manifest menambahkan izin `USE_BIOMETRIC`.
+  - iOS `Info.plist` menambahkan `NSFaceIDUsageDescription`.
+- Profil eksperimen OCR diperjelas:
+  - ditambahkan profile `ocr_experiment_high_end_only` (hanya `gemini-3.1-pro-preview`, `gemini-3-flash-preview`, `gemini-2.5-flash`).
+  - mode eksperimen tidak memakai `gemini-2.5-flash-lite` dan tidak memakai fallback `groq`.
+- OCR hard-lock stabilitas model high-end:
+  - request Gemini OCR kini mengaktifkan `responseSchema` + decoding lock (`temperature=0.0`, `topP=1`, `candidateCount=1`) untuk menekan output non-JSON.
+  - parser JSON ditingkatkan dengan repair pass ringan (smart quote + trailing comma) sebelum gagal.
+  - router OCR menambahkan timeout per model dan circuit-breaker sementara untuk model yang berulang kali gagal `JSON invalid`.
+  - log fallback OCR kini menampilkan status `Skipped` saat model sementara dilewati oleh circuit-breaker.
+- Visibilitas log teknis:
+  - panel `Log Fallback OCR` kini bisa di-minimize/expand lewat tombol `Tampilkan/Sembunyikan`.
+  - metadata teknis chatbot (`via`, execution badge, confidence badge) kini default disembunyikan dan dapat ditoggle dari AppBar.
+- Dokumentasi workflow:
+  - ditambahkan section `Mode Hemat Token` di `WORKFLOW.md` berisi cara aktif/nonaktif dan aturan operasional saat kuota rendah.
+- OCR review UX:
+  - ditambahkan mode tampilan `Ringkas` / `Detail` pada panel review hasil scan.
+  - mode `Ringkas` menampilkan kartu transaksi pendek (tipe, nominal, tanggal, ringkas keterangan) agar proses uncheck/edit cepat untuk batch besar.
+  - tiap item di mode `Ringkas` bisa di-expand per kartu untuk edit penuh tanpa pindah ke mode `Detail`.
+  - mass-action diringkas menjadi 3 kontrol dinamis (`Pilih/Batal`, `Lebarkan/Ringkas`, `Set Semua IN/OUT`) + konfirmasi sebelum ubah tipe transaksi massal.
+- AI defaults sync (Gemini):
+  - default `GEMINI_OCR_MODEL_CHAIN` di router disetel ke urutan **accuracy-first**:
+    `gemini-3.1-pro-preview -> gemini-3-flash-preview -> gemini-2.5-flash`.
+  - mode cepat dipisahkan agar stabil (`gemini-2.5-flash-lite` dengan fallback provider `groq`), tanpa mengubah jalur mode akurat.
+  - default model text-only Gemini untuk chat/insight diseragamkan ke `gemma-3-12b-it` (menghindari fallback ke `gemma-3-12b` yang rawan `404`).
+- OCR two-pass & observability refinement:
+  - non-lite model diproses via two-pass (`vision_pass` -> `text_structuring_pass`) untuk meningkatkan ketahanan format JSON.
+  - model lite dikembalikan ke jalur single-pass legacy agar perilaku mode cepat tetap stabil.
+  - log fallback OCR kini menampilkan stage internal provider secara eksplisit untuk memudahkan diagnosis bottleneck.
+- OCR review consistency & localization:
+  - label tipe transaksi di review OCR diubah konsisten ke bahasa Indonesia (`MASUK/KELUAR`).
+  - warning post-processing OCR dilokalkan ke bahasa Indonesia agar tidak campur EN/ID.
+  - parser nominal mendukung shorthand umum (`k`, `rb`, `ribu`, `jt`, `juta`) di jalur OCR/review input.
+- OCR guardrail peningkatan kualitas data:
+  - auto-infer tanggal dari `detectedDate` batch untuk item tanpa tanggal (`date_source=inferred`, tetap `needs_review=true`).
+  - filter total/ringkasan non-transaksi (`total/jumlah/uang bersih/saldo`) diperketat agar tidak ikut tersimpan sebagai item transaksi.
+  - validasi pra-simpan OCR diperketat: blok simpan jika ada item invalid (tipe kosong, nominal <= 0, deskripsi terlalu pendek).
 - Chat UX fix batch 1:
   - aksi bulk type di layar review chat-import (`Set IN/Set OUT` + default majority) kini hanya diterapkan ke item ambigu, sehingga item dengan sinyal tipe kuat tidak lagi tertimpa massal.
   - baris aksi di layar review (`Pilih Semua`, `Batal Pilihan`, `Set IN`, `Set OUT`) diubah menjadi layout `Wrap` agar tidak overflow di layar mobile sempit.
