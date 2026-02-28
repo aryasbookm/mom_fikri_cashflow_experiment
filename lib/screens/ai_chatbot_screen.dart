@@ -19,10 +19,14 @@ class AiChatbotScreen extends StatefulWidget {
     super.key,
     required this.financeSnapshot,
     this.initialQuestion,
+    this.initialDraft,
+    this.initialDraftAuditText,
   });
 
   final List<Map<String, dynamic>> financeSnapshot;
   final String? initialQuestion;
+  final ChatImportDraft? initialDraft;
+  final String? initialDraftAuditText;
 
   @override
   State<AiChatbotScreen> createState() => _AiChatbotScreenState();
@@ -49,7 +53,9 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   bool _isLoading = false;
   int _cooldownSeconds = 0;
   bool _initialQuestionHandled = false;
+  bool _initialDraftHandled = false;
   String? _pendingInitialQuestion;
+  int? _pendingDraftCreatedAtEpochMs;
   String _chatProviderPriority = 'groq_first';
   bool _showTechnicalMeta = false;
   final Map<int, int> _assistantFeedback = <int, int>{}; // -1 | 1
@@ -68,6 +74,11 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   static const String _chatProviderPriorityKey = 'ai_chat_provider_priority_v1';
   static const String _chatShowTechnicalMetaKey =
       'ai_chat_show_technical_meta_v1';
+  static const String _chatPendingDraftKey = 'ai_chat_pending_draft_v1';
+  static const String _chatPendingDraftMetaKey =
+      'ai_chat_pending_draft_meta_v1';
+  static const String _chatPendingDraftSnapshotKey =
+      'ai_chat_pending_draft_snapshot_v1';
 
   @override
   void initState() {
@@ -160,6 +171,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   void _resetChat() {
     _pendingDraft = null;
     _pendingDraftMessageIndex = null;
+    _pendingDraftCreatedAtEpochMs = null;
     _assistantFeedback.clear();
     _messages
       ..clear()
@@ -180,11 +192,17 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   Future<void> _loadPersistedChat() async {
     _resetChat();
     final prefs = await SharedPreferences.getInstance();
+    final currentSnapshotHash = _snapshotHash();
     final snapshotHash = prefs.getString(_chatSnapshotKey);
     final historyRaw = prefs.getString(_chatStoreKey);
     if (snapshotHash == null ||
         historyRaw == null ||
-        snapshotHash != _snapshotHash()) {
+        snapshotHash != currentSnapshotHash) {
+      await prefs.remove(_chatPendingDraftKey);
+      await prefs.remove(_chatPendingDraftMetaKey);
+      await prefs.remove(_chatPendingDraftSnapshotKey);
+      await _prepareInitialDraftFlowIfAny();
+      _prepareInitialQuestionFlowIfAny();
       return;
     }
 
@@ -237,10 +255,56 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     } catch (_) {
       // Keep default chat state and still continue initial-question flow.
     }
+
+    final pendingDraftRaw = prefs.getString(_chatPendingDraftKey);
+    final pendingDraftSnapshot = prefs.getString(_chatPendingDraftSnapshotKey);
+    final pendingMetaRaw = prefs.getString(_chatPendingDraftMetaKey);
+    if (pendingDraftRaw != null &&
+        pendingDraftSnapshot == currentSnapshotHash &&
+        pendingDraftRaw.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(pendingDraftRaw);
+        if (decoded is Map<String, dynamic>) {
+          final parsed = ChatImportDraft.fromJson(decoded);
+          if (parsed.transactions.isNotEmpty) {
+            _pendingDraft = parsed;
+          }
+        } else if (decoded is Map) {
+          final parsed = ChatImportDraft.fromJson(
+            Map<String, dynamic>.from(decoded),
+          );
+          if (parsed.transactions.isNotEmpty) {
+            _pendingDraft = parsed;
+          }
+        }
+      } catch (_) {
+        _pendingDraft = null;
+        _pendingDraftCreatedAtEpochMs = null;
+      }
+      if (_pendingDraft != null && pendingMetaRaw != null) {
+        try {
+          final metaDecoded = jsonDecode(pendingMetaRaw);
+          if (metaDecoded is Map<String, dynamic>) {
+            _pendingDraftCreatedAtEpochMs = _toIntOrNull(
+              metaDecoded['created_at_epoch_ms'],
+            );
+          } else if (metaDecoded is Map) {
+            final map = Map<String, dynamic>.from(metaDecoded);
+            _pendingDraftCreatedAtEpochMs = _toIntOrNull(
+              map['created_at_epoch_ms'],
+            );
+          }
+        } catch (_) {
+          _pendingDraftCreatedAtEpochMs = null;
+        }
+      }
+    }
+
     if (!mounted) {
       return;
     }
     setState(() {});
+    await _prepareInitialDraftFlowIfAny();
     _prepareInitialQuestionFlowIfAny();
   }
 
@@ -322,6 +386,114 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
     await prefs.setString(_chatStoreKey, encoded);
     await prefs.setString(_chatSnapshotKey, _snapshotHash());
     await prefs.setInt(_chatSavedAtKey, DateTime.now().millisecondsSinceEpoch);
+    await _persistPendingDraft(prefs);
+  }
+
+  Future<void> _persistPendingDraft(SharedPreferences prefs) async {
+    final draft = _pendingDraft;
+    if (draft == null) {
+      await prefs.remove(_chatPendingDraftKey);
+      await prefs.remove(_chatPendingDraftMetaKey);
+      await prefs.remove(_chatPendingDraftSnapshotKey);
+      return;
+    }
+    _pendingDraftCreatedAtEpochMs ??= DateTime.now().millisecondsSinceEpoch;
+    await prefs.setString(_chatPendingDraftKey, jsonEncode(draft.toJson()));
+    await prefs.setString(_chatPendingDraftSnapshotKey, _snapshotHash());
+    await prefs.setString(
+      _chatPendingDraftMetaKey,
+      jsonEncode(<String, dynamic>{
+        'created_at_epoch_ms': _pendingDraftCreatedAtEpochMs,
+        'source': draft.source,
+        'import_hash': draft.importHash,
+      }),
+    );
+  }
+
+  int? _toIntOrNull(dynamic value) {
+    if (value is int) {
+      return value;
+    }
+    if (value is num) {
+      return value.toInt();
+    }
+    return int.tryParse((value ?? '').toString());
+  }
+
+  Future<void> _prepareInitialDraftFlowIfAny() async {
+    if (_initialDraftHandled || !mounted) {
+      return;
+    }
+    _initialDraftHandled = true;
+    final inboundDraft = widget.initialDraft;
+    if (inboundDraft == null || inboundDraft.transactions.isEmpty) {
+      return;
+    }
+
+    if (_pendingDraft != null &&
+        _pendingDraft!.importHash.trim() == inboundDraft.importHash.trim()) {
+      return;
+    }
+    if (_pendingDraft != null && _pendingDraft!.transactions.isNotEmpty) {
+      final replace = await showDialog<bool>(
+        context: context,
+        builder:
+            (context) => AlertDialog(
+              title: const Text('Ganti Draft Pending?'),
+              content: const Text(
+                'Masih ada draft chat yang belum selesai. Ganti dengan draft OCR terbaru?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Pertahankan Draft Lama'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('Ganti Draft'),
+                ),
+              ],
+            ),
+      );
+      if (!mounted || replace != true) {
+        return;
+      }
+    }
+
+    final auditText = widget.initialDraftAuditText?.trim() ?? '';
+    final intro = <String>[
+      if (auditText.isNotEmpty) 'Audit OCR mentah:\n$auditText',
+      _buildDraftSummary(inboundDraft),
+    ].join('\n\n');
+    setState(() {
+      _pendingDraft = inboundDraft;
+      _pendingDraftCreatedAtEpochMs = DateTime.now().millisecondsSinceEpoch;
+      _messages.add(
+        const AiChatMessage(
+          role: 'assistant',
+          text: 'Memuat draf OCR untuk diedit di chat...',
+          providerId: 'local-ocr-bridge',
+          confidenceLevel: 'high',
+          confidenceReason: 'Draft OCR diteruskan ke mode chat untuk review.',
+          executionPath: 'local',
+          executionReason: 'routing_ocr_accurate_to_chat',
+        ),
+      );
+      _messages.add(
+        AiChatMessage(
+          role: 'assistant',
+          text: intro,
+          providerId: 'local-ocr-bridge',
+          confidenceLevel: 'high',
+          confidenceReason: 'Ringkasan OCR mentah ditampilkan untuk audit.',
+          executionPath: 'local',
+          executionReason: 'drafting_bootstrap',
+        ),
+      );
+      _pendingDraftMessageIndex = _messages.length - 1;
+    });
+    await _persistChat();
+    _scrollToBottom();
   }
 
   Future<void> _clearChat() async {
@@ -499,6 +671,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
             ),
           );
           _pendingDraft = reply.actionDraft;
+          _pendingDraftCreatedAtEpochMs = DateTime.now().millisecondsSinceEpoch;
           _pendingDraftMessageIndex = _messages.length - 1;
         });
       } else {
@@ -629,6 +802,7 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
       if (nextItems.isEmpty) {
         _pendingDraft = null;
         _pendingDraftMessageIndex = null;
+        _pendingDraftCreatedAtEpochMs = null;
         return 'Semua item draf sudah dihapus.';
       }
       _pendingDraft = draft.copyWith(transactions: nextItems);
@@ -1208,15 +1382,66 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
         result is Map &&
         result['saved'] == true &&
         result['source'] == 'chat-import';
-    setState(() {
-      _pendingDraft = null;
-      _pendingDraftMessageIndex = null;
-    });
+    if (savedFromChatImport) {
+      setState(() {
+        _pendingDraft = null;
+        _pendingDraftMessageIndex = null;
+        _pendingDraftCreatedAtEpochMs = null;
+      });
+      await _persistChat();
+    }
     if (savedFromChatImport) {
       await Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => const HistoryScreen()));
     }
+  }
+
+  Future<void> _exitDraftingMode() async {
+    if (_pendingDraft == null) {
+      return;
+    }
+    final shouldExit = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Keluar Mode Draft?'),
+            content: const Text(
+              'Draft OCR yang sedang diedit akan dibatalkan dan dihapus dari chat.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Tidak'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Ya, Keluar'),
+              ),
+            ],
+          ),
+    );
+    if (shouldExit != true || !mounted) {
+      return;
+    }
+    setState(() {
+      _pendingDraft = null;
+      _pendingDraftMessageIndex = null;
+      _pendingDraftCreatedAtEpochMs = null;
+      _messages.add(
+        const AiChatMessage(
+          role: 'assistant',
+          text: 'Mode edit draft ditutup. Kita kembali ke chat biasa.',
+          providerId: 'local-draft-exit',
+          confidenceLevel: 'high',
+          confidenceReason: 'User keluar dari mode drafting.',
+          executionPath: 'local',
+          executionReason: 'drafting_exit',
+        ),
+      );
+    });
+    await _persistChat();
+    _scrollToBottom();
   }
 
   void _startCooldown(int seconds) {
@@ -1359,6 +1584,59 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
               ),
             ),
           ),
+          if (_pendingDraft != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 6),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF8E1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFFFE0B2)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.edit_note, size: 16, color: Colors.black87),
+                        SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Mode Edit Draf OCR aktif',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed:
+                              (_isLoading || _cooldownSeconds > 0)
+                                  ? null
+                                  : _openPendingDraft,
+                          icon: const Icon(Icons.playlist_add_check),
+                          label: const Text('Lanjut ke Review'),
+                        ),
+                        TextButton.icon(
+                          onPressed:
+                              (_isLoading || _cooldownSeconds > 0)
+                                  ? null
+                                  : _exitDraftingMode,
+                          icon: const Icon(Icons.close),
+                          label: const Text('Keluar Mode Draft'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
@@ -1585,6 +1863,15 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
                                       : _openPendingDraft,
                               icon: const Icon(Icons.playlist_add_check),
                               label: const Text('Lanjut ke Review'),
+                            ),
+                            const SizedBox(width: 4),
+                            IconButton(
+                              tooltip: 'Keluar mode draft',
+                              onPressed:
+                                  (_isLoading || _cooldownSeconds > 0)
+                                      ? null
+                                      : _exitDraftingMode,
+                              icon: const Icon(Icons.close),
                             ),
                           ],
                         ),

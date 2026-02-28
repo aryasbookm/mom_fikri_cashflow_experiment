@@ -232,11 +232,20 @@ flutter build apk --release \
   - verifikasi aksi sensitif `delete_transaction` dan `create_category` selalu melalui konfirmasi 2 langkah (`ya/tidak`) sebelum eksekusi DB.
   - verifikasi UI tidak menampilkan toggle `Mode Standar/Mode AI`; mode aman/fleksibel harus berjalan otomatis di background.
   - uji query "produk terjual/laku hari ini" dan pastikan dijawab deterministik dari data transaksi, bukan klarifikasi generik.
+  - uji mode drafting eksplisit:
+    - saat draft OCR aktif, banner `Mode Edit Draf OCR aktif` tampil.
+    - tombol `Keluar Mode Draft` memunculkan konfirmasi lalu membersihkan draft jika disetujui.
+  - uji single persistent draft:
+    - buat draft via OCR akurat, tutup app, buka lagi; draft harus tetap ada.
+    - setelah simpan sukses atau batal draft, pending draft harus hilang (tidak resurrect).
 - [ ] Uji OCR fallback transparency log:
   - setelah scan, panel log harus menampilkan urutan model/provider yang dicoba dengan status (`Trying/Success/Failed`), alasan, dan latency.
   - verifikasi fallback case (contoh model utama kena limit) menampilkan penyebab eksplisit per langkah.
   - verifikasi pada mode akurat, hasil structuring tidak memangkas transaksi hanya menjadi "baris paling jelas"; baris ambigu tetap masuk sebagai `needs_review`.
   - verifikasi baris grand total (`Total/Jumlah/Uang Bersih/Saldo`) tidak ikut masuk sebagai transaksi produk.
+  - verifikasi routing mode scan:
+    - `Mode Cepat` tetap ke review OCR langsung.
+    - `Mode Akurat` setelah scan harus pindah ke chatbot dengan audit OCR mentah + state drafting.
 - [ ] Jalankan regression test otomatis Phase 4:
   - `flutter test test/chat_import_draft_model_test.dart test/chat_import_audit_service_test.dart`
 - [ ] Jalankan regression test OCR parity Phase 1:

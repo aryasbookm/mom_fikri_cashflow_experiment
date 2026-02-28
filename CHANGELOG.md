@@ -10,6 +10,17 @@ All notable changes to this project will be documented in this file.
 *Fokus: Pencarian Global, Reminder Backup, Insight Produk Lambat*
 
 ### Added
+- OCR Mode Akurat kini memakai **Chat-Assisted Structuring**:
+  - setelah scan akurat, hasil OCR tidak langsung diproses di kartu review OCR;
+  - draft diarahkan ke `Asisten Mom Fiqry` sebagai konteks `drafting` untuk human-in-the-loop;
+  - ringkasan audit OCR mentah ditampilkan dulu di chat agar user bisa verifikasi sebelum edit/simpan.
+- Single persistent draft untuk chat drafting:
+  - pending draft diserialisasi ke `SharedPreferences` (`ai_chat_pending_draft_*`) agar tidak hilang saat app ditutup.
+  - restore draft dilakukan saat layar chat dibuka ulang pada snapshot data yang sama.
+  - saat draft disimpan sukses atau dibatalkan, key pending draft otomatis dibersihkan.
+- UI drafting eksplisit di chatbot:
+  - banner `Mode Edit Draf OCR aktif` + tombol `Lanjut ke Review` dan `Keluar Mode Draft`.
+  - tombol keluar menjalankan konfirmasi dulu sebelum membersihkan draft.
 - Action Engine phase-2 (chat safety actions):
   - action `delete_transaction` ditambahkan ke registry aksi dengan konfirmasi 2 langkah (`ya/tidak`) sebelum eksekusi hapus ke SQLite.
   - action `create_category` ditambahkan ke registry aksi dengan konfirmasi 2 langkah dan validasi duplikasi/reaktivasi kategori arsip.
@@ -179,6 +190,10 @@ All notable changes to this project will be documented in this file.
   - PDF menampilkan ringkasan produk untuk transaksi pemasukan (hybrid) dan tetap menyertakan detail item agar lebih mudah dibaca owner.
 
 ### Changed
+- OCR mode policy diperjelas:
+  - **Mode Cepat** tetap single-pass lite (tidak diubah).
+  - **Mode Akurat** sekarang fokus audit+editing via chat, bukan parsing final langsung di layar OCR.
+- Copy mode akurat pada layar OCR diperbarui agar sesuai alur baru (teruskan ke chat untuk review terstruktur).
 - Chat Smart Mode UX:
   - toggle manual mode pada layar chatbot dihapus dari UI; mode aman/fleksibel kini berjalan otomatis di background sesuai konteks pertanyaan.
   - pesan transisi internal `local-mode-switch` tidak lagi ditampilkan sebagai bubble agar percakapan lebih bersih.

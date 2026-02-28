@@ -9,9 +9,11 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../models/chat_import_draft.dart';
+import '../models/ocr_transaction_draft.dart';
 import '../models/transaction_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/category_provider.dart';
+import '../providers/product_provider.dart';
 import '../services/chat_import_audit_service.dart';
 import '../services/ocr_import_audit_service.dart';
 import '../services/ai_insight_service.dart';
@@ -19,6 +21,7 @@ import '../services/ai_ocr_service.dart';
 import '../services/ocr_learning_dictionary_service.dart';
 import '../services/ai_quota_guard_service.dart';
 import '../providers/transaction_provider.dart';
+import 'ai_chatbot_screen.dart';
 
 enum _OcrScanMode { fast, accurate }
 
@@ -633,6 +636,60 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
                       : item.warning,
             );
           }).toList();
+      if (_ocrScanMode == _OcrScanMode.accurate) {
+        final draft = _buildChatImportDraftFromBatch(
+          batch: batch,
+          editableItems: editableItems,
+          fallbackDateIso: fallbackTodayIso,
+          imageBytes: bytes,
+          mimeType: mimeType,
+        );
+        if (draft.transactions.isEmpty) {
+          throw Exception(
+            'OCR mode akurat belum menemukan baris transaksi yang valid. Coba scan ulang atau gunakan Mode Cepat.',
+          );
+        }
+        final auditText = _buildRawOcrAuditText(batch);
+        final financeSnapshot = _buildFinanceSnapshotForChat(
+          transactionProvider: context.read<TransactionProvider>(),
+          productProvider: context.read<ProductProvider>(),
+        );
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _clearDraftItems();
+          _detectedDate = batch.detectedDate;
+          _notesFound
+            ..clear()
+            ..addAll(batch.notesFound);
+          _ignoredLines
+            ..clear()
+            ..addAll(batch.ignoredLines);
+          _inferenceNotes.clear();
+          _isPartialDayImport = false;
+          _missingOpeningBlock = false;
+          _missingClosingTotal = false;
+          _chatImportHash = '';
+          _ocrScanHash = _buildOcrScanHash(
+            imageBytes: bytes,
+            mimeType: mimeType,
+          );
+          _lastErrorMessage = null;
+          _lastRejectedReason = null;
+        });
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder:
+                (_) => AiChatbotScreen(
+                  financeSnapshot: financeSnapshot,
+                  initialDraft: draft,
+                  initialDraftAuditText: auditText,
+                ),
+          ),
+        );
+        return;
+      }
       if (!mounted) {
         return;
       }
@@ -1389,6 +1446,186 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
     }
   }
 
+  ChatImportDraft _buildChatImportDraftFromBatch({
+    required OcrBatchDraft batch,
+    required List<_EditableDraftItem> editableItems,
+    required String fallbackDateIso,
+    required List<int> imageBytes,
+    required String mimeType,
+  }) {
+    final confidenceAvg =
+        editableItems.isEmpty
+            ? 0
+            : editableItems
+                    .map((item) => item.confidence.clamp(0, 100))
+                    .reduce((a, b) => a + b) ~/
+                editableItems.length;
+    final importHash = _buildOcrScanHash(
+      imageBytes: imageBytes,
+      mimeType: mimeType,
+    );
+    return ChatImportDraft(
+      intent: 'import_transactions_draft',
+      source: 'ocr-accurate-chat',
+      importHash: importHash,
+      transactions: editableItems
+          .map(
+            (item) => ChatImportDraftItem(
+              type: item.type,
+              amount: _parseAmountInput(item.amountController.text),
+              description: item.descriptionController.text.trim(),
+              categoryHint: item.categoryHint,
+              dateIso:
+                  item.dateIso.trim().isEmpty
+                      ? fallbackDateIso
+                      : item.dateIso.trim(),
+              dateSource:
+                  item.dateSource.trim().isEmpty
+                      ? 'inferred'
+                      : item.dateSource.trim(),
+              needsReview: item.needsReview,
+              warning: item.warning,
+              confidence: item.confidence.clamp(0, 100),
+            ),
+          )
+          .toList(growable: false),
+      notesFound: List<String>.from(batch.notesFound),
+      ignoredLines: List<String>.from(batch.ignoredLines),
+      confidence: confidenceAvg.clamp(0, 100),
+      isPartialDay: false,
+      missingOpeningBlock: false,
+      missingClosingTotal: false,
+      inferenceNotes: const <String>[
+        'Draft berasal dari OCR Mode Akurat dan perlu review sebelum simpan.',
+      ],
+    );
+  }
+
+  String _buildRawOcrAuditText(OcrBatchDraft batch) {
+    final lines = <String>[];
+    if (batch.detectedDate.trim().isNotEmpty) {
+      lines.add('Tanggal terdeteksi: ${batch.detectedDate.trim()}');
+    } else {
+      lines.add('Tanggal terdeteksi: (tidak ada, fallback ke hari ini).');
+    }
+    final rawCandidates =
+        batch.transactions
+            .map((item) => item.rawText.trim())
+            .where((text) => text.isNotEmpty)
+            .take(20)
+            .toList();
+    if (rawCandidates.isNotEmpty) {
+      lines.add('Baris OCR mentah:');
+      lines.addAll(rawCandidates.map((line) => '- $line'));
+    }
+    if (batch.notesFound.isNotEmpty) {
+      lines.add('Catatan non-transaksi:');
+      lines.addAll(batch.notesFound.take(8).map((line) => '- $line'));
+    }
+    if (batch.ignoredLines.isNotEmpty) {
+      lines.add('Baris diabaikan:');
+      lines.addAll(batch.ignoredLines.take(8).map((line) => '- $line'));
+    }
+    return lines.join('\n');
+  }
+
+  List<Map<String, dynamic>> _buildFinanceSnapshotForChat({
+    required TransactionProvider transactionProvider,
+    required ProductProvider productProvider,
+  }) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final periodStart = today.subtract(const Duration(days: 29));
+    var income30 = 0;
+    var expense30 = 0;
+    final daily = <String, Map<String, dynamic>>{};
+    final incomeCategories = <String, int>{};
+    final expenseCategories = <String, int>{};
+
+    for (final tx in transactionProvider.transactions) {
+      final parsed = DateTime.tryParse(tx.date);
+      if (parsed == null || parsed.isBefore(periodStart)) {
+        continue;
+      }
+      final dayKey = DateFormat('yyyy-MM-dd').format(parsed);
+      final row =
+          daily[dayKey] ??
+          <String, dynamic>{
+            'type': 'daily_summary',
+            'date': dayKey,
+            'income': 0,
+            'expense': 0,
+          };
+      final categoryName = (tx.categoryName ?? 'Tanpa Kategori').trim();
+      if (tx.type == 'IN') {
+        income30 += tx.amount;
+        row['income'] = (row['income'] as int) + tx.amount;
+        incomeCategories[categoryName] =
+            (incomeCategories[categoryName] ?? 0) + tx.amount;
+      } else if (tx.type == 'OUT') {
+        expense30 += tx.amount;
+        row['expense'] = (row['expense'] as int) + tx.amount;
+        expenseCategories[categoryName] =
+            (expenseCategories[categoryName] ?? 0) + tx.amount;
+      }
+      daily[dayKey] = row;
+    }
+
+    final snapshot = <Map<String, dynamic>>[
+      <String, dynamic>{
+        'type': 'summary_30_days',
+        'income': income30,
+        'expense': expense30,
+        'net': income30 - expense30,
+      },
+    ];
+
+    final dailyRows =
+        daily.values.toList()..sort(
+          (a, b) => (a['date'] as String).compareTo((b['date'] as String)),
+        );
+    snapshot.addAll(dailyRows);
+
+    snapshot.addAll(
+      incomeCategories.entries
+          .map(
+            (entry) => <String, dynamic>{
+              'type': 'income_category_30d',
+              'category': entry.key,
+              'total_amount': entry.value,
+            },
+          )
+          .toList(growable: false),
+    );
+    snapshot.addAll(
+      expenseCategories.entries
+          .map(
+            (entry) => <String, dynamic>{
+              'type': 'expense_category_30d',
+              'category': entry.key,
+              'total_amount': entry.value,
+            },
+          )
+          .toList(growable: false),
+    );
+
+    snapshot.addAll(
+      productProvider.products
+          .take(100)
+          .map(
+            (product) => <String, dynamic>{
+              'type': 'product_catalog',
+              'name': product.name,
+              'stock_now': product.stock,
+              'min_stock': product.minStock,
+              'is_active': product.isActive,
+            },
+          )
+          .toList(growable: false),
+    );
+    return snapshot;
+  }
+
   String _mergeWarning(String base, String extra) {
     final b = base.trim();
     final e = extra.trim();
@@ -1991,7 +2228,7 @@ class _OcrAssistScreenState extends State<OcrAssistScreen> {
           Text(
             _ocrScanMode == _OcrScanMode.fast
                 ? 'Cepat: Gemini Lite lalu fallback Groq.'
-                : 'Akurat: Semua model Gemini dicoba berurutan lalu fallback Groq.',
+                : 'Akurat: OCR diteruskan ke Chat untuk review terstruktur (human-in-the-loop).',
             style: const TextStyle(fontSize: 12, color: Colors.black54),
           ),
           const SizedBox(height: 12),

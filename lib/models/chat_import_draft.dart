@@ -45,6 +45,20 @@ class ChatImportDraftItem {
     );
   }
 
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'type': type,
+      'amount': amount,
+      'description': description,
+      'category_hint': categoryHint,
+      'date_iso': dateIso,
+      'date_source': dateSource,
+      'needs_review': needsReview,
+      'warning': warning,
+      'confidence': confidence,
+    };
+  }
+
   factory ChatImportDraftItem.fromJson(Map<String, dynamic> json) {
     final rawType = (json['type'] ?? '').toString().trim().toUpperCase();
     final type = (rawType == 'IN' || rawType == 'OUT') ? rawType : 'IN';
@@ -177,6 +191,24 @@ class ChatImportDraft {
       missingClosingTotal: missingClosingTotal ?? this.missingClosingTotal,
       inferenceNotes: inferenceNotes ?? this.inferenceNotes,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'intent': intent,
+      'source': source,
+      'import_hash': importHash,
+      'transactions': transactions
+          .map((item) => item.toJson())
+          .toList(growable: false),
+      'notes_found': notesFound,
+      'ignored_lines': ignoredLines,
+      'confidence': confidence,
+      'is_partial_day': isPartialDay,
+      'missing_opening_block': missingOpeningBlock,
+      'missing_closing_total': missingClosingTotal,
+      'inference_notes': inferenceNotes,
+    };
   }
 
   factory ChatImportDraft.fromJson(Map<String, dynamic> json) {

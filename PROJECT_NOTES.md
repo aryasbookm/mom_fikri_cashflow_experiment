@@ -260,7 +260,18 @@ Catatan:
      - fokus 1 transaksi per scan (bukan parsing 1 halaman penuh),
      - tetap Human-in-the-Loop: data tidak disimpan otomatis, user wajib review dan tekan `Simpan`.
      - proteksi UX duplikasi: setelah simpan sukses dari form, draft di layar scan dibersihkan dan muncul konfirmasi sukses.
-    - recovery jaringan: jika OCR gagal sementara (mis. `503`), user bisa `Coba Lagi` dengan foto yang sama.
+   - recovery jaringan: jika OCR gagal sementara (mis. `503`), user bisa `Coba Lagi` dengan foto yang sama.
+   - mode akurat (Phase 4) diarahkan ke chatbot:
+     - hasil OCR akurat dibawa sebagai draft ke `Asisten Mom Fiqry` (state `drafting`) untuk edit via Action Engine.
+     - chat menampilkan audit OCR mentah dulu agar user bisa cek sumber hasil baca sebelum lanjut edit/simpan.
+     - mode cepat tetap memakai alur review OCR langsung (tidak berubah).
+   - draft chat kini persisten tunggal:
+     - hanya 1 draft aktif dalam satu waktu,
+     - draft disimpan ke `SharedPreferences` agar tetap ada jika app tertutup,
+     - draft dibersihkan otomatis saat user simpan sukses atau memilih keluar mode draft.
+   - mode drafting eksplisit:
+     - banner `Mode Edit Draf OCR aktif` ditampilkan saat draft pending,
+     - tersedia tombol `Keluar Mode Draft` dengan konfirmasi agar user tidak terjebak di mode drafting.
     - pre-check kuota: jika cooldown/limit harian aktif, tombol kamera/galeri dinonaktifkan dan user diberi pesan dini.
     - kartu migrasi di Riwayat menampilkan status kuota AI langsung, sehingga user tahu kondisi AI sebelum masuk ke layar scan.
     - fallback error OCR disederhanakan agar tidak menampilkan teks teknis mentah dari provider AI.

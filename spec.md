@@ -151,6 +151,16 @@ Setiap fitur non-trivial dinyatakan siap merge jika lolos:
   - normalisasi intent ringan (typo/singkatan/slang) tetap aktif untuk menekan false-positive out-of-scope,
   - state percakapan (`idle`, `drafting`, `review`) digunakan untuk menjaga konteks aksi lanjutan,
   - edit draf via chat mendukung ubah nominal, nama/deskripsi, tipe `MASUK/KELUAR`, tanggal, dan hapus item.
+  - mode drafting eksplisit:
+    - banner `Mode Edit Draf OCR aktif` muncul saat ada draft pending,
+    - tersedia aksi `Lanjut ke Review` dan `Keluar Mode Draft` (dengan konfirmasi).
+  - pending draft bersifat single-persistent:
+    - hanya satu draft aktif pada satu waktu,
+    - draft disimpan lokal agar tidak hilang saat app tertutup,
+    - draft otomatis dibersihkan saat simpan sukses atau batal.
+  - integrasi OCR mode akurat:
+    - hasil OCR mode akurat diarahkan ke chat sebagai draft (bukan langsung kartu review OCR),
+    - chat menampilkan audit teks OCR mentah sebelum editing untuk transparansi.
 
 ## 6. Alur Utama
 - Buka aplikasi:
